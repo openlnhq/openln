@@ -1,8 +1,8 @@
 // @ts-nocheck
 //
 import cron from "node-cron";
-import { db } from "@workspace/db";
-import { pendingInvoicesTable, transactionsTable } from "@workspace/db";
+import { db } from "../db/index.js";
+import { pendingInvoicesTable, transactionsTable } from "../db/index.js";
 import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { NWCClient } from "@getalby/sdk";
 import {
@@ -14,13 +14,13 @@ import {
   noteRelayOverload,
   getAccountNwcUrl,
   isPaymentNotFoundError,
-} from "./nwc";
-import { finalizePendingSend, checkOwnSettlementProof } from "./feeEngine";
-import { extractPaymentHash } from "./lnAddress";
-import { advanceWrap, advanceWrapBatch, type WrapRow } from "./holdWrap";
-import { checkLnurlVerify } from "./lnAddress";
-import { logger } from "./logger";
-import { autoSettleShopOrders, directSettleShopOrder } from "./shopOrderAutoSettle";
+} from "./nwc.js";
+import { finalizePendingSend, checkOwnSettlementProof } from "./feeEngine.js";
+import { extractPaymentHash } from "./lnAddress.js";
+import { advanceWrap, advanceWrapBatch, type WrapRow } from "./holdWrap.js";
+import { checkLnurlVerify } from "./lnAddress.js";
+import { logger } from "./logger.js";
+import { autoSettleShopOrders, directSettleShopOrder } from "./shopOrderAutoSettle.js";
 
 // ── Shared settlement logic ───────────────────────────────────────────────────
 

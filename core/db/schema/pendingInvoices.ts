@@ -1,7 +1,7 @@
 import { pgTable, text, uuid, bigint, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { accountsTable } from "./accounts";
+import { accountsTable } from "./accounts.js";
 
 export const pendingInvoicesTable = pgTable("pending_invoices", {
   id: uuid("id").primaryKey().defaultRandom(),

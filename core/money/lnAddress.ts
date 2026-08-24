@@ -12,7 +12,7 @@
  */
 import dns from "node:dns/promises";
 import net from "node:net";
-import { logger } from "./logger";
+import { logger } from "./logger.js";
 
 const FETCH_TIMEOUT_MS = 15_000;
 

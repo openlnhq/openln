@@ -1,5 +1,5 @@
 import { pgTable, text, uuid, integer, timestamp, jsonb, index } from "drizzle-orm/pg-core";
-import { accountsTable } from "./accounts";
+import { accountsTable } from "./accounts.js";
 
 /**
  * Append-only flight recorder for money-path operations.

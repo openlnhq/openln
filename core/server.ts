@@ -13,6 +13,7 @@ import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handlePosboxRoute } from "../plugins/posbox.js";
 import { handleShopRoute } from "../plugins/shop.js";
+import { handlePartnerRoute } from "../plugins/partner.js";
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
@@ -35,6 +36,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/health") return json(res, 200, { status: "ok", service: "openln-core", plugins: registry.list().map(p => p.id) });
     const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1];
     const currentAccount = cardToken ? await auth.authenticate(cardToken) : undefined;
+    if (await handlePartnerRoute(req,res,u)) return;
     if (await handlePosboxRoute(req,res,u,currentAccount)) return;
     if (handleShopRoute(req,res,u)) return;
     if (await handleReportsRoute(req,res,u,currentAccount)) return;

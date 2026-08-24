@@ -1,0 +1,9 @@
+import { PluginRegistry, type OpenLnPlugin } from "./api.js";
+
+const cards: OpenLnPlugin = { id: "cards", version: "0.1.0", routes: [{ method: "GET", path: "/api/cards", handler: "cards.list" }, { method: "POST", path: "/api/cards", handler: "cards.issue" }, { method: "PATCH", path: "/api/cards/:id", handler: "cards.update" }, { method: "DELETE", path: "/api/cards/:id", handler: "cards.cancel" }, { method: "GET", path: "/card/:id", handler: "cards.lnurlw" }, { method: "GET", path: "/api/provision/:token", handler: "cards.provision" }], uiSlots: ["dashboard", "navigation"], settings: [], migrations: [] };
+const pos: OpenLnPlugin = { id: "pos", version: "0.1.0", routes: [{ method: "POST", path: "/api/pos/invoice", handler: "pos.invoice" }, { method: "GET", path: "/api/pos/invoice/:paymentHash/status", handler: "pos.status" }], uiSlots: ["dashboard", "navigation"], settings: [], migrations: [] };
+const reports: OpenLnPlugin = { id: "reports", version: "0.1.0", routes: [{ method: "GET", path: "/api/reports/summary", handler: "reports.summary" }, { method: "GET", path: "/api/reports/transactions", handler: "reports.transactions" }], uiSlots: ["dashboard"], settings: [], migrations: [] };
+const posbox: OpenLnPlugin = { id: "posbox", version: "0.1.0", routes: [{ method: "GET", path: "/api/posbox/firmware", handler: "posbox.firmware" }, { method: "POST", path: "/api/posbox/devices", handler: "posbox.register" }], uiSlots: ["dashboard", "navigation"], settings: [], migrations: [] };
+const shop: OpenLnPlugin = { id: "shop", version: "0.1.0", routes: [{ method: "GET", path: "/api/shop/partners", handler: "shop.partners" }], uiSlots: ["navigation"], settings: [], migrations: [] };
+export const builtinPlugins: readonly OpenLnPlugin[] = [cards, pos, reports, posbox, shop];
+export function createBuiltinRegistry(): PluginRegistry { const registry = new PluginRegistry(); for (const plugin of builtinPlugins) registry.register(plugin); return registry; }

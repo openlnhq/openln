@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { AuthService } from "./auth/service.js";
 import { WalletService } from "./wallet/service.js";
-import { PluginRegistry } from "./plugins/api.js";
+import { createBuiltinRegistry } from "./plugins/builtin.js";
 import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable, paymentEventsTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
@@ -11,7 +11,7 @@ import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
 
-const auth = new AuthService(); const wallet = new WalletService(); const registry = new PluginRegistry();
+const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
 const json = (r: ServerResponse, s: number, b: unknown) => { r.writeHead(s, { "content-type": "application/json" }); r.end(JSON.stringify(b)); };
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   let raw = ""; for await (const c of req) raw += c;

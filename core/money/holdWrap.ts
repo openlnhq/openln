@@ -465,7 +465,15 @@ async function doAdvance(row: WrapRow): Promise<string> {
     }
     // accepted = customer HTLC locked (1st mile done). Some wallets surface
     // paid=true while still held; treat locked OR accepted as 1st-mile complete.
-    if (hold.state === "accepted" || (hold.paid && hold.state !== "settled" && hold.state !== "failed")) {
+    // Wallet vocabulary normalization: Veil reports a held HTLC as "accepted";
+    // Alby Hub reports the same locked state as "pending" (type outgoing).
+    // A hold invoice's HTLC, once locked, cannot be unlocked by the payer -
+    // "pending" on a hold row therefore means LOCKED, not unpaid.
+    if (
+      hold.state === "accepted" ||
+      hold.state === "pending" ||
+      (hold.paid && hold.state !== "settled" && hold.state !== "failed")
+    ) {
       await setWrapStatus(row.id, ["created"], "accepted");
       status = "accepted";
     } else if (hold.state === "settled") {

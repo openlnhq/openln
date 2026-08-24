@@ -11,6 +11,7 @@ import { createWrappedInvoice, advanceWrap, type WrapRow } from "./money/holdWra
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
+import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handlePosboxRoute } from "../plugins/posbox.js";
@@ -58,6 +59,22 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
     if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); if (source.kind !== "nwc") return json(res, 200, { balanceSats: 0, connected: false }); const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); }
+
+    if (req.method === "POST" && u.pathname === "/api/wallet/verify") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req); const bolt11 = String(v.bolt11 ?? "").trim();
+      if (!bolt11 || !/^ln(bc|tb|bcrt)/i.test(bolt11)) return json(res, 400, { error: "Invalid BOLT11 invoice" });
+      try { const { parseBolt11AmountSats } = await import("./money/boltcard.js"); const amountSats = parseBolt11AmountSats(bolt11); if (!amountSats) return json(res, 400, { error: "Invoice has no valid amount" }); return json(res, 200, { amountSats, description: "Lightning payment", bolt11 }); } catch { return json(res, 400, { error: "Unable to decode invoice" }); }
+    }
+    if (req.method === "POST" && u.pathname === "/api/wallet/pay") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req); const bolt11 = String(v.bolt11 ?? "").trim();
+      if (!bolt11 || !/^ln(bc|tb|bcrt)/i.test(bolt11)) return json(res, 400, { error: "Invalid BOLT11 invoice" });
+      try { const { parseBolt11AmountSats } = await import("./money/boltcard.js"); const { processExternalPayment, AmbiguousPaymentError } = await import("./money/feeEngine.js"); const amountSats = parseBolt11AmountSats(bolt11); if (!amountSats) return json(res, 400, { error: "Invoice has no valid amount" }); const result = await processExternalPayment(account.id, bolt11, amountSats, undefined, "openLN send"); return json(res, 200, { status: "completed", ...result }); } catch (e) { if (e instanceof AmbiguousPaymentError) return json(res, 202, { status: "pending", pendingTxId: e.pendingTxId, error: "Payment outcome is unknown; check Activity before retrying" }); return json(res, 400, { error: e instanceof Error ? e.message : "Payment failed" }); }
+    }
+
+    // POS invoice endpoint uses the identical wrapped hold path. The device
+    // polls the payment status endpoint below; no direct-success shortcut.
 
     // POS invoice endpoint uses the identical wrapped hold path. The device
     // polls the payment status endpoint below; no direct-success shortcut.

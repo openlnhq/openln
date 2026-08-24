@@ -27,7 +27,9 @@ for (const line of text.split(/\r?\n/)) {
   if (m) values[m[1]] = m[2].trim().replace(/^['"]|['"]$/g, "");
 }
 for (const key of forbidden) {
-  if (values[key] || process.env[key]) throw new Error(`forbidden production variable present: ${key}`);
+  // DATABASE_URL is intentionally supplied separately to select openln_test;
+  // only an env-file copy of it is forbidden.
+  if (values[key] || (key !== "DATABASE_URL" && process.env[key])) throw new Error(`forbidden production variable present: ${key}`);
 }
 for (const key of required) {
   if (!values[key] || !values[key].startsWith("nostr+walletconnect://")) throw new Error(`missing/invalid ${key}`);

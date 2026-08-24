@@ -8,6 +8,7 @@ import { makeInvoice } from "./money/nwc.js";
 import { createWrappedInvoice, advanceWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
+import { recordPaymentEvent } from "./money/paymentLog.js";
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = new PluginRegistry();
@@ -55,6 +56,19 @@ const server = createServer(async (req, res) => {
       const wrap = await createWrappedInvoice(amountSats, memo, source.nwcUrl);
       if (wrap) {
         await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt });
+        recordPaymentEvent({
+          paymentId: wrap.paymentHash,
+          accountId: account.id,
+          kind: "wrap",
+          event: "wrap.invoice_persisted",
+          status: "info",
+          mile: "first_mile",
+          message: `POS wrap invoice persisted (${amountSats} sats, fee ${wrap.feeSats})`,
+          paymentHash: wrap.paymentHash,
+          merchantPaymentHash: wrap.merchantPaymentHash,
+          amountSats,
+          feeSats: wrap.feeSats,
+        });
         return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, expiresAt: wrap.expiresAt });
       }
       const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);

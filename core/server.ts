@@ -2,8 +2,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { AuthService } from "./auth/service.js";
 import { WalletService } from "./wallet/service.js";
 import { PluginRegistry } from "./plugins/api.js";
-import { db, entitiesTable, accountsTable, pendingInvoicesTable } from "./db/index.js";
-import { and, eq } from "drizzle-orm";
+import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable, paymentEventsTable } from "./db/index.js";
+import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
@@ -56,8 +56,33 @@ const server = createServer(async (req, res) => {
       await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
       return json(res, 200, { pr: invoice.bolt11, routes: [] });
     }
-    // Stable route surfaces; detailed auth/admin handlers are added with their phase owners.
-    if (["/api/lnurlp", "/api/lnurlw", "/api/pos", "/api/accounts", "/api/admin/payments", "/api/adminPayments", "/api/treasury"].includes(u.pathname)) return json(res, 501, { error: "Route surface registered; authenticated handler pending" });
+    // Core money-path read surfaces. These remain deliberately small until the
+    // session/auth layer is wired, but never pretend an unimplemented endpoint
+    // is a successful payment operation. All responses come from PostgreSQL.
+    if (req.method === "GET" && u.pathname === "/api/treasury") {
+      const rows = await db.select({ status: transactionsTable.status, direction: transactionsTable.direction, type: transactionsTable.type, amountSats: transactionsTable.amountSats }).from(transactionsTable);
+      const pendingSats = rows.filter(r => r.status === "pending").reduce((n, r) => n + (r.amountSats ?? 0), 0);
+      const completedInboundSats = rows.filter(r => r.direction === "in" && r.status === "completed").reduce((n, r) => n + (r.amountSats ?? 0), 0);
+      const feeRevenueSats = rows.filter(r => r.type === "fee" && r.status === "completed").reduce((n, r) => n + (r.amountSats ?? 0), 0);
+      return json(res, 200, { pendingSats, completedInboundSats, feeRevenueSats, plugins: [] });
+    }
+    if (req.method === "GET" && (u.pathname === "/api/admin/payments" || u.pathname === "/api/adminPayments")) {
+      const limit = Math.min(100, Math.max(1, Number(u.searchParams.get("limit") ?? 50)));
+      const rows = await db.select().from(transactionsTable).limit(Number.isFinite(limit) ? limit : 50);
+      return json(res, 200, { transactions: rows });
+    }
+    if (req.method === "GET" && u.pathname === "/api/admin/payment-events") {
+      const limit = Math.min(100, Math.max(1, Number(u.searchParams.get("limit") ?? 50)));
+      const rows = await db.select().from(paymentEventsTable).limit(Number.isFinite(limit) ? limit : 50);
+      return json(res, 200, { events: rows });
+    }
+    if (req.method === "GET" && u.pathname === "/api/accounts") {
+      const handle = u.searchParams.get("handle")?.trim().toLowerCase();
+      if (!handle) return json(res, 400, { error: "handle is required" });
+      const account = await accountForHandle(handle);
+      return account ? json(res, 200, { account }) : json(res, 404, { error: "Account not found" });
+    }
+    if (["/api/lnurlp", "/api/lnurlw", "/api/pos"].includes(u.pathname)) return json(res, 400, { error: "Use the documented resource endpoint" });
     return json(res, 404, { error: "Not found" });
   } catch (e) { return json(res, 500, { error: e instanceof Error ? e.message : "Internal server error" }); }
 });

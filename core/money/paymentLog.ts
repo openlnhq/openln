@@ -27,7 +27,7 @@ export interface RecordPaymentEventInput {
 }
 
 /** Redact secrets from detail payloads before persistence. */
-function scrub(detail: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+export function redactPaymentEventDetail(detail: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
   if (!detail) return null;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(detail)) {
@@ -71,7 +71,7 @@ function toRow(input: RecordPaymentEventInput) {
     amountSats: input.amountSats ?? null,
     feeSats: input.feeSats ?? null,
     durationMs: input.durationMs ?? null,
-    detail: scrub(input.detail ?? null),
+    detail: redactPaymentEventDetail(input.detail ?? null),
     errorClass: input.errorClass ?? null,
     errorMessage: input.errorMessage ? String(input.errorMessage).slice(0, 1000) : null,
   };

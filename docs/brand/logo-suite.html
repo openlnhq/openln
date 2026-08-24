@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>openLN — Logo Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal-900:#002b2b; --teal-700:#00494a; --teal-500:#005f5f; --teal-300:#0e8388;
+    --gold-500:#ffcc00; --gold-600:#f5b800;
+    --ink:#0a1212; --paper:#ffffff; --line:#d8e0df; --muted:#5c6b69;
+    --ok:#0a8a4a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Inter,system-ui,sans-serif;background:#f4f6f5;color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:48px 32px 96px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;border-bottom:3px solid var(--ink);padding-bottom:20px;margin-bottom:36px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.5px}
+  .sub{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-top:6px}
+  section{margin-bottom:48px}
+  h2{font-size:13px;font-family:'JetBrains Mono',monospace;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--teal-700);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  h2::before{content:"";width:22px;height:3px;background:var(--gold-500)}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:28px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+  .note{font-size:13px;line-height:1.6;color:var(--muted);margin-top:14px}
+  .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;padding:3px 8px;border-radius:4px;background:var(--teal-900);color:var(--gold-500);margin-bottom:10px}
+  .lockup{display:flex;align-items:center;gap:18px}
+  .wordmark{font-size:44px;font-weight:700;letter-spacing:-1.5px;color:var(--teal-900)}
+  .wordmark .ln{color:var(--teal-500)}
+  .wordmark-badge{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);border-left:3px solid var(--gold-500);padding-left:10px;line-height:1.5}
+  .swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  .sw{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .sw .chip{height:64px}
+  .sw .meta{padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;line-height:1.6}
+  .sw .meta b{display:block;font-family:Inter,sans-serif;font-size:12px;letter-spacing:-.2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>openLN — Logo Suite</h1>
+    <div class="sub">BRAND v1.0 · 2026-08-24 · teal/gold identity · flat-first system</div>
+  </div>
+  <!-- primary mark, small use -->
+  <svg width="72" height="72" viewBox="0 0 96 96" aria-label="openLN mark">
+    <defs>
+      <clipPath id="ringClipH"><circle cx="48" cy="48" r="26"/></clipPath>
+    </defs>
+    <circle cx="48" cy="48" r="26" fill="#005f5f"/>
+    <g clip-path="url(#ringClipH)">
+      <circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/>
+    </g>
+    <path d="M 30.4 47.3 A 19 19 0 0 1 48 33" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round"/>
+    <path d="M 65.6 48.7 A 19 19 0 0 1 48 63" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round"/>
+  </svg>
+</header>
+
+<!-- 1. PRIMARY MARK -->
+<section>
+  <h2>1 · Primary Mark — "Node &amp; Orbit"</h2>
+  <div class="card">
+    <div class="grid2">
+      <div style="text-align:center">
+        <svg width="240" height="240" viewBox="0 0 96 96">
+          <defs><clipPath id="ringClipL"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+          <circle cx="48" cy="48" r="26" fill="#005f5f"/>
+          <g clip-path="url(#ringClipL)">
+            <circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/>
+          </g>
+          <path d="M 30.4 47.3 A 19 19 0 0 1 48 33" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round"/>
+          <path d="M 65.6 48.7 A 19 19 0 0 1 48 63" fill="none" stroke="#ffffff" stroke-width="3.6" stroke-linecap="round"/>
+        </svg>
+        <div class="tag">PRIMARY — LIGHT BG</div>
+      </div>
+      <div style="text-align:center;background:#0a1a1a;border-radius:8px;padding:12px">
+        <svg width="240" height="240" viewBox="0 0 96 96">
+          <defs><clipPath id="ringClipD"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+          <circle cx="48" cy="48" r="26" fill="#0e8388"/>
+          <g clip-path="url(#ringClipD)">
+            <circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/>
+          </g>
+          <path d="M 30.4 47.3 A 19 19 0 0 1 48 33" fill="none" stroke="#eaffff" stroke-width="3.6" stroke-linecap="round"/>
+          <path d="M 65.6 48.7 A 19 19 0 0 1 48 63" fill="none" stroke="#eaffff" stroke-width="3.6" stroke-linecap="round"/>
+        </svg>
+        <div class="tag" style="background:#0e8388;color:#0a1a1a">REVERSED — DARK BG</div>
+      </div>
+    </div>
+    <p class="note"><b>Construction:</b> a teal sphere (the wallet — your keys, your node) holding a gold orbital ring clipped by the sphere's silhouette (the Lightning payment channel wrapping around it). Two white arc terminals on the ring's edge are the payment entry/exit points — read at a glance as "in" and "out". Concept preserved from Kongzi's 3D candidate (sphere + glowing ring), rebuilt flat so it survives favicon, emboss, and single-color print.</p>
+  </div>
+</section>
+
+<!-- 2. MONOCHROME -->
+<section>
+  <h2>2 · Monochrome &amp; Small Size</h2>
+  <div class="card">
+    <div style="display:flex;gap:28px;align-items:center;flex-wrap:wrap">
+      <svg width="120" height="120" viewBox="0 0 96 96">
+        <defs><clipPath id="ringClipM"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+        <circle cx="48" cy="48" r="26" fill="#111"/>
+        <g clip-path="url(#ringClipM)"><circle cx="48" cy="48" r="36" fill="none" stroke="#fff" stroke-width="13"/></g>
+        <path d="M 30.4 47.3 A 19 19 0 0 1 48 33" fill="none" stroke="#111" stroke-width="3.6" stroke-linecap="round"/>
+        <path d="M 65.6 48.7 A 19 19 0 0 1 48 63" fill="none" stroke="#111" stroke-width="3.6" stroke-linecap="round"/>
+      </svg>
+      <svg width="48" height="48" viewBox="0 0 96 96">
+        <defs><clipPath id="ringClipS"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+        <circle cx="48" cy="48" r="26" fill="#005f5f"/>
+        <g clip-path="url(#ringClipS)"><circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/></g>
+      </svg>
+      <svg width="24" height="24" viewBox="0 0 96 96">
+        <defs><clipPath id="ringClipXS"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+        <circle cx="48" cy="48" r="26" fill="#005f5f"/>
+        <g clip-path="url(#ringClipXS)"><circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/></g>
+      </svg>
+      <svg width="16" height="16" viewBox="0 0 96 96">
+        <defs><clipPath id="ringClipXXS"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+        <circle cx="48" cy="48" r="26" fill="#005f5f"/>
+        <g clip-path="url(#ringClipXXS)"><circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="16"/></g>
+      </svg>
+      <div class="note" style="margin-top:0;max-width:340px">120mm → 16px. Below 32px the arc terminals drop out; sphere + gold ring still read. The ring-vs-sphere separation is <b>geometry</b> (clipped edge), not color — so mono embossing on cards keeps the form.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. LOCKUP -->
+<section>
+  <h2>3 · Horizontal Lockup &amp; Wordmark</h2>
+  <div class="card">
+    <div class="lockup" style="margin-bottom:22px">
+      <svg width="84" height="84" viewBox="0 0 96 96">
+        <defs><clipPath id="ringClipLK"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+        <circle cx="48" cy="48" r="26" fill="#005f5f"/>
+        <g clip-path="url(#ringClipLK)"><circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/></g>
+        <path d="M 30.4 47.3 A 19 19 0 0 1 48 33" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/>
+        <path d="M 65.6 48.7 A 19 19 0 0 1 48 63" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="wordmark">open<span class="ln">LN</span></div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:2px">LIGHTNING · COMMERCE · TOOLS</div>
+      </div>
+    </div>
+    <div class="note"><b>Typeface:</b> Inter (700, tight tracking) for "open", teal-weight "LN" as the Lightning pair. JetBrains Mono for technical labels. Fallback stack: Inter → Helvetica Neue → Arial. Min width 96px; clear space = ½ mark diameter on all sides.</div>
+  </div>
+</section>
+
+<!-- 4. PALETTE -->
+<section>
+  <h2>4 · Color Palette</h2>
+  <div class="card">
+    <div class="swatches">
+      <div class="sw"><div class="chip" style="background:#005f5f"></div><div class="meta"><b>Node Teal</b>#005F5F<br>primary</div></div>
+      <div class="sw"><div class="chip" style="background:#ffcc00"></div><div class="meta"><b>Lightning Gold</b>#FFCC00<br>accent</div></div>
+      <div class="sw"><div class="chip" style="background:#002b2b"></div><div class="meta"><b>Deep Teal</b>#002B2B<br>dark surface</div></div>
+      <div class="sw"><div class="chip" style="background:#0e8388"></div><div class="meta"><b>Circuit Teal</b>#0E8388<br>dark-bg primary</div></div>
+      <div class="sw"><div class="chip" style="background:#f4f6f5;border-bottom:1px solid var(--line)"></div><div class="meta"><b>Signal White</b>#FFFFFF / #F4F6F5<br>paper</div></div>
+    </div>
+    <p class="note">Discipline borrowed from institutional brand systems: <b>one primary, one accent</b>. Gold is reserved for the payment path, CTAs, and active states — never body text, never decoration. Everything else is teal or paper.</p>
+  </div>
+</section>
+
+<!-- 5. CARD APPLICATION -->
+<section>
+  <h2>5 · Application — openLN Partner Card</h2>
+  <div class="card">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+      <!-- dark card -->
+      <div style="width:340px;height:200px;border-radius:14px;background:linear-gradient(135deg,#002b2b 0%,#005f5f 100%);position:relative;box-shadow:0 14px 34px rgba(0,43,43,.35), inset 0 1px 0 rgba(255,255,255,.12);flex-shrink:0">
+        <div style="position:absolute;inset:0;border-radius:14px;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.07) 45%,transparent 52%)"></div>
+        <svg width="44" height="44" viewBox="0 0 96 96" style="position:absolute;top:18px;left:20px">
+          <defs><clipPath id="rc1"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+          <circle cx="48" cy="48" r="26" fill="#0e8388"/>
+          <g clip-path="url(#rc1)"><circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/></g>
+        </svg>
+        <div style="position:absolute;top:26px;left:76px;color:#fff;font:700 20px Inter,sans-serif;letter-spacing:-.5px">open<span style="color:#0e8388">LN</span></div>
+        <div style="position:absolute;bottom:52px;left:20px;color:#9fc3c1;font:11px 'JetBrains Mono',monospace;letter-spacing:.14em">PAY IN LIGHTNING · SELF-CUSTODY</div>
+        <div style="position:absolute;bottom:18px;left:20px;color:#fff;font:500 13px 'JetBrains Mono',monospace;letter-spacing:.08em">⚡ tap to pay · sats settle instantly</div>
+        <div style="position:absolute;bottom:18px;right:20px;color:#ffcc00;font:700 12px 'JetBrains Mono',monospace">1% FEE</div>
+      </div>
+      <!-- light card -->
+      <div style="width:340px;height:200px;border-radius:14px;background:linear-gradient(135deg,#ffffff 0%,#eef3f2 100%);border:1px solid #d8e0df;position:relative;box-shadow:0 14px 34px rgba(10,18,18,.12);flex-shrink:0">
+        <div style="position:absolute;inset:0;border-radius:14px;background:linear-gradient(105deg,transparent 42%,rgba(0,95,95,.05) 48%,transparent 55%)"></div>
+        <svg width="44" height="44" viewBox="0 0 96 96" style="position:absolute;top:18px;left:20px">
+          <defs><clipPath id="rc2"><circle cx="48" cy="48" r="26"/></clipPath></defs>
+          <circle cx="48" cy="48" r="26" fill="#005f5f"/>
+          <g clip-path="url(#rc2)"><circle cx="48" cy="48" r="36" fill="none" stroke="#ffcc00" stroke-width="13"/></g>
+        </svg>
+        <div style="position:absolute;top:26px;left:76px;color:#0a1212;font:700 20px Inter,sans-serif;letter-spacing:-.5px">open<span style="color:#005f5f">LN</span></div>
+        <div style="position:absolute;bottom:52px;left:20px;color:#5c6b69;font:11px 'JetBrains Mono',monospace;letter-spacing:.14em">PAY IN LIGHTNING · SELF-CUSTODY</div>
+        <div style="position:absolute;bottom:18px;left:20px;color:#0a1212;font:500 13px 'JetBrains Mono',monospace;letter-spacing:.08em">⚡ tap to pay · sats settle instantly</div>
+        <div style="position:absolute;bottom:18px;right:20px;color:#005f5f;font:700 12px 'JetBrains Mono',monospace">1% FEE</div>
+      </div>
+      <div class="note" style="margin-top:0;max-width:240px">Single-color emboss variant = section 2 mono mark. Local partners print with 2 spot colors (PMS teal ≈ 7714C, gold ≈ 7549C) — cheap everywhere, including Johannesburg.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. RATIONALE -->
+<section>
+  <h2>6 · Design Rationale</h2>
+  <div class="card">
+    <div class="grid2">
+      <div class="note" style="margin-top:0"><b>Sphere</b> = the wallet. Self-custodial, complete, sovereign — the core. <b>Gold ring</b> = Lightning: a channel that <i>orbits</i> the wallet rather than passing through a custodian. The clip is literal: the payment path is defined by the wallet's boundary, not the platform's. <b>Terminals</b> = receive/send, the two directions of every openLN transaction.</div>
+      <div class="note" style="margin-top:0"><b>Polish, not copying:</b> institutional-grade restraint (two colors, one accent, strict hierarchy) applied to a Bitcoin-native identity. Deep teal grounds it in finance; gold signals the Lightning layer without wearing Bitcoin-orange cosplay.</div>
+    </div>
+  </div>
+</section>
+
+<footer style="border-top:1px solid var(--line);padding-top:16px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);display:flex;justify-content:space-between">
+  <span>openLN brand v1.0 — internal draft for Kongzi review</span>
+  <span>openln.com</span>
+</footer>
+
+</div>
+</body>
+</html>

@@ -54,6 +54,12 @@ export function partnerNvsWrite(value: string): PartnerNvsWrite {
 }
 
 /** Public metadata intentionally contains only the claim row reference. */
+export const webflasherContract = {
+  nvs: { namespace: PARTNER_NVS_NAMESPACE, key: PARTNER_NVS_KEY, encoding: PARTNER_NVS_ENCODING, maxBytes: PARTNER_NVS_MAX_BYTES, overwrite: "reject_if_populated" as const },
+  failure: "abort_before_registration" as const,
+  readback: "required_when_supported" as const,
+};
+
 export function deviceMetadata(claimId: string, mac: string) {
   return {
     mac: mac.trim().toUpperCase(),

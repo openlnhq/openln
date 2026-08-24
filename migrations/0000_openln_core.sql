@@ -70,6 +70,12 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 CREATE INDEX IF NOT EXISTS transactions_account_id_created_at_idx ON transactions (account_id, created_at);
 
+CREATE TABLE IF NOT EXISTS posbox_devices (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), account_id uuid REFERENCES accounts(id),
+  mac text NOT NULL UNIQUE, claim_code text, created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS payment_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(), payment_id text NOT NULL,
   account_id uuid REFERENCES accounts(id), kind text NOT NULL, event text NOT NULL,
@@ -96,7 +102,7 @@ COMMENT ON COLUMN transactions.status IS 'pending must remain queryable for ambi
 
 -- The runtime connects as the dedicated openln role on the destination host.
 GRANT SELECT, INSERT, UPDATE ON entities, accounts, cards TO openln;
-GRANT SELECT, INSERT, UPDATE ON pending_invoices, transactions TO openln;
+GRANT SELECT, INSERT, UPDATE ON pending_invoices, transactions, posbox_devices TO openln;
 GRANT SELECT, INSERT ON payment_events TO openln;
 
 -- Guard the flight recorder against accidental mutation while allowing the app's append path.

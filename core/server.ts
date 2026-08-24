@@ -10,6 +10,9 @@ import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { handleCardsRoute } from "../plugins/cards.js";
+import { handleReportsRoute } from "../plugins/reports.js";
+import { handlePosboxRoute } from "../plugins/posbox.js";
+import { handleShopRoute } from "../plugins/shop.js";
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
@@ -31,7 +34,11 @@ const server = createServer(async (req, res) => {
     const u = new URL(req.url ?? "/", "http://localhost");
     if (req.method === "GET" && u.pathname === "/health") return json(res, 200, { status: "ok", service: "openln-core", plugins: registry.list().map(p => p.id) });
     const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1];
-    const cardsHandled = await handleCardsRoute(req, res, u, cardToken ? await auth.authenticate(cardToken) : undefined); if (cardsHandled) return;
+    const currentAccount = cardToken ? await auth.authenticate(cardToken) : undefined;
+    if (await handlePosboxRoute(req,res,u,currentAccount)) return;
+    if (handleShopRoute(req,res,u)) return;
+    if (await handleReportsRoute(req,res,u,currentAccount)) return;
+    const cardsHandled = await handleCardsRoute(req, res, u, currentAccount); if (cardsHandled) return;
     if (req.method === "GET" && u.pathname === "/") { res.writeHead(200, { "content-type": "text/html" }); return res.end('<!doctype html><title>openLN</title><main><h1>openLN</h1><p>Non-custodial Lightning workspace</p><a href="/app">Open wallet</a></main>'); }
     if (req.method === "GET" && u.pathname === "/app") { res.writeHead(200, { "content-type": "text/html" }); return res.end('<!doctype html><title>Wallet | openLN</title><main><h1>Wallet</h1><p>Connect your own NWC wallet to receive and send sats.</p><form method="post" action="/api/wallet/connect"><input name="connection" placeholder="nostr+walletconnect://…"><button>Connect wallet</button></form></main>'); }
     if (req.method === "GET" && u.pathname === "/api/plugins") return json(res, 200, registry.list());
@@ -77,6 +84,17 @@ const server = createServer(async (req, res) => {
       const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);
       await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
       return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
+    }
+    const posStatus = u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/status$/);
+    if (req.method === "GET" && posStatus) {
+      const paymentHash = decodeURIComponent(posStatus[1]);
+      const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
+      if (!invoice) return json(res, 404, { status: "unknown", paymentHash });
+      if (invoice.wrapStatus) {
+        const status = await advanceWrap(invoice as unknown as WrapRow);
+        return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
+      }
+      return json(res, 200, { status: invoice.paidAt ? "paid" : invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, feeSats: 0 });
     }
     // LNURL-pay endpoints are core money-path routes and deliberately root-level.
     const meta = u.pathname.match(/^\/.well-known\/lnurlp\/([^/]+)$/);

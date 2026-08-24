@@ -7,6 +7,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
+    "test": "DATABASE_URL=postgresql://127.0.0.1/openln_test node --test dist/core/money/money-path.test.js",
     "start": "node dist/core/server.js"
   },
   "devDependencies": {

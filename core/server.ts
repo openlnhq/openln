@@ -9,6 +9,7 @@ import { createWrappedInvoice, advanceWrap, type WrapRow } from "./money/holdWra
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
+import { handleCardsRoute } from "../plugins/cards.js";
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
@@ -29,6 +30,8 @@ const server = createServer(async (req, res) => {
   try {
     const u = new URL(req.url ?? "/", "http://localhost");
     if (req.method === "GET" && u.pathname === "/health") return json(res, 200, { status: "ok", service: "openln-core", plugins: registry.list().map(p => p.id) });
+    const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1];
+    const cardsHandled = await handleCardsRoute(req, res, u, cardToken ? await auth.authenticate(cardToken) : undefined); if (cardsHandled) return;
     if (req.method === "GET" && u.pathname === "/") { res.writeHead(200, { "content-type": "text/html" }); return res.end('<!doctype html><title>openLN</title><main><h1>openLN</h1><p>Non-custodial Lightning workspace</p><a href="/app">Open wallet</a></main>'); }
     if (req.method === "GET" && u.pathname === "/app") { res.writeHead(200, { "content-type": "text/html" }); return res.end('<!doctype html><title>Wallet | openLN</title><main><h1>Wallet</h1><p>Connect your own NWC wallet to receive and send sats.</p><form method="post" action="/api/wallet/connect"><input name="connection" placeholder="nostr+walletconnect://…"><button>Connect wallet</button></form></main>'); }
     if (req.method === "GET" && u.pathname === "/api/plugins") return json(res, 200, registry.list());

@@ -4,3 +4,5 @@ export * from './transactions.js';
 export * from './pendingInvoices.js';
 export * from './paymentEvents.js';
 export * from './cards.js';
+
+export * from './posboxDevices.js';

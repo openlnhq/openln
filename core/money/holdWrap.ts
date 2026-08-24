@@ -38,7 +38,7 @@
  */
 import { createHash, randomBytes } from "crypto";
 import { db } from "../db/index.js";
-import { pendingInvoicesTable, transactionsTable } from "../db/index.js";
+import { pendingInvoicesTable, transactionsTable, partnerEarningsTable, posboxDevicesAttributionTable } from "../db/index.js";
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   makeInvoice,
@@ -226,6 +226,7 @@ export async function createWrappedInvoice(
 export type WrapRow = {
   id: string;
   accountId: string;
+  cardOrderId?: string | null;
   paymentHash: string; // hold hash (customer-facing)
   bolt11: string;
   merchantBolt11: string | null;
@@ -389,6 +390,8 @@ async function finalizeSettled(row: WrapRow): Promise<void> {
       .returning({ id: pendingInvoicesTable.id });
     if (!marked) return;
 
+    const [attribution] = await tx.select({ partnerId: posboxDevicesAttributionTable.partnerId, deviceId: posboxDevicesAttributionTable.deviceId }).from(posboxDevicesAttributionTable).innerJoin(pendingInvoicesTable, eq(posboxDevicesAttributionTable.deviceId, pendingInvoicesTable.posboxDeviceId)).where(eq(pendingInvoicesTable.id, row.id));
+    if (attribution?.partnerId) await tx.insert(partnerEarningsTable).values({ partnerId: attribution.partnerId, deviceId: attribution.deviceId, paymentHash: row.paymentHash, amountSats: row.amountSats, feeShareSats: Math.floor(feeSats / 3) }).onConflictDoNothing();
     await tx.insert(transactionsTable).values({
       accountId: row.accountId,
       direction: "in",

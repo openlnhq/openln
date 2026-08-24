@@ -5,6 +5,7 @@ import { PluginRegistry } from "./plugins/api.js";
 import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable, paymentEventsTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
+import { createWrappedInvoice, advanceWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
@@ -56,10 +57,34 @@ const server = createServer(async (req, res) => {
       if (!Number.isSafeInteger(sats) || sats < 1) return json(res, 400, { status: "ERROR", reason: "Invalid amount" });
       const source = await resolveWalletSource(account.id);
       if (source.kind !== "nwc") return json(res, 400, { status: "ERROR", reason: "Wallet is not configured for NWC receiving" });
+      // Use the same wrapped hold-invoice path as POS: customer pays the
+      // platform hold, then status polling forwards merchant sats and settles
+      // the hold, recording the 1% fee in the core ledger.
+      const wrap = await createWrappedInvoice(sats, "openLN payment", source.nwcUrl);
+      if (wrap) {
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt });
+        return json(res, 200, { pr: wrap.bolt11, routes: [] });
+      }
       const invoice = await makeInvoice(sats, "openLN payment", 3600, source.nwcUrl);
       await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
       return json(res, 200, { pr: invoice.bolt11, routes: [] });
     }
+    // Wrapped invoice status is request-driven: each poll advances the
+    // persisted hold -> forward -> settle state machine. This is the HTTP
+    // bridge used by LNURL clients and browser-shaped checkout flows.
+    const paymentStatus = u.pathname.match(/^\/api\/payments\/([^/]+)\/status$/);
+    if (req.method === "GET" && paymentStatus) {
+      const paymentHash = decodeURIComponent(paymentStatus[1]);
+      const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
+      if (!invoice) return json(res, 404, { status: "unknown" });
+      if (invoice.wrapStatus) {
+        const status = await advanceWrap(invoice as unknown as WrapRow);
+        return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
+      }
+      if (invoice.paidAt) return json(res, 200, { status: "paid", paymentHash, feeSats: 0 });
+      return json(res, 200, { status: invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, feeSats: 0 });
+    }
+
     // Core money-path read surfaces. These remain deliberately small until the
     // session/auth layer is wired, but never pretend an unimplemented endpoint
     // is a successful payment operation. All responses come from PostgreSQL.

@@ -6,7 +6,7 @@ import { encrypt, decrypt } from "../core/money/encrypt.js";
 import { decryptSunP, verifySunC } from "../core/money/boltcard.js";
 
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
-const json = (r: ServerResponse, s: number, b: unknown) => { r.writeHead(s, { "content-type": "application/json" }); r.end(JSON.stringify(b)); };
+const json = (r: ServerResponse, s: number, b: unknown) => { r.writeHead(s, { "content-type": "application/json" }); r.end(JSON.stringify(b)); return true; };
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> { let raw=""; for await (const c of req) raw += c; if (!raw) return {}; return (req.headers["content-type"]??"").includes("form-urlencoded") ? Object.fromEntries(new URLSearchParams(raw)) : JSON.parse(raw); }
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const key = () => randomBytes(16).toString("hex");

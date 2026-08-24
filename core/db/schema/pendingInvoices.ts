@@ -12,6 +12,7 @@ export const pendingInvoicesTable = pgTable("pending_invoices", {
   memo: text("memo"),
   nwcUrlEncrypted: text("nwc_url_encrypted"),
   cardOrderId: uuid("card_order_id"),
+  posboxDeviceId: uuid("posbox_device_id"),
   // Hold-invoice wrap (1% incoming fee engine). Null wrapStatus = direct invoice.
   // bolt11 above is the customer-facing invoice (the wrapped hold invoice when wrapped);
   // merchantBolt11 is the merchant's real invoice for amount minus fee.

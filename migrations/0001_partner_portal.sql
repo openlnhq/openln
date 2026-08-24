@@ -1,3 +1,4 @@
+ALTER TABLE pending_invoices ADD COLUMN IF NOT EXISTS posbox_device_id uuid;
 CREATE TABLE IF NOT EXISTS partner_accounts (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, handle text NOT NULL UNIQUE, region text NOT NULL, status text NOT NULL DEFAULT 'pending', password_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS partner_claim_codes (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), partner_id uuid NOT NULL REFERENCES partner_accounts(id), code_hash text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now(), revoked_at timestamptz);
 CREATE TABLE IF NOT EXISTS posbox_devices_attribution (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), device_id uuid NOT NULL, partner_id uuid REFERENCES partner_accounts(id), mac text NOT NULL UNIQUE, first_seen_at timestamptz NOT NULL DEFAULT now(), last_seen_at timestamptz NOT NULL DEFAULT now(), conflict_alert text);

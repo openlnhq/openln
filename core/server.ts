@@ -42,6 +42,25 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
     }
     if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
+
+    // POS invoice endpoint uses the identical wrapped hold path. The device
+    // polls the payment status endpoint below; no direct-success shortcut.
+    if (req.method === "POST" && u.pathname === "/api/pos/invoice") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req); const amountSats = Number(v.amountSats);
+      if (!Number.isSafeInteger(amountSats) || amountSats < 1) return json(res, 400, { error: "amountSats must be a positive integer" });
+      const source = await resolveWalletSource(account.id);
+      if (source.kind !== "nwc") return json(res, 400, { error: "Wallet not configured for NWC" });
+      const memo = typeof v.memo === "string" ? v.memo.slice(0, 140) : "POS payment";
+      const wrap = await createWrappedInvoice(amountSats, memo, source.nwcUrl);
+      if (wrap) {
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt });
+        return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, expiresAt: wrap.expiresAt });
+      }
+      const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);
+      await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
+      return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
+    }
     // LNURL-pay endpoints are core money-path routes and deliberately root-level.
     const meta = u.pathname.match(/^\/.well-known\/lnurlp\/([^/]+)$/);
     if (req.method === "GET" && meta) {

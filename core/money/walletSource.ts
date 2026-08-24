@@ -8,10 +8,10 @@
  *   - kind 'lnaddress' : lightning address (receive-only via LNURL-pay/verify)
  *   - kind 'none'      : wallet setup not completed
  */
-import { db } from "@workspace/db";
-import { accountsTable } from "@workspace/db";
+import { db } from "../db/index.js";
+import { accountsTable } from "../db/index.js";
 import { eq } from "drizzle-orm";
-import { getAccountNwcUrl } from "./nwc";
+import { getAccountNwcUrl } from "./nwc.js";
 
 export type WalletSource =
   | { kind: "nwc"; nwcUrl: string; mode: "veil" | "custom" }

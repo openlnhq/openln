@@ -1,7 +1,7 @@
 import { pgTable, text, uuid, bigint, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { entitiesTable } from "./entities";
+import { entitiesTable } from "./entities.js";
 
 export const accountTypeEnum = pgEnum("account_type", ["personal", "business"]);
 

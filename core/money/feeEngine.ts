@@ -1,13 +1,13 @@
 // @ts-nocheck
 //
-import { db } from "@workspace/db";
-import { transactionsTable, pendingInvoicesTable } from "@workspace/db";
+import { db } from "../db/index.js";
+import { transactionsTable, pendingInvoicesTable } from "../db/index.js";
 import { and, eq, isNotNull, or, inArray } from "drizzle-orm";
-import { payInvoice, makeInvoice, getAccountNwcUrl, isAmbiguousPayError, lookupOutgoingPayment, lookupInvoice, PLATFORM_NWC_URL } from "./nwc";
-import { advanceWrap, type WrapRow } from "./holdWrap";
-import { extractPaymentHash } from "./lnAddress";
-import { logger } from "./logger";
-import { recordPaymentEvent } from "./paymentLog";
+import { payInvoice, makeInvoice, getAccountNwcUrl, isAmbiguousPayError, lookupOutgoingPayment, lookupInvoice, PLATFORM_NWC_URL } from "./nwc.js";
+import { advanceWrap, type WrapRow } from "./holdWrap.js";
+import { extractPaymentHash } from "./lnAddress.js";
+import { logger } from "./logger.js";
+import { recordPaymentEvent } from "./paymentLog.js";
 
 /**
  * Thrown when a payment's outcome is UNKNOWN: the pay request may have reached

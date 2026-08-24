@@ -1,7 +1,7 @@
 import { pgTable, text, uuid, bigint, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { accountsTable } from "./accounts";
+import { accountsTable } from "./accounts.js";
 
 export const cardStatusEnum = pgEnum("card_status", ["active", "frozen", "cancelled"]);
 

@@ -1,7 +1,7 @@
 // @ts-nocheck
 //
-import { db, paymentEventsTable } from "@workspace/db";
-import { logger } from "./logger";
+import { db, paymentEventsTable } from "../db/index.js";
+import { logger } from "./logger.js";
 
 export type PaymentEventStatus = "success" | "fail" | "ambiguous" | "pending" | "info";
 export type PaymentEventMile = "first_mile" | "last_mile" | "both" | null;

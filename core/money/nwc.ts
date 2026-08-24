@@ -17,13 +17,13 @@
  */
 import { NWCClient } from "@getalby/sdk";
 import { createHash } from "crypto";
-import { db } from "@workspace/db";
-import { accountsTable } from "@workspace/db";
+import { db } from "../db/index.js";
+import { accountsTable } from "../db/index.js";
 import { eq } from "drizzle-orm";
-import { encrypt, decrypt } from "./encrypt";
-import { extractPaymentHash } from "./lnAddress";
-import { generateKeypair } from "./nostrKeys";
-import { logger } from "./logger";
+import { encrypt, decrypt } from "./encrypt.js";
+import { extractPaymentHash } from "./lnAddress.js";
+import { generateKeypair } from "./nostrKeys.js";
+import { logger } from "./logger.js";
 
 export const VEIL_PUBKEY = process.env.VEIL_PUBKEY ?? "699eb080dfbd2cb1e09a5d72e35779f07340414b005ec98e839ca3f8542a2e05";
 export const VEIL_RELAY  = process.env.VEIL_RELAY  ?? "wss://nstrpsp.xyz/nostr";

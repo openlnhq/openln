@@ -1,8 +1,8 @@
 import { pgTable, text, uuid, bigint, timestamp, pgEnum, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { accountsTable } from "./accounts";
-import { cardsTable } from "./cards";
+import { accountsTable } from "./accounts.js";
+import { cardsTable } from "./cards.js";
 
 export const transactionDirectionEnum = pgEnum("transaction_direction", ["in", "out"]);
 export const transactionTypeEnum = pgEnum("transaction_type", [

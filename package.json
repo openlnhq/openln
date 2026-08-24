@@ -1,0 +1,9 @@
+{
+  "name": "openln",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {"typecheck":"tsc --noEmit", "build":"tsc", "start":"node dist/core/server.js"},
+  "devDependencies": {"typescript":"^5.9.2", "@types/node":"^22.0.0"}
+}

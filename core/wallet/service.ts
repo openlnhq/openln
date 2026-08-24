@@ -1,0 +1,2 @@
+export interface WalletConnection{mode:"nwc";connected:boolean;createdAt:string}
+export class WalletService {private connections=new Map<string,WalletConnection>(); connectNwc(accountId:string,connectionString:string){if(!connectionString.startsWith("nostr+walletconnect://"))throw Error("Invalid NWC connection string");const v={mode:"nwc" as const,connected:true,createdAt:new Date().toISOString()};this.connections.set(accountId,v);return v} status(accountId:string){return this.connections.get(accountId)??null} }

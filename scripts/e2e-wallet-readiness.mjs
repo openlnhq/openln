@@ -37,7 +37,7 @@ if (new Set(required.map((key) => values[key])).size !== required.length) throw 
 
 const dbUrl = process.env.DATABASE_URL;
 if (!dbUrl || !/^postgres(ql)?:\/\//.test(dbUrl)) throw new Error("DATABASE_URL must be supplied separately for the isolated E2E database");
-if (!/(^|[/?_])openln_test([/?]|$)/.test(dbUrl)) throw new Error("DATABASE_URL must target an isolated openln_test database");
+if (!/\/\/openln_test(?:[:@/?]|$)/.test(dbUrl)) throw new Error("DATABASE_URL must target an isolated openln_test database");
 
 const { probeNwcWallet, getBalance } = await import("../dist/core/money/nwc.js");
 const roles = ["platform", "sender", "merchant"];

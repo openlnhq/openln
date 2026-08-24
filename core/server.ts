@@ -30,13 +30,17 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/") { res.writeHead(200, { "content-type": "text/html" }); return res.end('<!doctype html><title>openLN</title><main><h1>openLN</h1><p>Non-custodial Lightning workspace</p><a href="/app">Open wallet</a></main>'); }
     if (req.method === "GET" && u.pathname === "/app") { res.writeHead(200, { "content-type": "text/html" }); return res.end('<!doctype html><title>Wallet | openLN</title><main><h1>Wallet</h1><p>Connect your own NWC wallet to receive and send sats.</p><form method="post" action="/api/wallet/connect"><input name="connection" placeholder="nostr+walletconnect://…"><button>Connect wallet</button></form></main>'); }
     if (req.method === "GET" && u.pathname === "/api/plugins") return json(res, 200, registry.list());
-    if (req.method === "POST" && u.pathname === "/api/auth/register") { const v = await body(req); try { return json(res, 201, auth.register(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
+    if (req.method === "POST" && u.pathname === "/api/auth/register") { const v = await body(req); try { return json(res, 201, await auth.register(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
+    if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { return json(res, 200, await auth.login(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
+    const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]; return token ? auth.authenticate(token) : undefined; };
     if (req.method === "POST" && u.pathname === "/api/wallet/connect") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const connection = String(v.connection ?? v.nwcUrl ?? "").trim();
       if (!connection.startsWith("nostr+walletconnect://")) return json(res, 400, { error: "Invalid NWC connection string" });
+      await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection) }).where(eq(accountsTable.id, account.id));
       return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
     }
-    if (req.method === "GET" && u.pathname === "/api/wallet/status") return json(res, 200, { wallet: "non-custodial", connected: false, plugins: [] });
+    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
     // LNURL-pay endpoints are core money-path routes and deliberately root-level.
     const meta = u.pathname.match(/^\/.well-known\/lnurlp\/([^/]+)$/);
     if (req.method === "GET" && meta) {

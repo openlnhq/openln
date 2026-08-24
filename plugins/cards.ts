@@ -64,6 +64,7 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
   }
   const tap = u.pathname.match(/^\/card\/([^/]+)$/);
   if (tap && req.method === "GET") {
+    if (!/^[0-9a-f-]{36}$/i.test(tap[1])) return json(res,404,{status:"ERROR",reason:"Card not found"}) as never;
     const [card] = await db.select().from(cardsTable).where(eq(cardsTable.id,tap[1])); if (!card) return json(res,404,{status:"ERROR",reason:"Card not found"}) as never;
     if (card.status === "cancelled" || card.pinLockedAt) return json(res,200,{status:"ERROR",reason:card.status === "cancelled" ? "Card has been cancelled" : "Card PIN is locked"}) as never;
     const p=String(u.searchParams.get("p")??"").toLowerCase(), c=String(u.searchParams.get("c")??"");
@@ -76,6 +77,7 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
   }
   const callback = u.pathname.match(/^\/card\/([^/]+)\/callback$/);
   if (callback && req.method === "GET") {
+    if (!/^[0-9a-f-]{36}$/i.test(callback[1])) return json(res,404,{status:"ERROR",reason:"Card not found"}) as never;
     const [card] = await db.select().from(cardsTable).where(eq(cardsTable.id,callback[1]));
     if (!card) return json(res,404,{status:"ERROR",reason:"Card not found"}) as never;
     const k1=String(u.searchParams.get("k1")??""), pr=String(u.searchParams.get("pr")??"");

@@ -67,7 +67,7 @@ const server = createServer(async (req, res) => {
       const memo = typeof v.memo === "string" ? v.memo.slice(0, 140) : "POS payment";
       const wrap = await createWrappedInvoice(amountSats, memo, source.nwcUrl);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt });
         recordPaymentEvent({
           paymentId: wrap.paymentHash,
           accountId: account.id,

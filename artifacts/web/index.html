@@ -118,6 +118,21 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .badge.pend{background:var(--surface3);color:var(--text2)}
 .badge.gold{background:var(--gold-dim);color:var(--gold)}
 
+/* installed extension chips — compact, one line each */
+.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 13px 7px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;font-weight:510;color:var(--text2);cursor:pointer;transition:.13s;white-space:nowrap}
+.chip:hover{border-color:var(--teal-line);color:var(--text);background:var(--surface2)}
+.chip .cdot{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+.chip.off .cdot{background:var(--text3)}
+.chipwrap{display:flex;flex-wrap:wrap;gap:7px}
+/* marketplace */
+.mrow{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}
+.mrow+.mrow{margin-top:8px}
+.mrow .mico{width:38px;height:38px;border-radius:10px;background:var(--surface2);box-shadow:inset 0 0 0 1px var(--line);display:grid;place-items:center;font-size:15px;flex-shrink:0}
+.mrow.on{border-color:var(--teal-line)}
+.mrow .mmeta{flex:1;min-width:0}
+.mrow .mt1{font-size:13.5px;font-weight:590;letter-spacing:-.12px}
+.mrow .mt2{font-size:12px;color:var(--text3);margin-top:2px}
+.mcat{display:inline-block;font-size:10px;font-weight:590;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-left:8px}
 /* extensions */
 .ext{display:flex;align-items:center;gap:12px;padding:12px 13px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);transition:.15s;cursor:pointer;width:100%;text-align:left}
 .ext:hover{background:var(--surface2);border-color:var(--line2)}
@@ -268,8 +283,9 @@ async function vWallet(st,bal){
   <div class="grid">
     <div class="card"><h3>Activity <span class="side">recent payments</span></h3><div id="txlist">${rows.length?rows.map(t=>txRow(t)).join(''):emptyTx()}</div></div>
     <div>
-      <div class="card"><h3>Extensions <span class="side">${5} installed</span></h3>
-        <div class="extgrid" id="extsm"></div>
+      <div class="card"><h3>Extensions <span class="side" id="extcount"></span></h3>
+        <div class="chipwrap" id="extsm" style="margin-top:12px"></div>
+        <button class="btn ghost sm" id="bmarket" style="margin-top:12px">Browse extensions</button>
       </div>
       <div class="card"><h3>Wallet</h3>
         <p class="muted" style="font-size:13px;margin:10px 0 14px">${st.connected?'Connected via Nostr Wallet Connect. Replace to switch wallets — keys never leave your device.':'No wallet connected. Add an NWC connection string to receive sats.'}</p>
@@ -283,8 +299,14 @@ async function vWallet(st,bal){
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
   $('#bwallet').onclick=walletModal;
   $('#blogout').onclick=()=>{localStorage.removeItem('openln_token');login()};
-  const sm=$('#extsm');const pl=await api('/api/plugins').catch(()=>[]);
-  (pl||[]).slice(0,5).forEach(p=>{const d=document.createElement('button');d.className='ext';d.innerHTML=`<div class="exico" style="background:var(--surface2);box-shadow:inset 0 0 0 1px var(--line)">${extGlyph(p.id)}</div><div class="exmeta"><div class="ext1">${esc(p.id)}</div></div><span class="arrow">›</span>`;d.onclick=()=>{VIEW='extensions';render()};sm.append(d)});
+  const sm=$('#extsm');
+  let cat=[];try{cat=(await api('/api/extensions')).catalog}catch(e){}
+  const installed=cat.filter(c=>c.installed&&c.enabled);
+  $('#extcount').textContent=installed.length+' active';
+  if(!installed.length){sm.innerHTML='<span class="dim" style="font-size:12.5px">No extensions active — add one from the catalog</span>'}
+  installed.forEach(c=>{const d=document.createElement('button');d.className='chip'+(c.enabled?'':' off');
+    d.innerHTML=`<span class="cdot"></span>${esc(c.name||c.id)}`;d.onclick=()=>extConfigModal(c);sm.append(d)});
+  $('#bmarket').onclick=()=>{VIEW='extensions';render()};
 }
 function txRow(t){
   const inb=(t.direction??'in')==='in';
@@ -376,21 +398,45 @@ function walletModal(){
     catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${esc(x.message)}</p>`}
   };
 }
-/* ---- EXTENSIONS ---- */
-async function vExt(plugins){
-  const all=plugins.length?plugins:await api('/api/plugins').catch(()=>[]);
+/* ---- EXTENSIONS (marketplace) ---- */
+async function vExt(){
+  let cat=[];try{cat=(await api('/api/extensions')).catalog}catch(e){$('#view').innerHTML='<div class="card">Failed to load catalog</div>';return}
+  const installed=cat.filter(c=>c.installed);
   $('#view').innerHTML=`<div style="margin-top:30px">
     <div class="overline">Extensions</div>
-    <h1 class="page">Everything extends the wallet.</h1>
-    <p class="muted" style="margin:10px 0 22px;max-width:520px">Cards, POS, reports, POSBOX and shop are plugins over your wallet core — they can never custody your keys.</p>
-    <div class="extgrid" style="grid-template-columns:1fr 1fr" id="extl"></div></div>`;
-  const l=$('#extl');
-  const meta={cards:['Cards','Issue, freeze and wipe NTAG424 Lightning cards'],pos:['POS','Point-of-sale terminal and device invoices'],reports:['Reports','Payment summaries and transaction history'],posbox:['POSBOX','Device registry, webflasher and firmware'],shop:['Shop','Partner hardware listings']};
-  (all||[]).forEach(p=>{const [t,d]=meta[p.id]||[p.id,'Extension'];
-    const el=document.createElement('div');el.className='ext';el.style.padding='16px';
-    el.innerHTML=`<div class="exico" style="background:var(--teal-dim);box-shadow:inset 0 0 0 1px var(--teal-line);color:var(--teal);font-size:15px">${extGlyph(p.id)}</div>
-      <div class="exmeta"><div class="ext1">${t}</div><div class="ext2">${d}</div></div><span class="arrow">›</span>`;
-    el.onclick=()=>toast(p.id+' view coming next');l.append(el)});
+    <h1 class="page">Marketplace</h1>
+    <p class="muted" style="margin:10px 0 22px;max-width:560px">Everything extends the wallet — installed extensions get their own shortcut on your dashboard and never custody your keys.</p>
+    <div id="mlist">${cat.map(c=>mRow(c)).join('')}</div></div>`;
+  document.querySelectorAll('[data-mi]').forEach(b=>b.onclick=()=>mAction(b.dataset.mi,b.dataset.act,b));
+}
+function mRow(c){
+  return `<div class="mrow ${c.installed&&c.enabled?'on':''}" data-mrow="${c.id}">
+    <div class="mico">${extGlyph(c.id)}</div>
+    <div class="mmeta"><div class="mt1">${esc(c.name||c.id)}<span class="mcat">${esc(c.category||'')}</span></div><div class="mt2">${esc(c.blurb||'')}</div></div>
+    ${c.installed&&c.configKeys?.length?`<button class="btn ghost sm" data-mi="${c.id}" data-act="cfg">Configure</button>`:''}
+    ${c.installed?`<button class="btn ghost sm" data-mi="${c.id}" data-act="${c.enabled?'off':'on'}">${c.enabled?'Disable':'Enable'}</button>
+      <button class="btn ghost sm" data-mi="${c.id}" data-act="rm" style="color:var(--err)">Remove</button>`
+    :`<button class="btn teal sm" data-mi="${c.id}" data-act="in">Install</button>`}
+  </div>`;
+}
+async function mAction(id,act,btn){
+  try{
+    if(act==='in'){await api(`/api/extensions/${id}/install`,{method:'POST'});toast('Installed — now on your dashboard')}
+    if(act==='on'){await api(`/api/extensions/${id}/toggle`,{method:'POST',body:JSON.stringify({enabled:true})});toast('Enabled')}
+    if(act==='off'){await api(`/api/extensions/${id}/toggle`,{method:'POST',body:JSON.stringify({enabled:false})});toast('Disabled')}
+    if(act==='rm'){await api(`/api/extensions/${id}`,{method:'DELETE'});toast('Removed')}
+    if(act==='cfg'){const c=(await api('/api/extensions')).catalog.find(x=>x.id===id);return extConfigModal(c)}
+    vExt();
+  }catch(e){toast(e.message)}
+}
+function extConfigModal(c){
+  const m=modal(`<div class="modalhead"><h2>${esc(c.name||c.id)} settings</h2><button class="xbtn">✕</button></div>
+  <form id="cf">${(c.configKeys||[]).map(k=>`<label class="field"><span>${esc(k.label)}</span><input class="input mono" name="${esc(k.key)}" type="password" placeholder="${k.secret?'••••••••':''}" ${k.secret?'':'required'}></label>`).join('')}
+  <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Save${c.hasConfig?' (replace)':''}</button></form>
+  ${c.hasConfig?'<p class="dim" style="font-size:11.5px;margin-top:10px">Configured — saving replaces the stored credentials.</p>':''}`);
+  m.querySelector('#cf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
+    try{await api(`/api/extensions/${c.id}/config`,{method:'POST',body:JSON.stringify(b)});m.remove();toast('Settings saved')}
+    catch(x){toast(x.message)}};
 }
 /* ---- PARTNER ---- */
 async function vPartner(){

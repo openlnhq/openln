@@ -8,3 +8,4 @@ export * from './cards.js';
 export * from './posboxDevices.js';
 
 export * from './partner.js';
+export * from "./extensions.js";

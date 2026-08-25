@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>openLN — Open-source Lightning commerce</title>
+<meta name="description" content="openLN is an open-source Lightning Network commerce platform. A non-custodial wallet core with extensions for cards, POS, POSBOX hardware and multi-rail payments.">
+<style>
+/* openLN landing — Stripe-grade precision adapted to the openLN identity.
+   Authoritative, elegant, scientific. Deep navy headings, whisper-light display type,
+   teal/gold brand discipline, tabular numerals, chromatic shadows. */
+:root{
+  --ink:#061b31; --ink2:#273951; --body:#5b6b7d;
+  --teal:#0e8388; --teal-deep:#005f5f; --teal-line:rgba(14,131,136,.35); --teal-wash:rgba(14,131,136,.06);
+  --gold:#e8b409; --gold-deep:#b98f00;
+  --line:#e2ebee; --paper:#ffffff; --paper2:#f7fafb;
+  --dark:#04211f; --dark2:#073330;
+  --sh-elev:0 30px 45px -30px rgba(6,52,50,.22), 0 18px 36px -18px rgba(0,0,0,.08);
+  --sh-soft:0 15px 35px 0 rgba(6,52,50,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-feature-settings:"ss01","cv01"}
+body{font:16px/1.5 'Source Sans 3',Inter,system-ui,sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased}
+.mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-feature-settings:"tnum"}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1080px;margin:0 auto;padding:0 28px}
+.gr{display:grid;gap:26px}
+
+/* nav */
+header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.navin{display:flex;align-items:center;gap:34px;height:66px}
+.brand{display:flex;align-items:center;gap:11px;font-size:17.5px;font-weight:600;letter-spacing:-.35px}
+.brand em{font-style:normal;color:var(--teal-deep)}
+.navlinks{display:flex;gap:26px;font-size:14px;color:var(--ink2)}
+.navlinks a:hover{color:var(--ink)}
+.navctas{margin-left:auto;display:flex;gap:10px;align-items:center}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 18px;border-radius:6px;font-size:15px;font-weight:400;letter-spacing:.01em;cursor:pointer;border:1px solid transparent;transition:.15s}
+.btn-dark{background:var(--ink);color:#fff}
+.btn-dark:hover{background:#0d2d47}
+.btn-line{border-color:#c7d6dd;color:var(--ink)}
+.btn-line:hover{background:var(--teal-wash);border-color:var(--teal-line)}
+.btn-teal{background:var(--teal-deep);color:#fff}
+.btn-teal:hover{background:#0a7a7e}
+
+/* hero */
+.hero{padding:96px 0 88px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(760px 420px at 82% -10%,rgba(14,131,136,.075),transparent 60%);pointer-events:none}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-deep)}
+.eyebrow::before{content:'';width:26px;height:1.5px;background:var(--gold)}
+h1.display{font-size:58px;font-weight:300;letter-spacing:-1.45px;line-height:1.05;margin:22px 0 0;color:var(--ink)}
+h1.display b{font-weight:600}
+.hero p.lead{font-size:19px;font-weight:300;line-height:1.55;color:var(--body);max-width:560px;margin:26px 0 34px}
+.heroctas{display:flex;gap:12px}
+.hero .fine{font-size:12.5px;color:#8ba0ab;margin-top:16px}
+
+/* particle mark — the logo, large */
+.mark{display:inline-block;vertical-align:middle}
+.mark .orb{fill:#005f5f}
+.mark .ring{fill:none;stroke:#f5c518;stroke-width:13}
+
+/* stat strip */
+.stats{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--paper2)}
+.statsin{display:grid;grid-template-columns:repeat(4,1fr);padding:34px 0}
+.stat{padding:0 26px;border-left:1px solid var(--line)}
+.stat:first-child{border-left:0;padding-left:0}
+.stat .v{font-size:30px;font-weight:600;letter-spacing:-.8px;color:var(--ink)}
+.stat .v small{font-size:14px;font-weight:400;color:var(--body);letter-spacing:0}
+.stat .l{font-size:12.5px;color:var(--body);margin-top:4px}
+
+/* sections */
+section.blk{padding:84px 0}
+h2.sec{font-size:34px;font-weight:300;letter-spacing:-.72px;line-height:1.12;color:var(--ink)}
+h2.sec b{font-weight:600}
+.sec-sub{font-size:17px;font-weight:300;color:var(--body);line-height:1.55;max-width:540px;margin-top:14px}
+
+/* architecture diagram card */
+.arch{background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:var(--sh-elev);overflow:hidden;margin-top:38px}
+.archbar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--paper2)}
+.archbar .dots{display:flex;gap:5px}
+.archbar .dots i{width:9px;height:9px;border-radius:50%;background:#cfdde3;display:block}
+.archbar .tt{font-size:11.5px;color:#8ba0ab;margin-left:8px}
+.archbody{padding:34px 38px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;align-items:stretch}
+.layer{padding:0 26px;border-left:1px dashed #d3e2e7}
+.layer:first-child{border-left:0;padding-left:0}
+.layer .lt{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--teal-deep)}
+.layer .ln{font-size:19px;font-weight:600;letter-spacing:-.3px;margin-top:8px;color:var(--ink)}
+.layer .ld{font-size:13.5px;color:var(--body);line-height:1.5;margin-top:8px}
+.layer .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.layer .chips span{font-size:11px;font-family:'JetBrains Mono',monospace;padding:4px 9px;border-radius:4px;border:1px solid var(--line);color:var(--ink2);background:var(--paper2)}
+.layer.core .chips span{border-color:var(--teal-line);background:var(--teal-wash);color:var(--teal-deep)}
+
+/* extensions grid */
+.extgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:38px}
+.excard{background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:24px;box-shadow:var(--sh-soft);transition:.18s}
+.excard:hover{box-shadow:var(--sh-elev);border-color:var(--teal-line)}
+.excard .ic{width:38px;height:38px;border-radius:8px;background:var(--teal-wash);border:1px solid var(--teal-line);display:grid;place-items:center;font-size:16px;color:var(--teal-deep)}
+.excard h3{font-size:17.5px;font-weight:600;letter-spacing:-.22px;margin:15px 0 7px}
+.excard p{font-size:14px;font-weight:300;color:var(--body);line-height:1.55}
+.excard .tag{display:inline-block;margin-top:13px;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-deep)}
+
+/* partners */
+.partners{background:var(--dark);color:#eef6f5;padding:84px 0}
+.partners h2.sec{color:#fff}
+.partners .sec-sub{color:rgba(238,246,245,.66)}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:38px}
+.pcard{border:1px solid rgba(255,255,255,.1);border-radius:7px;padding:24px;background:rgba(255,255,255,.02);transition:.18s}
+.pcard:hover{border-color:rgba(245,197,24,.4)}
+.pcard .region{font-size:11px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--gold)}
+.pcard .pn{font-size:18px;font-weight:600;letter-spacing:-.28px;margin-top:9px}
+.pcard .pd{font-size:13.5px;color:rgba(238,246,245,.6);line-height:1.5;margin-top:7px}
+
+/* protocol spec */
+.spec{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;margin-top:38px;align-items:start}
+.specrow{display:flex;gap:16px;padding:17px 0;border-top:1px solid var(--line)}
+.specrow:first-child{border-top:0}
+.specrow .sn{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--teal-deep);padding-top:3px;width:30px;flex-shrink:0}
+.specrow .st{font-size:15.5px;font-weight:600;letter-spacing:-.1px}
+.specrow .sd{font-size:13.5px;color:var(--body);line-height:1.5;margin-top:4px}
+.codecard{background:var(--dark);border-radius:8px;overflow:hidden;box-shadow:var(--sh-elev)}
+.codebar{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+.codebar .dots{display:flex;gap:5px}
+.codebar .dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14);display:block}
+.codebar .fn{font-size:11px;color:rgba(238,246,245,.45);margin-left:8px;font-family:'JetBrains Mono',monospace}
+.codebody{padding:20px 22px;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.95;color:#cfe3e1;overflow-x:auto}
+.codebody .k{color:#f5c518}.codebody .s{color:#7dd3c8}.codebody .c{color:#5f7d7a}
+
+/* cta */
+.cta{padding:96px 0;text-align:center;border-top:1px solid var(--line)}
+.cta h2{font-size:40px;font-weight:300;letter-spacing:-.92px;color:var(--ink)}
+.cta h2 b{font-weight:600}
+.cta p{font-size:17px;font-weight:300;color:var(--body);margin:16px auto 34px;max-width:480px}
+
+/* footer */
+footer{background:var(--dark);color:rgba(238,246,245,.55);padding:44px 0}
+.footin{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+.footin .fl{display:flex;gap:24px}
+.footin a:hover{color:#fff}
+
+/* responsive */
+@media(max-width:960px){
+  .archbody{grid-template-columns:1fr;padding:26px}
+  .layer{border-left:0;padding:18px 0;border-top:1px dashed #d3e2e7}
+  .layer:first-child{border-top:0}
+  .extgrid{grid-template-columns:1fr 1fr}
+  .spec{grid-template-columns:1fr}
+  .pgrid{grid-template-columns:1fr}
+  .statsin{grid-template-columns:1fr 1fr;gap:22px 0}
+  .stat:nth-child(3){border-left:0;padding-left:0}
+  .navlinks{display:none}
+  h1.display{font-size:40px;letter-spacing:-.9px}
+  .hero{padding:64px 0 56px}
+}
+@media(max-width:620px){
+  .extgrid{grid-template-columns:1fr}
+  .statsin{grid-template-columns:1fr}
+  .stat{border-left:0;padding-left:0}
+  .heroctas{flex-direction:column;align-items:flex-start}
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head><body>
+
+<header class="nav"><div class="wrap navin">
+  <a class="brand" href="#"><svg class="mark" width="27" height="27" viewBox="0 0 96 96"><circle class="orb" cx="48" cy="48" r="26"/><g clip-path="url(#lg)"><circle class="ring" cx="48" cy="48" r="36"/></g><defs><clipPath id="lg"><circle cx="48" cy="48" r="26"/></clipPath></defs></svg>open<em>LN</em></a>
+  <nav class="navlinks"><a href="#architecture">Architecture</a><a href="#extensions">Extensions</a><a href="#partners">Partners</a><a href="#protocol">Protocol</a></nav>
+  <div class="navctas"><a class="btn btn-line" href="/app">Sign in</a><a class="btn btn-dark" href="#cta">Start with the wallet</a></div>
+</div></header>
+
+<section class="hero"><div class="wrap" style="position:relative">
+  <span class="eyebrow">Open-source Lightning commerce</span>
+  <h1 class="display">One wallet core.<br><b>Every way to get paid.</b></h1>
+  <p class="lead">openLN is a non-custodial commerce platform for the Lightning Network. Connect your own wallet, then extend it — cards, point-of-sale, hardware, card rails. Your keys never leave your custody.</p>
+  <div class="heroctas">
+    <a class="btn btn-teal" href="/app">Open the wallet →</a>
+    <a class="btn btn-line" href="https://github.com/openlnhq/openln">Read the source</a>
+  </div>
+  <p class="fine mono">AGPL-3.0 · NIP-47 / Nostr Wallet Connect · wrapped hold invoices · 1% inbound</p>
+</div></section>
+
+<div class="stats"><div class="wrap statsin">
+  <div class="stat"><div class="v mono">0<small> sats</small></div><div class="l">held in custody by openLN, ever</div></div>
+  <div class="stat"><div class="v mono">1<small>%</small></div><div class="l">inbound wrap fee — nothing hidden</div></div>
+  <div class="stat"><div class="v mono">7<small> extensions</small></div><div class="l">in the catalog, installed per account</div></div>
+  <div class="stat"><div class="v mono">2/3<small> of fee</small></div><div class="l">to you and your partner network</div></div>
+</div></div>
+
+<section class="blk" id="architecture"><div class="wrap">
+  <span class="eyebrow">Architecture</span>
+  <h2 class="sec">The wallet is the core.<br><b>Everything else is an extension.</b></h2>
+  <p class="sec-sub">Payments flow through a single, audited money path — the wrapped hold invoice engine ported from battle-tested production. Extensions build on top; none can touch your keys.</p>
+  <div class="arch">
+    <div class="archbar"><div class="dots"><i></i><i></i><i></i></div><span class="tt">openln — system layout</span></div>
+    <div class="archbody">
+      <div class="layer core">
+        <div class="lt">Core</div><div class="ln">Wallet</div>
+        <div class="ld">Non-custodial NWC wallet, auth, sessions, the append-only payment ledger and the 1% hold-invoice wrap engine.</div>
+        <div class="chips"><span>holdWrap</span><span>payment_events</span><span>NIP-47</span></div>
+      </div>
+      <div class="layer">
+        <div class="lt">Extensions</div><div class="ln">Commerce</div>
+        <div class="ld">Compile-time modules with typed manifests — routes, UI slots and settings each plugin owns, isolated by design.</div>
+        <div class="chips"><span>cards</span><span>pos</span><span>reports</span><span>shop</span></div>
+      </div>
+      <div class="layer">
+        <div class="lt">Hardware</div><div class="ln">POSBOX</div>
+        <div class="ld">ESP32 point-of-sale devices, partner-attributed at flash time. Firmware, build guides and 3D files, fully open.</div>
+        <div class="chips"><span>webflasher</span><span>device registry</span><span>MIT firmware</span></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section class="blk" id="extensions" style="background:var(--paper2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <span class="eyebrow">Extensions</span>
+  <h2 class="sec">Install a way to get paid<br><b>in one click.</b></h2>
+  <p class="sec-sub">Every extension installs to your account, not the server. Disable it and its hooks go inert; its data stays yours.</p>
+  <div class="extgrid">
+    <div class="excard"><div class="ic">◧</div><h3>Lightning Cards</h3><p>Issue NTAG424 DNA tap-to-pay cards with per-tap and daily limits, PIN protection, remote freeze and cryptographic wipe.</p><span class="tag">Shipping</span></div>
+    <div class="excard"><div class="ic">▦</div><h3>Point of Sale</h3><p>A terminal and device API for merchants: wrapped hold invoices, fiat-rate configuration, live payment status.</p><span class="tag">Shipping</span></div>
+    <div class="excard"><div class="ic">▣</div><h3>POSBOX Hardware</h3><p>An open ESP32 POS device. Partners assemble locally, flash from the browser, and every device carries partner attribution.</p><span class="tag">Shipping</span></div>
+    <div class="excard"><div class="ic">▤</div><h3>Reports</h3><p>Append-only payment ledger, transaction history, treasury-grade summaries — every sats movement queryable.</p><span class="tag">Shipping</span></div>
+    <div class="excard"><div class="ic">◈</div><h3>Card rails</h3><p>Accept Visa, Mastercard and PromptPay through Stripe alongside Lightning. Configure with your own keys, per account.</p><span class="tag">In catalog</span></div>
+    <div class="excard"><div class="ic">◆</div><h3>Multi-crypto</h3><p>On-chain and altcoin acceptance via satora.io — additional rails over the same wallet core.</p><span class="tag">In catalog</span></div>
+  </div>
+</div></section>
+
+<section class="partners" id="partners"><div class="wrap">
+  <span class="eyebrow" style="color:var(--gold)">Partner network</span>
+  <h2 class="sec">Buy the hardware from<br><b>a partner near you.</b></h2>
+  <p class="sec-sub">Partners assemble POSBOX devices and print cards locally. They keep 100% of hardware revenue and earn one third of openLN's transaction fee on devices they flash.</p>
+  <div class="pgrid">
+    <div class="pcard"><div class="region">Thailand</div><div class="pn">MAEKOB</div><div class="pd">Devices, official and custom cards. Assembled and dispatched from Koh Samui.</div></div>
+    <div class="pcard"><div class="region">South Africa</div><div class="pn">Johannesburg</div><div class="pd">POSBOX assembly and local card printing for the African market.</div></div>
+    <div class="pcard"><div class="region">Europe</div><div class="pn">satoshi.si</div><div class="pd">European partner — onboarding.</div></div>
+  </div>
+</div></section>
+
+<section class="blk" id="protocol"><div class="wrap">
+  <span class="eyebrow">Protocol</span>
+  <h2 class="sec">Precise about money,<br><b>by construction.</b></h2>
+  <div class="spec">
+    <div>
+      <div class="specrow"><div class="sn">01</div><div><div class="st">Non-custodial by design</div><div class="sd">openLN connects to your wallet over NIP-47. It holds no keys and cannot move your funds without your wallet's consent.</div></div></div>
+      <div class="specrow"><div class="sn">02</div><div><div class="st">The 1% wrap</div><div class="sd">Inbound payments arrive as wrapped hold invoices: the platform holds a hash-locked invoice, forwards to your wallet, then settles — fee accrued on exactly this path.</div></div></div>
+      <div class="specrow"><div class="sn">03</div><div><div class="st">Ambiguity never means failure</div><div class="sd">Every payment outcome is an explicit state — settled, pending, or needs-reconciliation — resolved by cryptographic lookup, never by guesswork or retry.</div></div></div>
+      <div class="specrow"><div class="sn">04</div><div><div class="st">Append-only accounting</div><div class="sd">payment_events records every state transition of every wrap. The ledger is the audit trail; nothing is mutable history.</div></div></div>
+    </div>
+    <div class="codecard">
+      <div class="codebar"><div class="dots"><i></i><i></i><i></i></div><span class="fn">wrapped-invoice.ts</span></div>
+      <div class="codebody"><span class="c">// the money path — one engine, no shortcuts</span>
+<span class="k">const</span> wrap = <span class="k">await</span> <span class="s">createWrappedInvoice</span>({
+  amountSats,
+  memo,
+  merchantNwcUrl, <span class="c">// your wallet, your keys</span>
+});
+
+<span class="c">// hold minted ─ customer pays 1,000 sats</span>
+<span class="c">// platform forwards 990 ── settle hold</span>
+<span class="c">// fee 10 sats, accrued exactly 1/3</span>
+<span class="c">//          to the flashing partner</span>
+
+<span class="k">await</span> <span class="s">advanceWrap</span>(row); <span class="c">// → "settled"</span></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="cta" id="cta"><div class="wrap">
+  <svg width="56" height="56" viewBox="0 0 96 96" style="margin-bottom:26px"><circle class="orb" cx="48" cy="48" r="26"/><g clip-path="url(#lg2)"><circle class="ring" cx="48" cy="48" r="36"/></g><defs><clipPath id="lg2"><circle cx="48" cy="48" r="26"/></clipPath></defs></svg>
+  <h2>Start with <b>one satoshi.</b></h2>
+  <p>Create a wallet, connect your NWC string, and receive your first wrapped invoice in under a minute.</p>
+  <a class="btn btn-teal" style="padding:12px 26px;font-size:16px" href="/app">Open the wallet →</a>
+</div></section>
+
+<footer><div class="wrap footin">
+  <div style="display:flex;align-items:center;gap:10px"><svg class="mark" width="19" height="19" viewBox="0 0 96 96"><circle class="orb" cx="48" cy="48" r="26"/><g clip-path="url(#lg3)"><circle class="ring" cx="48" cy="48" r="36"/></g><defs><clipPath id="lg3"><circle cx="48" cy="48" r="26"/></clipPath></defs></svg><span>openLN</span></div>
+  <div class="fl"><a href="https://github.com/openlnhq/openln">Source</a><a href="/app">Wallet</a><a href="#partners">Partners</a><a href="https://github.com/openlnhq/openln/LICENSE">AGPL-3.0</a></div>
+  <div>openln.com</div>
+</div></footer>
+
+</body></html>

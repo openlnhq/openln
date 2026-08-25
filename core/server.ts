@@ -14,6 +14,7 @@ import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
+import { handleExtensionsRoute } from "../plugins/extensions.js";
 import { handlePosboxRoute } from "../plugins/posbox.js";
 import { handleShopRoute } from "../plugins/shop.js";
 import { handlePartnerRoute } from "../plugins/partner.js";
@@ -42,6 +43,7 @@ const server = createServer(async (req, res) => {
     if (await handlePartnerRoute(req,res,u)) return;
     if (await handlePosboxRoute(req,res,u,currentAccount)) return;
     if (handleShopRoute(req,res,u)) return;
+    if (await handleExtensionsRoute(req,res,u,currentAccount)) return;
     if (await handleReportsRoute(req,res,u,currentAccount)) return;
     const cardsHandled = await handleCardsRoute(req, res, u, currentAccount); if (cardsHandled) return;
     if (req.method === "GET" && u.pathname === "/") { res.writeHead(200, { "content-type": "text/html" }); return res.end('<!doctype html><title>openLN</title><main><h1>openLN</h1><p>Non-custodial Lightning workspace</p><a href="/app">Open wallet</a></main>'); }

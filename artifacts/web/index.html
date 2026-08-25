@@ -78,7 +78,7 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 
 /* layout grid */
 .grid{display:grid;grid-template-columns:1.5fr 1fr;gap:14px;margin-top:14px}
-@media(max-width:900px){.grid{grid-template-columns:1fr}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
 @media(max-width:760px){
   .shell{padding:0 16px 40px}
   header.top{margin:0 -16px;padding:0 16px}
@@ -128,6 +128,15 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .ext .arrow{color:var(--text3);font-size:15px}
 .extgrid{display:grid;gap:8px}
 
+/* money input */
+.amtfield{position:relative;margin:4px 0 2px}
+.amtfield input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 56px 16px 16px;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;letter-spacing:-.8px;color:var(--text);text-align:center;transition:.15s}
+.amtfield input:focus{outline:none;border-color:var(--teal-line);background:var(--surface2);box-shadow:0 0 0 3px rgba(20,184,166,.1)}
+.amtfield input::placeholder{color:var(--text3);font-weight:450}
+.amtfield .suffix{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--text3);font-weight:510}
+.amtchips{display:flex;gap:7px;margin-top:10px}
+.amtchips button{flex:1;padding:7px 4px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font-size:12px;font-weight:590;color:var(--text2);transition:.12s}
+.amtchips button:hover{color:var(--text);border-color:var(--line2);background:var(--surface2)}
 /* forms */
 .field{display:block;margin-bottom:12px}
 .field span{display:block;font-size:12px;font-weight:510;color:var(--text2);margin-bottom:6px}
@@ -311,10 +320,12 @@ const extGlyph=id=>({cards:'◧',pos:'▦',reports:'▤',posbox:'▣',shop:'orgi
 function receiveModal(){
   const m=modal(`<div class="modalhead"><h2>Receive sats</h2><button class="xbtn">✕</button></div>
   <form id="rf">
-    <label class="field"><span>Amount (sats)</span><input class="input mono" name="amountSats" type="number" min="1" placeholder="1000" required autofocus></label>
-    <label class="field"><span>Memo <span class="dim">optional</span></span><input class="input" name="memo" placeholder="Payment for..."></label>
-    <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Create invoice</button>
+    <div class="amtfield"><input name="amountSats" type="number" min="1" placeholder="0" inputmode="numeric" required autofocus><span class="suffix">sats</span></div>
+    <div class="amtchips"><button type="button" data-amt="100">100</button><button type="button" data-amt="500">500</button><button type="button" data-amt="1000">1k</button><button type="button" data-amt="10000">10k</button></div>
+    <label class="field" style="margin-top:14px"><span>Memo <span class="dim">optional</span></span><input class="input" name="memo" placeholder="Payment for..."></label>
+    <button class="btn gold" style="width:100%;justify-content:center;padding:12px;margin-top:4px">Create invoice</button>
   </form><div id="rres"></div>`);
+  m.querySelectorAll('.amtchips button').forEach(ch=>ch.onclick=()=>{m.querySelector('[name=amountSats]').value=ch.dataset.amt;m.querySelector('[name=amountSats]').focus()});
   m.querySelector('#rf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     m.querySelector('#rres').innerHTML=`<div style="text-align:center;padding:18px"><span class="spin"></span></div>`;
     try{

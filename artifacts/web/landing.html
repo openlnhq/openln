@@ -163,87 +163,96 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:44px 0}
 <header class="nav"><div class="wrap navin">
   <a class="brand" href="#"><svg class="mark" width="27" height="27" viewBox="0 0 96 96"><circle class="orb" cx="48" cy="48" r="26"/><g clip-path="url(#lg)"><circle class="ring" cx="48" cy="48" r="36"/></g><defs><clipPath id="lg"><circle cx="48" cy="48" r="26"/></clipPath></defs></svg>open<em>LN</em></a>
   <nav class="navlinks"><a href="#architecture">Architecture</a><a href="#extensions">Extensions</a><a href="#partners">Partners</a><a href="#protocol">Protocol</a></nav>
-  <div class="navctas"><a class="btn btn-line" href="/app">Sign in</a><a class="btn btn-dark" href="#cta">Start with the wallet</a></div>
+  <div class="navctas"><a class="btn btn-line" href="/app">Sign in</a><a class="btn btn-dark" href="#cta">Create an account</a></div>
 </div></header>
 
 <section class="hero"><div class="wrap" style="position:relative">
-  <span class="eyebrow">Open-source Lightning commerce</span>
-  <h1 class="display">One wallet core.<br><b>Every way to get paid.</b></h1>
-  <p class="lead">openLN is a non-custodial commerce platform for the Lightning Network. Connect your own wallet, then extend it — cards, point-of-sale, hardware, card rails. Your keys never leave your custody.</p>
+  <span class="eyebrow">Payment routing on the Lightning Network</span>
+  <h1 class="display">Non-custodial payments<br>for merchants <b>and spenders.</b></h1>
+  <p class="lead">openLN routes payments between wallets. It takes 1% of what a merchant receives and holds nothing. Every account is owned by its user.</p>
   <div class="heroctas">
-    <a class="btn btn-teal" href="/app">Open the wallet →</a>
+    <a class="btn btn-teal" href="/app">Create an account →</a>
     <a class="btn btn-line" href="https://github.com/openlnhq/openln">Read the source</a>
   </div>
-  <p class="fine mono">AGPL-3.0 · NIP-47 / Nostr Wallet Connect · wrapped hold invoices · 1% inbound</p>
+  <p class="fine mono">open source · AGPL-3.0 · NIP-47 · append-only ledger</p>
 </div></section>
 
 <div class="stats"><div class="wrap statsin">
-  <div class="stat"><div class="v mono">0<small> sats</small></div><div class="l">held in custody by openLN, ever</div></div>
-  <div class="stat"><div class="v mono">1<small>%</small></div><div class="l">inbound wrap fee — nothing hidden</div></div>
-  <div class="stat"><div class="v mono">7<small> extensions</small></div><div class="l">in the catalog, installed per account</div></div>
-  <div class="stat"><div class="v mono">2/3<small> of fee</small></div><div class="l">to you and your partner network</div></div>
+  <div class="stat"><div class="v mono">0<small> sats</small></div><div class="l">held — openLN routes, it never stores a balance</div></div>
+  <div class="stat"><div class="v mono">1<small>%</small></div><div class="l">of what a merchant receives. The only fee.</div></div>
+  <div class="stat"><div class="v mono">2<small> rails</small></div><div class="l">Lightning today — cards and multi-crypto as extensions</div></div>
+  <div class="stat"><div class="v mono">1<small>/3</small></div><div class="l">of the fee goes to the partner who flashed the device</div></div>
 </div></div>
 
 <section class="blk" id="architecture"><div class="wrap">
-  <span class="eyebrow">Architecture</span>
-  <h2 class="sec">The wallet is the core.<br><b>Everything else is an extension.</b></h2>
-  <p class="sec-sub">Payments flow through a single, audited money path — the wrapped hold invoice engine ported from battle-tested production. Extensions build on top; none can touch your keys.</p>
+  <span class="eyebrow">The payment path</span>
+  <h2 class="sec">One fee. One place.<br><b>Nothing hidden.</b></h2>
+  <p class="sec-sub">When a payment is wrapped, the payer locks funds to a hold invoice. openLN forwards the amount minus 1% to the merchant's wallet, then settles the hold. The fee accrues at this step and nowhere else — every transition recorded in an append-only ledger.</p>
   <div class="arch">
-    <div class="archbar"><div class="dots"><i></i><i></i><i></i></div><span class="tt">openln — system layout</span></div>
+    <div class="archbar"><div class="dots"><i></i><i></i><i></i></div><span class="tt">wrapped hold invoice — one payment</span></div>
     <div class="archbody">
+      <div class="layer">
+        <div class="lt">01 · Payer</div><div class="ln">Locks funds</div>
+        <div class="ld">Pays a hold invoice whose settlement requires a secret held by openLN. No custody changes hands.</div>
+        <div class="chips"><span>hold invoice</span><span>hash-locked</span></div>
+      </div>
       <div class="layer core">
-        <div class="lt">Core</div><div class="ln">Wallet</div>
-        <div class="ld">Non-custodial NWC wallet, auth, sessions, the append-only payment ledger and the 1% hold-invoice wrap engine.</div>
-        <div class="chips"><span>holdWrap</span><span>payment_events</span><span>NIP-47</span></div>
+        <div class="lt">02 · openLN</div><div class="ln">Routes, takes 1%</div>
+        <div class="ld">Forwards the amount minus 1% to the merchant's wallet, then releases the secret. One third of the fee is credited to the partner who flashed the device.</div>
+        <div class="chips"><span>forward</span><span>settle</span><span>ledger entry</span></div>
       </div>
       <div class="layer">
-        <div class="lt">Extensions</div><div class="ln">Commerce</div>
-        <div class="ld">Compile-time modules with typed manifests — routes, UI slots and settings each plugin owns, isolated by design.</div>
-        <div class="chips"><span>cards</span><span>pos</span><span>reports</span><span>shop</span></div>
-      </div>
-      <div class="layer">
-        <div class="lt">Hardware</div><div class="ln">POSBOX</div>
-        <div class="ld">ESP32 point-of-sale devices, partner-attributed at flash time. Firmware, build guides and 3D files, fully open.</div>
-        <div class="chips"><span>webflasher</span><span>device registry</span><span>MIT firmware</span></div>
+        <div class="lt">03 · Merchant</div><div class="ln">Own wallet</div>
+        <div class="ld">Funds settle to a wallet the merchant controls. Not a platform balance — their wallet, their keys.</div>
+        <div class="chips"><span>NIP-47</span><span>self-custody</span></div>
       </div>
     </div>
   </div>
 </div></section>
 
 <section class="blk" id="extensions" style="background:var(--paper2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
-  <span class="eyebrow">Extensions</span>
-  <h2 class="sec">Install a way to get paid<br><b>in one click.</b></h2>
-  <p class="sec-sub">Every extension installs to your account, not the server. Disable it and its hooks go inert; its data stays yours.</p>
-  <div class="extgrid">
-    <div class="excard"><div class="ic">◧</div><h3>Lightning Cards</h3><p>Issue NTAG424 DNA tap-to-pay cards with per-tap and daily limits, PIN protection, remote freeze and cryptographic wipe.</p><span class="tag">Shipping</span></div>
-    <div class="excard"><div class="ic">▦</div><h3>Point of Sale</h3><p>A terminal and device API for merchants: wrapped hold invoices, fiat-rate configuration, live payment status.</p><span class="tag">Shipping</span></div>
-    <div class="excard"><div class="ic">▣</div><h3>POSBOX Hardware</h3><p>An open ESP32 POS device. Partners assemble locally, flash from the browser, and every device carries partner attribution.</p><span class="tag">Shipping</span></div>
-    <div class="excard"><div class="ic">▤</div><h3>Reports</h3><p>Append-only payment ledger, transaction history, treasury-grade summaries — every sats movement queryable.</p><span class="tag">Shipping</span></div>
-    <div class="excard"><div class="ic">◈</div><h3>Card rails</h3><p>Accept Visa, Mastercard and PromptPay through Stripe alongside Lightning. Configure with your own keys, per account.</p><span class="tag">In catalog</span></div>
-    <div class="excard"><div class="ic">◆</div><h3>Multi-crypto</h3><p>On-chain and altcoin acceptance via satora.io — additional rails over the same wallet core.</p><span class="tag">In catalog</span></div>
+  <span class="eyebrow">Two sides, one network</span>
+  <h2 class="sec">Merchants get paid.<br><b>Spenders pay. Both own their keys.</b></h2>
+  <div class="spec" style="margin-top:34px">
+    <div>
+      <div class="specrow"><div class="sn">M</div><div><div class="st">For merchants</div><div class="sd">Take payments by tap-to-pay card, POS or invoice. Funds settle to your own wallet. 1% per payment, no other fees, no subscriptions.</div></div></div>
+      <div class="specrow"><div class="sn">M</div><div><div class="st">The RIC terminal</div><div class="sd">Rapid Invoice Channel — an open-hardware terminal that sends and receives, and writes and wipes NTAG424 cards on the spot. Assembled by local partners.</div></div></div>
+    </div>
+    <div>
+      <div class="specrow"><div class="sn">S</div><div><div class="st">For spenders</div><div class="sd">A card backed by your own sats. Top up your wallet, tap to pay at any openLN merchant. Freeze instantly if lost.</div></div></div>
+      <div class="specrow"><div class="sn">S</div><div><div class="st">Your account, your keys</div><div class="sd">Sign up directly or get onboarded by a merchant or partner. No one — not a merchant, not a partner — can control your money but you.</div></div></div>
+    </div>
+  </div>
+  <div class="extgrid" style="margin-top:34px">
+    <div class="excard"><div class="ic">◧</div><h3>Tap-to-pay cards</h3><p>NTAG424 cards cryptographically bound to the holder's account, spendable at any merchant on the network.</p><span class="tag">Shipping</span></div>
+    <div class="excard"><div class="ic">▦</div><h3>POS</h3><p>Point-of-sale terminal and invoice API. Wrapped hold invoices, fiat-rate configuration, live status.</p><span class="tag">Shipping</span></div>
+    <div class="excard"><div class="ic">▣</div><h3>RIC terminal</h3><p>Sends and receives. Writes and wipes cards. Open hardware — MIT firmware, build files and guides.</p><span class="tag">Shipping</span></div>
+    <div class="excard"><div class="ic">◈</div><h3>Card rails</h3><p>Visa, Mastercard and PromptPay via your own Stripe account.</p><span class="tag">In catalog</span></div>
+    <div class="excard"><div class="ic">◆</div><h3>Multi-crypto</h3><p>On-chain and altcoin rails via satora.io.</p><span class="tag">In catalog</span></div>
+    <div class="excard"><div class="ic">▤</div><h3>Reports</h3><p>Append-only ledger. Every sats movement, transaction by transaction.</p><span class="tag">Shipping</span></div>
   </div>
 </div></section>
 
 <section class="partners" id="partners"><div class="wrap">
   <span class="eyebrow" style="color:var(--gold)">Partner network</span>
-  <h2 class="sec">Buy the hardware from<br><b>a partner near you.</b></h2>
-  <p class="sec-sub">Partners assemble POSBOX devices and print cards locally. They keep 100% of hardware revenue and earn one third of openLN's transaction fee on devices they flash.</p>
+  <h2 class="sec">Assemble RIC terminals.<br><b>Keep 100% of the sale.</b></h2>
+  <p class="sec-sub">Partners assemble RIC terminals and print cards locally — official or custom. Every device you flash earns you one third of openLN's 1% for the life of the device, tracked in the ledger.</p>
   <div class="pgrid">
-    <div class="pcard"><div class="region">Thailand</div><div class="pn">MAEKOB</div><div class="pd">Devices, official and custom cards. Assembled and dispatched from Koh Samui.</div></div>
-    <div class="pcard"><div class="region">South Africa</div><div class="pn">Johannesburg</div><div class="pd">POSBOX assembly and local card printing for the African market.</div></div>
+    <div class="pcard"><div class="region">Thailand</div><div class="pn">MAEKOB</div><div class="pd">RIC terminals, official and custom cards. Assembled and dispatched from Koh Samui.</div></div>
+    <div class="pcard"><div class="region">South Africa</div><div class="pn">Johannesburg</div><div class="pd">RIC assembly and local card printing for the African market.</div></div>
     <div class="pcard"><div class="region">Europe</div><div class="pn">satoshi.si</div><div class="pd">European partner — onboarding.</div></div>
   </div>
 </div></section>
 
 <section class="blk" id="protocol"><div class="wrap">
-  <span class="eyebrow">Protocol</span>
-  <h2 class="sec">Precise about money,<br><b>by construction.</b></h2>
+  <span class="eyebrow">Under the hood</span>
+  <h2 class="sec">Auditable<br><b>by construction.</b></h2>
   <div class="spec">
     <div>
-      <div class="specrow"><div class="sn">01</div><div><div class="st">Non-custodial by design</div><div class="sd">openLN connects to your wallet over NIP-47. It holds no keys and cannot move your funds without your wallet's consent.</div></div></div>
-      <div class="specrow"><div class="sn">02</div><div><div class="st">The 1% wrap</div><div class="sd">Inbound payments arrive as wrapped hold invoices: the platform holds a hash-locked invoice, forwards to your wallet, then settles — fee accrued on exactly this path.</div></div></div>
-      <div class="specrow"><div class="sn">03</div><div><div class="st">Ambiguity never means failure</div><div class="sd">Every payment outcome is an explicit state — settled, pending, or needs-reconciliation — resolved by cryptographic lookup, never by guesswork or retry.</div></div></div>
-      <div class="specrow"><div class="sn">04</div><div><div class="st">Append-only accounting</div><div class="sd">payment_events records every state transition of every wrap. The ledger is the audit trail; nothing is mutable history.</div></div></div>
+      <div class="specrow"><div class="sn">01</div><div><div class="st">Non-custodial, mechanically</div><div class="sd">Accounts connect to their own wallets over NIP-47. openLN holds no keys and cannot move funds without the wallet's consent.</div></div></div>
+      <div class="specrow"><div class="sn">02</div><div><div class="st">Ambiguity is never failure</div><div class="sd">Every payment outcome is an explicit state — settled, pending, or needs-reconciliation — resolved by cryptographic lookup, never by retry.</div></div></div>
+      <div class="specrow"><div class="sn">03</div><div><div class="st">Append-only ledger</div><div class="sd">Every state transition of every payment is recorded. Nothing is mutable history.</div></div></div>
+      <div class="specrow"><div class="sn">04</div><div><div class="st">Open source</div><div class="sd">AGPL-3.0 platform, MIT firmware, open hardware files. Verify, don't trust.</div></div></div>
     </div>
     <div class="codecard">
       <div class="codebar"><div class="dots"><i></i><i></i><i></i></div><span class="fn">wrapped-invoice.ts</span></div>
@@ -254,10 +263,10 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:44px 0}
   merchantNwcUrl, <span class="c">// your wallet, your keys</span>
 });
 
-<span class="c">// hold minted ─ customer pays 1,000 sats</span>
-<span class="c">// platform forwards 990 ── settle hold</span>
-<span class="c">// fee 10 sats, accrued exactly 1/3</span>
-<span class="c">//          to the flashing partner</span>
+<span class="c">// payer locks 1,000 sats to the hold</span>
+<span class="c">// openLN forwards 990, settles</span>
+<span class="c">// fee 10 sats — 1/3 to the partner</span>
+<span class="c">//          who flashed this RIC</span>
 
 <span class="k">await</span> <span class="s">advanceWrap</span>(row); <span class="c">// → "settled"</span></div>
     </div>
@@ -266,9 +275,9 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:44px 0}
 
 <section class="cta" id="cta"><div class="wrap">
   <svg width="56" height="56" viewBox="0 0 96 96" style="margin-bottom:26px"><circle class="orb" cx="48" cy="48" r="26"/><g clip-path="url(#lg2)"><circle class="ring" cx="48" cy="48" r="36"/></g><defs><clipPath id="lg2"><circle cx="48" cy="48" r="26"/></clipPath></defs></svg>
-  <h2>Start with <b>one satoshi.</b></h2>
-  <p>Create a wallet, connect your NWC string, and receive your first wrapped invoice in under a minute.</p>
-  <a class="btn btn-teal" style="padding:12px 26px;font-size:16px" href="/app">Open the wallet →</a>
+  <h2>Create an account.<br><b>Spend, or get paid.</b></h2>
+  <p>Bring your own wallet or get one. No signup fee, no subscription.</p>
+  <a class="btn btn-teal" style="padding:12px 26px;font-size:16px" href="/app">Create an account →</a>
 </div></section>
 
 <footer><div class="wrap footin">

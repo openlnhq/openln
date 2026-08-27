@@ -26,6 +26,16 @@ a{color:inherit;text-decoration:none}
 .mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
 .muted{color:var(--text2)}.dim{color:var(--text3)}
 
+/* light theme */
+html.light{--bg:#f4f7f6;--bg2:#eef3f2;--surface:rgba(6,40,38,.035);--surface2:rgba(6,40,38,.06);--surface3:rgba(6,40,38,.09);--line:rgba(6,40,38,.12);--line2:rgba(6,40,38,.18);--text:#0a1a19;--text2:#435754;--text3:#748a87}
+html.light body{background:var(--bg);color:var(--text)}
+html.light body::before{background:radial-gradient(1100px 500px at 75% -12%, rgba(20,184,166,.08), transparent 62%),radial-gradient(700px 400px at -10% 108%, rgba(232,180,9,.06), transparent 60%)}
+html.light header.top{background:rgba(244,247,246,.85);border-bottom:1px solid var(--line)}
+html.light .modalbox{background:#fff;box-shadow:0 24px 70px rgba(6,40,38,.25)}
+html.light .balance{background:linear-gradient(160deg, rgba(6,40,38,.05), rgba(6,40,38,.02))}
+html.light .btn.gold{box-shadow:0 6px 18px rgba(232,180,9,.25)}
+.themetoggle{width:32px;height:32px;border-radius:8px;border:1px solid var(--line2);background:var(--surface);display:grid;place-items:center;cursor:pointer;font-size:14px;color:var(--text2);transition:.15s}
+.themetoggle:hover{color:var(--text);border-color:var(--teal-line)}
 /* shell */
 .shell{max-width:1180px;margin:0 auto;padding:0 32px 90px}
 header.top{position:sticky;top:0;z-index:40;background:rgba(8,10,10,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);margin:0 -32px;padding:0 32px}
@@ -213,7 +223,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const tok=()=>localStorage.getItem('openln_token');
 const fmt=n=>Number(n||0).toLocaleString('en-US');
 const ago=t=>{const s=(Date.now()-new Date(t))/1e3;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'};
-const MARK=`<span class="lnmark"><svg width="15" height="15" viewBox="0 0 96 96"><circle cx="48" cy="48" r="26" fill="#14b8a6"/><g clip-path="url(#m)"><circle cx="48" cy="48" r="36" fill="none" stroke="#f5c518" stroke-width="13"/></g><defs><clipPath id="m"><circle cx="48" cy="48" r="26"/></clipPath></defs></svg></span>`;
+const MARK=`<span class="lnmark"><svg width="17" height="17" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="#14b8a6"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round"/></svg></span>`;
 async function api(path,opts={}){opts.headers={'content-type':'application/json',...(opts.headers||{}),...(tok()?{Authorization:'Bearer '+tok()}:{})};const r=await fetch(path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||r.status);return d}
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),3200)}
 function modal(html){const w=document.createElement('div');w.className='modal';w.innerHTML=`<div class="modalbox">${html}</div>`;w.addEventListener('click',e=>{if(e.target===w)w.remove()});document.body.append(w);w.querySelector('.xbtn')?.addEventListener('click',()=>w.remove());return w}
@@ -257,6 +267,7 @@ async function render(){
         <button data-v="extensions" class="${VIEW==='extensions'?'on':''}">Extensions</button>
         <button data-v="partner" class="${VIEW==='partner'?'on':''}">Partner</button>
       </nav>
+      <button class="themetoggle" id="themeToggle" aria-label="Toggle theme">☀</button>
       <div class="uavatar">K</div>
     </div></header>
     <div id="view"></div></div>`;
@@ -481,5 +492,15 @@ async function renderPartner(rows,pid){
     :`<div style="padding:26px 0;text-align:center"><span class="dim" style="font-size:13px">No attributed payments yet. Flash a POSBOX with your claim code to begin.</span></div>`}</div></div>`;
   if(claim)$('#pcopy').onclick=()=>{navigator.clipboard.writeText(claim.claimCode);toast('Claim code copied')};
 }
+(function(){
+  var t=document.getElementById('themeToggle'),root=document.documentElement;
+  var saved=localStorage.getItem('openln_app_theme');
+  if(saved==='light'){root.classList.add('light');}
+  t.textContent=root.classList.contains('light')?'☾':'☀';
+  t.onclick=function(){root.classList.toggle('light');
+    var light=root.classList.contains('light');
+    localStorage.setItem('openln_app_theme',light?'light':'dark');
+    t.textContent=light?'☾':'☀';};
+})();
 boot();
 </script></body></html>

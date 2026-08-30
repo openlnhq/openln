@@ -24,7 +24,7 @@ a{color:inherit;text-decoration:none}
 .gr{display:grid;gap:26px}
 
 /* mark + theme */
-.mark{display:inline-block;vertical-align:middle}
+.mark{display:inline-block;vertical-align:middle;width:28px;height:28px}
 :root{--m-orb:#005f5f;--m-arc:#ffffff}
 html.dark{--m-orb:#0e8388;--m-arc:#eaffff}
 html.dark{--ink:#eef6f5;--ink2:#c5d6d4;--body:#8ba8a4;--line:#1d3a38;--paper:#071413;--paper2:#0a1c1b;--dark:#04211f;--dark2:#073330;
@@ -48,10 +48,12 @@ html.dark .layer{border-color:#1d3a38}
 /* nav */
 header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .navin{display:flex;align-items:center;gap:34px;height:66px}
-.brand{display:flex;align-items:center;gap:11px;font-size:17.5px;font-weight:600;letter-spacing:-.35px}
-.brand em{font-style:normal;color:var(--teal-deep)}
+.brand{display:flex;align-items:center;gap:9px;font-size:17.5px;font-weight:600;letter-spacing:-.35px}
+.brand em{font-style:normal;color:var(--teal-deep);margin-left:-.5px}
 .navlinks{display:flex;gap:26px;font-size:14px;color:var(--ink2)}
 .navlinks a:hover{color:var(--ink)}
+.navctas .navlink{font-size:14px;color:var(--ink2);padding:0 6px}
+.navctas .navlink:hover{color:var(--ink)}
 .navctas{margin-left:auto;display:flex;gap:10px;align-items:center}
 
 /* buttons */
@@ -185,7 +187,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:44px 0}
 <header class="nav"><div class="wrap navin">
   <a class="brand" href="#"><svg class="mark " viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="var(--m-orb)"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="var(--m-arc)" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="var(--m-arc)" stroke-width="7.5" stroke-linecap="round"/></svg>open<em>LN</em></a>
   <nav class="navlinks"><a href="#architecture">Architecture</a><a href="#extensions">Extensions</a><a href="#partners">Partners</a><a href="#protocol">Protocol</a></nav>
-  <div class="navctas"><a class="btn btn-line" href="https://cards.openln.com">Cards</a><a class="btn btn-line" href="/app">Sign in</a><a class="btn btn-dark" href="#cta">Create an account</a><button class="themetoggle" id="themeToggle" aria-label="Toggle theme">◐</button></div>
+  <div class="navctas"><a class="navlink" href="https://cards.openln.com">Cards</a><a class="btn btn-line" href="/app">Sign in</a><a class="btn btn-dark" href="#cta">Create an account</a><button class="themetoggle" id="themeToggle" aria-label="Toggle theme">◐</button></div>
 </div></header>
 
 <section class="hero"><div class="wrap" style="position:relative">

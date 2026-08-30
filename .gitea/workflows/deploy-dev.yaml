@@ -1,0 +1,22 @@
+name: deploy-dev
+on:
+  push:
+    branches: [dev]
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy dev preview
+        run: |
+          ssh kongzi@10.10.10.11 "
+            cd ~/openln
+            git fetch origin dev && git checkout dev && git pull origin dev
+            pnpm install --no-frozen-lockfile
+            pnpm typecheck || exit 1
+            pnpm build || exit 1
+            sudo systemctl restart openln
+            sleep 2
+            curl -fsS http://127.0.0.1:3147/health
+          "
+        env:
+          SLAVE1_SSH_KEY: ${{ secrets.SLAVE1_SSH_KEY }}

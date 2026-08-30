@@ -1,0 +1,56 @@
+name: deploy-production
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    # Production deploys ONLY when the commit message starts with the trigger prefix.
+    if: startsWith(github.event.head_commit.message, 'cc-deploy-trigger')
+    steps:
+      - name: Deploy to VPS production
+        run: |
+          ssh -o StrictHostKeyChecking=no root@159.198.77.66 "
+            set -e
+            if [ ! -d /opt/openln ]; then
+              mkdir -p /opt/openln && cd /opt/openln
+              git clone http://kongzi:\${GITEA_TOKEN}@100.92.64.48:3000/kongzi/openln.git .
+            fi
+            cd /opt/openln
+            git fetch origin main && git checkout main && git reset --hard origin/main
+            pnpm install --no-frozen-lockfile
+            pnpm typecheck || exit 1
+            pnpm build || exit 1
+            if [ ! -d /var/lib/postgresql/openln ]; then
+              sudo -u postgres psql -c \"CREATE ROLE openln LOGIN PASSWORD '\${OPENLN_DB_PASSWORD}'\"
+              sudo -u postgres psql -c \"CREATE DATABASE openln OWNER openln\"
+            fi
+            if [ ! -f /etc/systemd/system/openln.service ]; then
+              cat > /etc/systemd/system/openln.service << 'UNIT'
+          [Unit]
+          Description=openLN Core (production)
+          After=network.target postgresql.service
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/openln
+          EnvironmentFile=/opt/openln/artifacts/api-server/.env
+          Environment=PORT=3160
+          ExecStart=/usr/bin/node /opt/openln/dist/core/server.js
+          Restart=on-failure
+          RestartSec=3
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+              systemctl daemon-reload
+              systemctl enable openln
+            fi
+            systemctl restart openln
+            sleep 2
+            curl -fsS http://127.0.0.1:3160/health
+          "
+        env:
+          GITEA_TOKEN: ${{ secrets.VPS_GITEA_TOKEN }}
+          OPENLN_DB_PASSWORD: ${{ secrets.OPENLN_DB_PASSWORD }}

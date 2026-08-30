@@ -276,6 +276,7 @@ async function render(){
     if(VIEW==='wallet')await vWallet(st,bal);
     if(VIEW==='extensions')await vExt(plugins);
     if(VIEW==='partner')await vPartner();
+    if(window.applyThemeToggle)window.applyThemeToggle();
   }catch(e){if(String(e.message).includes('401')){localStorage.removeItem('openln_token');login()}else toast(e.message)}
 }
 /* ---- WALLET VIEW ---- */
@@ -494,14 +495,18 @@ async function renderPartner(rows,pid){
   if(claim)$('#pcopy').onclick=()=>{navigator.clipboard.writeText(claim.claimCode);toast('Claim code copied')};
 }
 (function(){
-  var t=document.getElementById('themeToggle'),root=document.documentElement;
+  var root=document.documentElement;
   var saved=localStorage.getItem('openln_app_theme');
   if(saved==='light'){root.classList.add('light');}
-  t.textContent=root.classList.contains('light')?'☾':'☀';
-  t.onclick=function(){root.classList.toggle('light');
-    var light=root.classList.contains('light');
-    localStorage.setItem('openln_app_theme',light?'light':'dark');
-    t.textContent=light?'☾':'☀';};
+  window.applyThemeToggle=function(){
+    var t=document.getElementById('themeToggle');
+    if(!t)return;
+    t.textContent=root.classList.contains('light')?'☾':'☀';
+    t.onclick=function(){root.classList.toggle('light');
+      var light=root.classList.contains('light');
+      localStorage.setItem('openln_app_theme',light?'light':'dark');
+      t.textContent=light?'☾':'☀';};
+  };
 })();
 boot();
 </script></body></html>

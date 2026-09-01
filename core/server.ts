@@ -13,7 +13,7 @@ import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { reconcileAccountInvoicesBounded } from "./money/invoiceMonitor.js";
-import { onAccountEvent } from "./events.js";
+import { onAccountEvent , emitAccountEvent } from "./events.js";
 import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handleExtensionsRoute } from "../plugins/extensions.js";
@@ -132,6 +132,7 @@ const server = createServer(async (req, res) => {
       if (!invoice) return json(res, 404, { status: "unknown", paymentHash });
       if (invoice.wrapStatus) {
         const status = await advanceWrap(invoice as unknown as WrapRow);
+        if (status === "settled") emitAccountEvent(invoice.accountId, "payment", { paymentHash, status: "paid", amountSats: invoice.amountSats, feeSats: invoice.feeSats ?? 0 });
         return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
       }
       return json(res, 200, { status: invoice.paidAt ? "paid" : invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, feeSats: 0 });
@@ -184,6 +185,7 @@ const server = createServer(async (req, res) => {
       if (!invoice) return json(res, 404, { status: "unknown" });
       if (invoice.wrapStatus) {
         const status = await advanceWrap(invoice as unknown as WrapRow);
+        if (status === "settled") emitAccountEvent(invoice.accountId, "payment", { paymentHash, status: "paid", amountSats: invoice.amountSats, feeSats: invoice.feeSats ?? 0 });
         return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
       }
       if (invoice.paidAt) return json(res, 200, { status: "paid", paymentHash, feeSats: 0 });

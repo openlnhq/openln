@@ -1,13 +1,11 @@
-// @ts-nocheck
-//
-import { db } from "../db/index.js";
-import { transactionsTable, pendingInvoicesTable } from "../db/index.js";
+import { db } from "@workspace/db";
+import { transactionsTable, pendingInvoicesTable } from "@workspace/db";
 import { and, eq, isNotNull, or, inArray } from "drizzle-orm";
-import { payInvoice, makeInvoice, getAccountNwcUrl, isAmbiguousPayError, lookupOutgoingPayment, lookupInvoice, PLATFORM_NWC_URL } from "./nwc.js";
-import { advanceWrap, type WrapRow } from "./holdWrap.js";
-import { extractPaymentHash } from "./lnAddress.js";
-import { logger } from "./logger.js";
-import { recordPaymentEvent } from "./paymentLog.js";
+import { payInvoice, makeInvoice, getAccountNwcUrl, isAmbiguousPayError, lookupOutgoingPayment, lookupInvoice, PLATFORM_NWC_URL } from "./nwc";
+import { advanceWrap, type WrapRow } from "./holdWrap";
+import { extractPaymentHash } from "./lnAddress";
+import { logger } from "./logger";
+import { recordPaymentEvent } from "./paymentLog";
 
 /**
  * Thrown when a payment's outcome is UNKNOWN: the pay request may have reached
@@ -256,6 +254,14 @@ export async function checkOwnSettlementProof(paymentHash: string | null): Promi
       holdPreimage: pendingInvoicesTable.holdPreimage,
       wrapUpdatedAt: pendingInvoicesTable.wrapUpdatedAt,
       nwcUrlEncrypted: pendingInvoicesTable.nwcUrlEncrypted,
+      fiatCurrency: pendingInvoicesTable.fiatCurrency,
+      fiatAmount: pendingInvoicesTable.fiatAmount,
+      fiatBaseRate: pendingInvoicesTable.fiatBaseRate,
+      fiatEffectiveRate: pendingInvoicesTable.fiatEffectiveRate,
+      fiatModifier: pendingInvoicesTable.fiatModifier,
+      fiatRateSource: pendingInvoicesTable.fiatRateSource,
+      fiatRateDirection: pendingInvoicesTable.fiatRateDirection,
+      fiatRateAt: pendingInvoicesTable.fiatRateAt,
       expiresAt: pendingInvoicesTable.expiresAt,
     })
     .from(pendingInvoicesTable)
@@ -285,7 +291,7 @@ export async function checkOwnSettlementProof(paymentHash: string | null): Promi
         hold.state === "settled" ||
         (hold.paid && hold.state !== "failed");
       if (locked) {
-        const wrapRow: WrapRow = {
+        const wrapRow: WrapRow = { ...row,
           id: row.id,
           accountId: row.accountId,
           paymentHash: row.paymentHash,
@@ -301,6 +307,14 @@ export async function checkOwnSettlementProof(paymentHash: string | null): Promi
           wrapUpdatedAt: row.wrapUpdatedAt,
           nwcUrlEncrypted: row.nwcUrlEncrypted,
           paidAt: row.paidAt,
+          fiatCurrency: row.fiatCurrency,
+          fiatAmount: row.fiatAmount,
+          fiatBaseRate: row.fiatBaseRate,
+          fiatEffectiveRate: row.fiatEffectiveRate,
+          fiatModifier: row.fiatModifier,
+          fiatRateSource: row.fiatRateSource,
+          fiatRateDirection: row.fiatRateDirection,
+          fiatRateAt: row.fiatRateAt,
           expiresAt: row.expiresAt,
         };
         // Fire-and-forget — advance is CAS-safe and dynamic.

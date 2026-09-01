@@ -1,5 +1,3 @@
-// @ts-nocheck
-//
 /**
  * Wallet source resolution - the single place that answers "how does this
  * account receive and spend?".
@@ -8,10 +6,10 @@
  *   - kind 'lnaddress' : lightning address (receive-only via LNURL-pay/verify)
  *   - kind 'none'      : wallet setup not completed
  */
-import { db } from "../db/index.js";
-import { accountsTable } from "../db/index.js";
+import { db } from "@workspace/db";
+import { accountsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { getAccountNwcUrl } from "./nwc.js";
+import { getAccountNwcUrl } from "./nwc";
 
 export type WalletSource =
   | { kind: "nwc"; nwcUrl: string; mode: "veil" | "custom" }

@@ -1,5 +1,3 @@
-// @ts-nocheck
-//
 /**
  * Incoming-fee wrap engine (1% in, 0% out).
  *
@@ -37,8 +35,8 @@
  * Push notifications are an optional accelerator only.
  */
 import { createHash, randomBytes } from "crypto";
-import { db } from "../db/index.js";
-import { pendingInvoicesTable, transactionsTable, partnerEarningsTable, posboxDevicesAttributionTable } from "../db/index.js";
+import { db } from "@workspace/db";
+import { pendingInvoicesTable, transactionsTable } from "@workspace/db";
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   makeInvoice,
@@ -52,10 +50,9 @@ import {
   getBalance,
   PLATFORM_NWC_URL,
   relayInCooldown,
-} from "./nwc.js";
-import { logger } from "./logger.js";
-import { emitAccountEvent } from "../events.js";
-import { recordPaymentEvent } from "./paymentLog.js";
+} from "./nwc";
+import { logger } from "./logger";
+import { recordPaymentEvent } from "./paymentLog";
 
 // Customer-facing hold invoice expiry - short, consistent with POS usage
 // (customer is standing at the terminal). Limits open-hold exposure.
@@ -227,7 +224,6 @@ export async function createWrappedInvoice(
 export type WrapRow = {
   id: string;
   accountId: string;
-  cardOrderId?: string | null;
   paymentHash: string; // hold hash (customer-facing)
   bolt11: string;
   merchantBolt11: string | null;
@@ -242,6 +238,15 @@ export type WrapRow = {
   nwcUrlEncrypted: string | null;
   paidAt: Date | null;
   expiresAt: Date;
+  fiatCurrency: string | null;
+  fiatAmount: string | null;
+  fiatBaseRate: string | null;
+  fiatEffectiveRate: string | null;
+  fiatModifier: string | null;
+  fiatRateSource: string | null;
+  fiatRateDirection: string | null;
+  fiatRateAt: Date | null;
+
 };
 
 function isDefinitivePayFailure(err: unknown): boolean {
@@ -391,8 +396,6 @@ async function finalizeSettled(row: WrapRow): Promise<void> {
       .returning({ id: pendingInvoicesTable.id });
     if (!marked) return;
 
-    const [attribution] = await tx.select({ partnerId: posboxDevicesAttributionTable.partnerId, deviceId: posboxDevicesAttributionTable.deviceId }).from(posboxDevicesAttributionTable).innerJoin(pendingInvoicesTable, eq(posboxDevicesAttributionTable.deviceId, pendingInvoicesTable.posboxDeviceId)).where(eq(pendingInvoicesTable.id, row.id));
-    if (attribution?.partnerId) await tx.insert(partnerEarningsTable).values({ partnerId: attribution.partnerId, deviceId: attribution.deviceId, paymentHash: row.paymentHash, amountSats: row.amountSats, feeShareSats: Math.floor(feeSats / 3) }).onConflictDoNothing();
     await tx.insert(transactionsTable).values({
       accountId: row.accountId,
       direction: "in",
@@ -406,7 +409,6 @@ async function finalizeSettled(row: WrapRow): Promise<void> {
       fiatCurrency: row.fiatCurrency ?? undefined, fiatAmount: row.fiatAmount ?? undefined, fiatBaseRate: row.fiatBaseRate ?? undefined, fiatEffectiveRate: row.fiatEffectiveRate ?? undefined, fiatModifier: row.fiatModifier ?? undefined, fiatRateSource: row.fiatRateSource ?? undefined, fiatRateDirection: row.fiatRateDirection ?? undefined, fiatRateAt: row.fiatRateAt ?? undefined,
     });
   });
-  emitAccountEvent(row.accountId, "payment", { paymentHash: row.paymentHash, status: "paid", amountSats: row.amountSats - feeSats });
   recordPaymentEvent({
     paymentId: row.id,
     accountId: row.accountId,
@@ -470,15 +472,7 @@ async function doAdvance(row: WrapRow): Promise<string> {
     }
     // accepted = customer HTLC locked (1st mile done). Some wallets surface
     // paid=true while still held; treat locked OR accepted as 1st-mile complete.
-    // Wallet vocabulary normalization: Veil reports a held HTLC as "accepted";
-    // Alby Hub reports the same locked state as "pending" (type outgoing).
-    // A hold invoice's HTLC, once locked, cannot be unlocked by the payer -
-    // "pending" on a hold row therefore means LOCKED, not unpaid.
-    if (
-      hold.state === "accepted" ||
-      hold.state === "pending" ||
-      (hold.paid && hold.state !== "settled" && hold.state !== "failed")
-    ) {
+    if (hold.state === "accepted" || (hold.paid && hold.state !== "settled" && hold.state !== "failed")) {
       await setWrapStatus(row.id, ["created"], "accepted");
       status = "accepted";
     } else if (hold.state === "settled") {

@@ -33,7 +33,7 @@ html.dark .brand em{color:var(--teal)}
 .navlinks{display:flex;gap:24px;font-size:14px;color:var(--ink2)}
 .navlinks a:hover{color:var(--ink)}
 .navctas{margin-left:auto;display:flex;gap:9px;align-items:center}
-.themetoggle{width:32px;height:32px;border-radius:7px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:14px;color:var(--ink2)}
+.themetoggle{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:transparent;cursor:pointer;font-size:15px;color:var(--ink2)}
 .themetoggle:hover{border-color:var(--teal-line);color:var(--ink)}
 
 /* ── buttons ── */
@@ -59,7 +59,12 @@ h1 b{font-weight:600}
 .hero p.lead{font:300 18px/1.55 'Source Sans 3',sans-serif;color:var(--body);max-width:540px;margin:20px auto 0}
 .heroctas{display:flex;gap:11px;justify-content:center;margin:30px 0 0;flex-wrap:wrap}
 .heroctas .btn{padding:13px 24px;font-size:16px}
-.spec-line{margin-top:16px;font-size:12px;color:var(--dim)}
+.spec-line{margin-top:14px;font-size:12.5px;color:var(--ink2);opacity:.9}
+.hero-sub{font-size:14.5px;font-weight:400;color:var(--teal-deep);margin-top:20px;letter-spacing:.01em}
+html.dark .hero-sub{color:var(--teal)}
+.speed{display:inline-flex;align-items:center;gap:8px;margin-top:18px;font-size:14px;font-weight:600;color:var(--gold-deep);border-bottom:1px dashed rgba(185,143,0,.45);padding-bottom:2px;transition:.15s}
+html.dark .speed{color:var(--gold)}
+.speed:hover{border-bottom-color:currentColor}
 
 /* ── the hub diagram ── */
 .hub{position:relative;margin:46px auto 0;max-width:980px}
@@ -69,6 +74,7 @@ h1 b{font-weight:600}
 .lbl.payer{left:4%;top:16%}
 .lbl.merchant{right:4%;top:16%;text-align:right}
 .lbl.hublbl{left:50%;transform:translateX(-50%);bottom:-6px;text-align:center}
+@media (prefers-reduced-motion: reduce){ .flow-dot,.pulse,.ripple-g{display:none} }
 @media (prefers-reduced-motion: no-preference){
   .flow-dot{offset-rotate:0deg;animation:dashmove 2.6s linear infinite}
   .flow-dot.d2{animation-delay:.87s}.flow-dot.d3{animation-delay:1.74s}
@@ -88,7 +94,8 @@ html.dark .see-all{color:var(--teal)}
 
 /* card fan */
 .fanbox{position:relative;height:380px;display:flex;align-items:flex-end;justify-content:center;perspective:1200px}
-.fan-card{position:absolute;width:250px;aspect-ratio:1.586;border-radius:14px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-soft);overflow:hidden;transform-origin:50% 130%;transition:transform .45s cubic-bezier(.2,.8,.2,1),box-shadow .3s;cursor:pointer}
+.fan-card{position:absolute;width:250px;aspect-ratio:1.586;border-radius:14px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-soft);overflow:hidden;transform-origin:50% 130%;transition:transform .4s cubic-bezier(.2,.9,.3,1.15),box-shadow .3s;cursor:pointer}
+.fanlink{color:var(--teal-deep)}html.dark .fanlink{color:var(--teal)}
 .fan-card img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
 .fanbox:hover .fan-card{box-shadow:var(--sh)}
 .fan-cap{text-align:center;font-size:12.5px;color:var(--body);margin-top:10px;min-height:2.4em}
@@ -166,6 +173,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
   .sgrid{grid-template-columns:1fr}
   .moneyin{grid-template-columns:1fr}
   .hub .lbl{font-size:9.5px}.hub .lbl small{font-size:11px}
+  .hub .lbl{position:static;transform:none;text-align:center;width:100%;margin-top:10px}
   .fanbox{height:auto;min-height:0;perspective:none;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;align-items:center;padding:20px 24px 30px;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .fan-card{position:relative;width:min(64vw,300px);transform:none!important;border-radius:14px;flex-shrink:0;scroll-snap-align:center}
 }
@@ -182,10 +190,11 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
 
 <!-- HERO: one cold sentence + the animated hub. CTAs = products. -->
 <section class="hero"><div class="wrap">
-  <span class="eyebrow">Lightning payment routing</span>
-  <h1>Non-custodial payments<br>for merchants <b>and spenders.</b></h1>
-  <p class="lead">A card taps. The payment routes through openLN — which holds nothing and takes 1% — and lands in your own wallet.</p>
-  <div class="heroctas"><a class="btn btn-teal" href="#cards">Buy a card →</a><a class="btn btn-line" href="#ric">Get a RIC terminal →</a></div>
+  <span class="eyebrow">Non-custodial Lightning payments</span>
+  <h1>A card taps.<br><b>Sats land in your wallet.</b></h1>
+  <p class="lead">The payment routes through openLN and settles into the merchant's own wallet in seconds. openLN holds nothing and takes 1%.</p>
+  <div class="heroctas"><a class="btn btn-teal" href="https://cards.openln.com/shop/blank">Buy a card →</a><a class="btn btn-line" href="https://cards.openln.com/shop/posbox">Get a RIC terminal →</a></div>
+  <a class="speed" href="/app">⚡ first payment in about a minute — no app install, no hardware, no bank, no chargebacks</a>
   <p class="spec-line mono">0 sats held · 1% per received payment · open source AGPL-3.0</p>
 
   <div class="hub" id="hub" role="img" aria-label="Diagram: a payer taps a card, the payment routes through the openLN node and settles into the merchant's own wallet, minus a one percent fee.">
@@ -195,11 +204,21 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
       <path id="p2" d="M 510 175 C 600 175, 660 210, 830 210" fill="none" stroke="var(--line)" stroke-width="2.5"/>
       <!-- flowing gold dots -->
       <g>
-        <circle class="flow-dot" r="6" fill="var(--gold)"><animateMotion dur="2.6s" repeatCount="indefinite" begin="0s"><mpath href="#p1"/></animateMotion></circle>
-        <circle class="flow-dot d2" r="6" fill="var(--gold)"><animateMotion dur="2.6s" repeatCount="indefinite" begin=".87s"><mpath href="#p1"/></animateMotion></circle>
-        <circle class="flow-dot d3" r="6" fill="var(--gold)"><animateMotion dur="2.6s" repeatCount="indefinite" begin="1.74s"><mpath href="#p1"/></animateMotion></circle>
-        <circle class="flow-dot" r="5" fill="var(--teal)"><animateMotion dur="2.6s" repeatCount="indefinite" begin="1.3s"><mpath href="#p2"/></animateMotion></circle>
-        <circle class="flow-dot d2" r="5" fill="var(--teal)"><animateMotion dur="2.6s" repeatCount="indefinite" begin="2.17s"><mpath href="#p2"/></animateMotion></circle>
+        <circle class="flow-dot" r="7" fill="var(--gold)"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0s"><mpath href="#p1"/></animateMotion></circle>
+        <circle class="flow-dot d2" r="7" fill="var(--gold)"><animateMotion dur="2.2s" repeatCount="indefinite" begin=".73s"><mpath href="#p1"/></animateMotion></circle>
+        <circle class="flow-dot d3" r="7" fill="var(--gold)"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.46s"><mpath href="#p1"/></animateMotion></circle>
+        <circle class="flow-dot" r="6" fill="var(--teal)"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.1s"><mpath href="#p2"/></animateMotion></circle>
+        <circle class="flow-dot d2" r="6" fill="var(--teal)"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.83s"><mpath href="#p2"/></animateMotion></circle>
+      </g>
+      <g class="ripple-g" aria-hidden="true">
+        <circle cx="150" cy="210" r="6" fill="none" stroke="var(--teal)" stroke-width="2.5">
+          <animate attributeName="r" values="6;34" dur="2.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values=".9;0" dur="2.2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="150" cy="210" r="6" fill="none" stroke="var(--teal)" stroke-width="2.5">
+          <animate attributeName="r" values="6;34" dur="2.2s" begin="1.1s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values=".9;0" dur="2.2s" begin="1.1s" repeatCount="indefinite"/>
+        </circle>
       </g>
       <!-- payer: card -->
       <g transform="translate(60,120)">
@@ -211,6 +230,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
       </g>
       <!-- hub: the openLN particle -->
       <g transform="translate(490,175)">
+        <circle class="pulse" r="60" fill="none" stroke="var(--gold)" stroke-width="2.5"/>
         <circle r="52" fill="var(--m-orb)"/>
         <path d="M -20 -5 A 21 21 0 0 1 0 -19" fill="none" stroke="var(--m-arc)" stroke-width="7.5" stroke-linecap="round" transform="translate(0,0)"/>
         <path d="M 20 5 A 21 21 0 0 1 0 19" fill="none" stroke="var(--m-arc)" stroke-width="7.5" stroke-linecap="round" transform="translate(0,0)"/>
@@ -238,7 +258,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
     <a class="see-all" href="https://cards.openln.com/shop">Browse the full catalog →</a>
   </div>
   <div class="fanbox" id="fan"></div>
-  <p class="fan-cap" id="fancap">NTAG424 DNA · AES-128 · tap to pay at any openLN merchant — hover to see each design</p>
+  <p class="fan-cap" id="fancap">NTAG424 DNA · AES-128 · tap to pay at any openLN merchant — hover a card to see its name</p>
 </div></section>
 
 <!-- SPOKE 2: RIC -->
@@ -293,7 +313,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
   <div class="pgrid">
     <div class="pcard"><div class="region">Thailand</div><div class="pn">MAEKOB</div><div class="pd">RIC terminals, official and custom cards. Assembled and dispatched from Koh Samui.</div></div>
     <div class="pcard"><div class="region">South Africa</div><div class="pn">Johannesburg</div><div class="pd">RIC assembly and local card printing for the African market.</div></div>
-    <div class="pcard"><div class="region">Europe</div><div class="pn">satoshi.si</div><div class="pd">European partner — onboarding.</div></div>
+    <div class="pcard"><div class="region">Europe</div><div class="pn">satoshi.si</div><div class="pd">European partner. Onboarding.</div></div>
   </div>
 </div></section>
 
@@ -324,30 +344,29 @@ const CARDS = [
   {src:"/media/not-by-me.png", name:"not by me"},
 ];
 const fan = document.getElementById("fan");
-const n = CARDS.length, spread = 26;
+const n = CARDS.length, spread = 34;
 CARDS.forEach((c,i)=>{
   const d = document.createElement("div");
   d.className = "fan-card";
   const t = (i-(n-1)/2)/((n-1)/2); /* -1..1 */
-  const rest = `rotate(${(t*spread).toFixed(1)}deg) translateY(${(Math.abs(t)*16).toFixed(1)}px)`;
+  const rest = `rotate(${(t*spread).toFixed(1)}deg) translateY(${(t*t*38).toFixed(1)}px)`;
   d.style.transform = rest;
-  d.style.zIndex = String(100-Math.round(Math.abs(t)*60));
+  d.style.zIndex = String(n-Math.abs(Math.round(t*(n-1))));
   d.innerHTML = `<img src="${c.src}" alt="${c.name}" loading="lazy">`;
   d.onmouseenter = ()=>{
-    fan.querySelectorAll(".fan-card").forEach((el,j)=>{
-      const tt=(j-(n-1)/2)/((n-1)/2);
-      el.style.transform = `rotate(${(tt*spread*1.5).toFixed(1)}deg) translateY(${(Math.abs(tt)*24).toFixed(1)}px)`;
-    });
-    document.getElementById("fancap").innerHTML = `<b>${c.name}</b> — NTAG424 DNA · tap to pay at any openLN merchant`;
+    d.style.transform = `rotate(0deg) translateY(-46px) scale(1.1)`;
+    d.style.zIndex = "999";
+    document.getElementById("fancap").innerHTML = `<b>${c.name}</b> — NTAG424 DNA · <a class="fanlink" href="https://cards.openln.com/shop">see this design →</a>`;
   };
   fan.appendChild(d);
 });
 fan.onmouseleave = ()=>{
   fan.querySelectorAll(".fan-card").forEach((el,j)=>{
     const tt=(j-(n-1)/2)/((n-1)/2);
-    el.style.transform = `rotate(${(tt*spread).toFixed(1)}deg) translateY(${(Math.abs(tt)*16).toFixed(1)}px)`;
+    el.style.transform = `rotate(${(tt*spread).toFixed(1)}deg) translateY(${(tt*tt*38).toFixed(1)}px)`;
+    el.style.zIndex = String(n-Math.abs(Math.round(tt*(n-1))));
   });
-  document.getElementById("fancap").textContent = "NTAG424 DNA · AES-128 · tap to pay at any openLN merchant — hover to see each design";
+  document.getElementById("fancap").innerHTML = "NTAG424 DNA · AES-128 · tap to pay at any openLN merchant — hover a card to see its name";
 };
 /* theme */
 (function(){

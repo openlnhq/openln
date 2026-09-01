@@ -44,8 +44,20 @@ header.top{position:sticky;top:0;z-index:40;background:rgba(8,10,10,.82);backdro
 .brand .lnmark{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#0d3d3a,#123f3c);display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.09)}
 .brand .lnmark svg{display:block}
 .brand em{font-style:normal;color:var(--teal)}
-nav.tabs{display:flex;gap:2px}
+nav.tabs{display:none}
 nav.tabs button{padding:7px 13px;border-radius:var(--r-sm);font-size:13.5px;font-weight:510;color:var(--text2);transition:.15s}
+.menu-btn{width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line2);border-radius:9px;color:var(--text2);font-size:19px;line-height:1;transition:.15s}
+.menu-btn:hover{color:var(--text);border-color:var(--teal-line);background:var(--surface2)}
+.drawer-backdrop{position:fixed;inset:0;z-index:80;background:rgba(2,4,4,.58);backdrop-filter:blur(4px)}
+.drawer{position:absolute;top:0;right:0;height:100%;width:min(330px,calc(100vw - 44px));background:var(--bg2);border-left:1px solid var(--line2);padding:22px 18px;box-shadow:-20px 0 60px rgba(0,0,0,.35);animation:drawerIn .18s ease-out}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.drawer-title{font-size:14px;font-weight:590;color:var(--text2);letter-spacing:.02em}
+.drawer-nav{display:grid;gap:6px}
+.drawer-link{display:flex;align-items:center;justify-content:space-between;width:100%;padding:14px 13px;border-radius:9px;color:var(--text2);text-align:left;font-size:14px;transition:.13s}
+.drawer-link:hover,.drawer-link.on{background:var(--surface2);color:var(--text)}
+.drawer-link .arrow{color:var(--text3);font-size:16px}
+.drawer-divider{height:1px;background:var(--line);margin:14px 0}
+@keyframes drawerIn{from{transform:translateX(18px);opacity:.5}to{transform:none;opacity:1}}
 nav.tabs button:hover,nav.tabs a{padding:7px 13px;border-radius:var(--r-sm);font-size:13.5px;font-weight:510;color:var(--text2);transition:.15s}
 nav.tabs button:hover,nav.tabs a:hover{color:var(--text);background:var(--surface2)}
 nav.tabs button.on{color:var(--text);background:var(--surface3);box-shadow:inset 0 0 0 1px var(--line)}
@@ -255,6 +267,28 @@ function modal(html){const w=document.createElement('div');w.className='modal';w
 <script>
 /* ============ APP ============ */
 let VIEW='wallet';
+function openDrawer(){
+  const host=$('#drawerHost');
+  host.innerHTML=`<div class="drawer-backdrop" id="drawerBackdrop">
+    <aside class="drawer" role="dialog" aria-label="Wallet menu">
+      <div class="drawer-head"><span class="drawer-title">openLN</span><button class="xbtn" id="closeDrawer" aria-label="Close menu">✕</button></div>
+      <nav class="drawer-nav">
+        <button class="drawer-link ${VIEW==='wallet'?'on':''}" data-drawer-view="wallet">Wallet <span class="arrow">›</span></button>
+        <a class="drawer-link" href="https://cards.openln.com">Cards <span class="arrow">↗</span></a>
+        <button class="drawer-link ${VIEW==='extensions'?'on':''}" data-drawer-view="extensions">Extensions <span class="arrow">›</span></button>
+        <button class="drawer-link ${VIEW==='partner'?'on':''}" data-drawer-view="partner">Partner <span class="arrow">›</span></button>
+        <div class="drawer-divider"></div>
+        <button class="drawer-link" id="drawerSettings">Settings <span class="arrow">›</span></button>
+        <button class="drawer-link" id="drawerLogout">Log out <span class="arrow">→</span></button>
+      </nav>
+    </aside></div>`;
+  const close=()=>{host.innerHTML='';$('#menuBtn')?.setAttribute('aria-expanded','false')};
+  $('#menuBtn').setAttribute('aria-expanded','true');
+  $('#closeDrawer').onclick=close;$('#drawerBackdrop').onclick=e=>{if(e.target.id==='drawerBackdrop')close()};
+  host.querySelectorAll('[data-drawer-view]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.drawerView;close();render()});
+  $('#drawerSettings').onclick=()=>{close();walletModal()};
+  $('#drawerLogout').onclick=()=>{close();localStorage.removeItem('openln_token');if(liveSource)liveSource.close();login()};
+}
 async function boot(){
   if(!tok())return login();
   try{await api('/api/wallet/status')}catch(e){localStorage.removeItem('openln_token');return login()}
@@ -286,14 +320,14 @@ async function render(){
     root.innerHTML=`<div class="shell">
     <header class="top"><div class="topin">
       <div class="brand">${MARK}<span>open<em>LN</em></span></div>
-      <nav class="tabs">
-        <button data-v="wallet" class="${VIEW==='wallet'?'on':''}">Wallet</button>
-        <a href="https://cards.openln.com" class="tablink">Cards</a>
-        <button data-v="extensions" class="${VIEW==='extensions'?'on':''}">Extensions</button>
-        <button data-v="partner" class="${VIEW==='partner'?'on':''}">Partner</button>
+      <nav class="tabs" aria-hidden="true">
+        <button data-v="wallet">Wallet</button><button data-v="extensions">Extensions</button><button data-v="partner">Partner</button>
       </nav>
-      <button class="themetoggle" id="themeToggle" aria-label="Toggle theme">☀</button>
-      <div class="uavatar">K</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="themetoggle" id="themeToggle" aria-label="Toggle theme">☀</button>
+        <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
+      </div>
+      <div id="drawerHost"></div>
     </div></header>
     <div id="view"></div></div>`;
     document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render()});
@@ -301,6 +335,7 @@ async function render(){
     if(VIEW==='extensions')await vExt(plugins);
     if(VIEW==='partner')await vPartner();
     if(window.applyThemeToggle)window.applyThemeToggle();
+    $('#menuBtn').onclick=openDrawer;
     startLiveUpdates();
   }catch(e){if(String(e.message).includes('401')){localStorage.removeItem('openln_token');login()}else toast(e.message)}
 }

@@ -35,8 +35,8 @@
  * Push notifications are an optional accelerator only.
  */
 import { createHash, randomBytes } from "crypto";
-import { db } from "@workspace/db";
-import { pendingInvoicesTable, transactionsTable } from "@workspace/db";
+import { db } from "../db/index.js";
+import { pendingInvoicesTable, transactionsTable } from "../db/index.js";
 import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   makeInvoice,
@@ -50,9 +50,9 @@ import {
   getBalance,
   PLATFORM_NWC_URL,
   relayInCooldown,
-} from "./nwc";
-import { logger } from "./logger";
-import { recordPaymentEvent } from "./paymentLog";
+} from "./nwc.js";
+import { logger } from "./logger.js";
+import { recordPaymentEvent } from "./paymentLog.js";
 
 // Customer-facing hold invoice expiry - short, consistent with POS usage
 // (customer is standing at the terminal). Limits open-hold exposure.

@@ -324,8 +324,7 @@ async function render(){
         <button class="themetoggle" id="themeToggle" aria-label="Toggle theme">☀</button>
         <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
       </div>
-      <div id="drawerHost"></div>
-    </div></header>
+    </div><div id="drawerHost"></div></header>
     <div id="view"></div></div>`;
     document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render()});
     if(VIEW==='wallet')await vWallet(st,bal);

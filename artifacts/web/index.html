@@ -268,8 +268,14 @@ function modal(html){const w=document.createElement('div');w.className='modal';w
 /* ============ APP ============ */
 let VIEW='wallet';
 function openDrawer(){
-  const host=$('#drawerHost');
-  host.innerHTML=`<div class="drawer-backdrop" id="drawerBackdrop">
+  const host=document.body;
+  const existing = document.querySelector('.drawer-backdrop');
+  if(existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'drawerHost';
+  document.body.appendChild(el);
+  const host2 = el;
+  host2.innerHTML=`<div class="drawer-backdrop" id="drawerBackdrop">
     <aside class="drawer" role="dialog" aria-label="Wallet menu">
       <div class="drawer-head"><span class="drawer-title">openLN</span><button class="xbtn" id="closeDrawer" aria-label="Close menu">✕</button></div>
       <nav class="drawer-nav">
@@ -282,7 +288,7 @@ function openDrawer(){
         <button class="drawer-link" id="drawerLogout">Log out <span class="arrow">→</span></button>
       </nav>
     </aside></div>`;
-  const close=()=>{host.innerHTML='';$('#menuBtn')?.setAttribute('aria-expanded','false')};
+  const close=()=>{const h=document.getElementById('drawerHost');if(h)h.remove();$('#menuBtn')?.setAttribute('aria-expanded','false')};
   $('#menuBtn').setAttribute('aria-expanded','true');
   $('#closeDrawer').onclick=close;$('#drawerBackdrop').onclick=e=>{if(e.target.id==='drawerBackdrop')close()};
   host.querySelectorAll('[data-drawer-view]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.drawerView;close();render()});

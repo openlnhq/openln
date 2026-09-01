@@ -308,7 +308,7 @@ function openDrawer(){
   $('#menuBtn').setAttribute('aria-expanded','true');
   $('#closeDrawer').onclick=close;$('#drawerBackdrop').onclick=e=>{if(e.target.id==='drawerBackdrop')close()};
   host.querySelectorAll('[data-drawer-view]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.drawerView;close();render()});
-  $('#drawerSettings').onclick=()=>{close();VIEW='settings';render()};
+  $('#drawerSettings').onclick=async()=>{close();VIEW='settings';try{await render()}catch(e){console.error('settings render error',e);toast(e.message)}};
   $('#drawerLogout').onclick=()=>{close();localStorage.removeItem('openln_token');if(liveSource)liveSource.close();login()};
 }
 async function boot(){

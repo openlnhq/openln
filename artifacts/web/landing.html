@@ -48,9 +48,22 @@ html.dark .btn-ink{background:#eef6f5;color:#061b31}
 html.dark .btn-line{border-color:#2d4d4a;color:var(--ink)}
 
 /* ── hero ── */
-.hero{padding:78px 0 30px;overflow:hidden}
+.hero{padding:70px 0 26px;overflow:hidden}
 .hero::before{content:'';position:absolute;inset:0;background:radial-gradient(820px 480px at 50% -8%,var(--teal-wash),transparent 65%);pointer-events:none}
-.hero .wrap{position:relative;display:grid;grid-template-columns:1fr;gap:8px;text-align:center}
+.hero .wrap{position:relative;display:block}
+.heroin{display:grid;grid-template-columns:1.02fr .98fr;gap:44px;align-items:center}
+.heroL{display:grid;grid-template-columns:1fr;gap:8px;text-align:left}
+.heroL .eyebrow{justify-self:flex-start}
+.heroL h1{margin-left:0}
+.heroL p.lead{margin-left:0}
+.heroctas{justify-content:flex-start}
+.hero .video{position:relative;border-radius:8px;overflow:hidden;background:#0a0a0a;border:1px solid var(--line);box-shadow:var(--sh)}
+.hero .video video{display:block;width:100%;height:auto}
+.hero .video .vtag{position:absolute;left:14px;bottom:14px;font:600 10.5px/1 'JetBrains Mono',monospace;letter-spacing:.12em;color:#eafffd;background:rgba(4,33,31,.72);backdrop-filter:blur(6px);padding:7px 10px;border-radius:4px}
+.hero .video .vcap{position:absolute;right:14px;bottom:14px;font-size:12px;color:rgba(238,246,245,.75);font-family:'JetBrains Mono',monospace}
+/* money path strip (the hub diagram, now its own section) */
+.path{padding:34px 0 84px}
+.path .ptl{text-align:center;font:600 11px/1 'Source Sans 3';letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
 .eyebrow{display:inline-flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--teal-deep);justify-self:center}
 html.dark .eyebrow{color:var(--teal)}
 .eyebrow::before,.eyebrow::after{content:'';width:22px;height:1.5px;background:var(--gold)}
@@ -102,7 +115,10 @@ html.dark .see-all{color:var(--teal)}
 .fan-cap b{color:var(--ink);font-weight:600}
 
 /* RIC panel */
-.ricpanel{display:grid;grid-template-columns:1.25fr .75fr;gap:34px;align-items:center;background:var(--paper2);border:1px solid var(--line);border-radius:8px;box-shadow:var(--sh-soft);padding:30px;margin-top:84px}
+.ricpanel{display:grid;grid-template-columns:1.15fr .85fr;gap:34px;align-items:center;background:var(--paper2);border:1px solid var(--line);border-radius:8px;box-shadow:var(--sh-soft);padding:30px;margin-top:84px}
+.ricstill{margin:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;box-shadow:var(--sh-soft);background:#0a0a0a}
+.ricstill img{display:block;width:100%;height:auto}
+.ricpanel .ricspecs-side p{text-align:left;max-width:none}
 .ricvideo{position:relative;border-radius:6px;overflow:hidden;background:#0a0a0a;box-shadow:var(--sh)}
 .ricvideo video{display:block;width:100%;height:auto}
 .ricvideo .vtag{position:absolute;left:12px;bottom:12px;font:600 10.5px/1 'JetBrains Mono',monospace;letter-spacing:.1em;color:#eafffd;background:rgba(4,33,31,.7);backdrop-filter:blur(6px);padding:6px 9px;border-radius:4px}
@@ -152,6 +168,11 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
 
 /* responsive */
 @media(max-width:960px){
+  .heroin{grid-template-columns:1fr;gap:28px}
+  .heroL{text-align:center}
+  .heroL .eyebrow{justify-self:center}
+  .heroL p.lead{margin-left:auto;margin-right:auto}
+  .heroctas{justify-content:center}
   h1{font-size:36px;letter-spacing:-.85px}
   .ricpanel{grid-template-columns:1fr;gap:22px;padding:22px}
   .sgrid{grid-template-columns:1fr 1fr}
@@ -189,14 +210,24 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
 </div></header>
 
 <!-- HERO: one cold sentence + the animated hub. CTAs = products. -->
-<section class="hero"><div class="wrap">
+<section class="hero"><div class="wrap"><div class="heroin">
+  <div class="heroL">
   <span class="eyebrow">Non-custodial Lightning payments</span>
   <h1>A card taps.<br><b>Sats land in your wallet.</b></h1>
   <p class="lead">The payment routes through openLN and settles into the merchant's own wallet in seconds. openLN holds nothing and takes 1%.</p>
   <div class="heroctas"><a class="btn btn-teal" href="https://cards.openln.com/shop/blank">Buy a card →</a><a class="btn btn-line" href="https://cards.openln.com/shop/posbox">Get a RIC terminal →</a></div>
   <a class="speed" href="/app">⚡ first payment in about a minute — no app install, no hardware, no bank, no chargebacks</a>
   <p class="spec-line mono">0 sats held · 1% per received payment · open source AGPL-3.0</p>
+  </div>
+  <div class="video">
+    <video src="/media/ric-hero.mp4" poster="/media/ric-poster.jpg" autoplay muted loop playsinline></video>
+    <span class="vtag">RIC — RAPID INVOICE CHANNEL</span><span class="vcap">$79 in sats</span>
+  </div>
+</div></div></section>
 
+<!-- THE MONEY PATH: the animated hub, full width below the fold-line -->
+<section class="path"><div class="wrap">
+  <p class="ptl">The money path</p>
   <div class="hub" id="hub" role="img" aria-label="Diagram: a payer taps a card, the payment routes through the openLN node and settles into the merchant's own wallet, minus a one percent fee.">
     <svg viewBox="0 0 980 360" xmlns="http://www.w3.org/2000/svg">
       <!-- paths: payer -> hub -> merchant wallet -->
@@ -277,9 +308,9 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:40px 0}
     </ul>
     <div class="riccta"><a class="btn btn-teal" href="https://cards.openln.com/shop/posbox">Buy a RIC →</a><a class="btn btn-line" href="https://github.com/openlnhq/openln">Build your own</a></div>
   </div>
-  <div class="ricvideo">
-    <video src="/media/ric-hero.mp4" poster="/media/ric-poster.jpg" autoplay muted loop playsinline></video>
-    <span class="vtag">RIC · RAPID INVOICE CHANNEL</span>
+  <div class="ricspecs-side">
+    <figure class="ricstill"><img src="/media/ric-still.jpg" alt="The RIC terminal on a workbench" loading="lazy"></figure>
+    <p style="font-size:13.5px;color:var(--body);font-weight:300;line-height:1.55;margin-top:14px">Every RIC ships flashed with partner attribution — the first payment it takes earns that partner their third, forever. Buy from the nearest partner; they build, ship and service it.</p>
   </div>
 </div></div></section>
 

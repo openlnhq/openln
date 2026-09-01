@@ -1,5 +1,3 @@
-// @ts-nocheck
-//
 /**
  * Bolt Card / NTAG 424 DNA SUN (Secure Unique NFC) verification.
  *

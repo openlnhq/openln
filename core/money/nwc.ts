@@ -96,7 +96,9 @@ export async function getAccountNwcUrl(accountId: string): Promise<string | unde
   if (!account) return undefined;
 
   if (account.walletMode === "custom" && account.customNwcUrl) {
-    return normalizeNwcUrl(account.customNwcUrl);
+    const decrypted = resolveNwcUrl(account.customNwcUrl);
+    if (decrypted) return normalizeNwcUrl(decrypted);
+    return normalizeNwcUrl(account.customNwcUrl); // fallback for plaintext legacy rows
   }
 
   // Lightning-address accounts have no NWC wallet - receive goes through

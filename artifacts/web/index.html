@@ -89,7 +89,7 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 
 /* buttons */
 .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 17px;border-radius:var(--r-sm);font-size:13.5px;font-weight:590;letter-spacing:-.1px;transition:.15s;box-shadow:inset 0 0 0 1px transparent}
-.btn.gold{background:linear-gradient(180deg,#ffd734,#f0b90f);color:#1a1602;box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 6px 18px rgba(245,197,24,.16)}
+.btn.gold{background:var(--teal);color:#eaffff;box-shadow:0 1px 0 rgba(255,255,255,.12) inset,0 6px 18px rgba(14,131,136,.22)}
 .btn.gold:hover{filter:brightness(1.06)}
 .btn.ghost{background:var(--surface2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line2)}
 .btn.ghost:hover{background:var(--surface3)}
@@ -181,10 +181,10 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .wos-spacer{flex:1 1 auto}
 .wos-actions{position:sticky;bottom:0;display:flex;gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--bg) 30%)}
 .wos-actions .btn{flex:1;justify-content:center;padding:15px 10px;font-size:15.5px;border-radius:999px}
-.btn.receive{background:transparent;border:1.5px solid var(--gold);color:var(--gold)}
-.btn.receive:hover{background:rgba(245,197,24,.08)}
-.btn.send{background:var(--gold);color:#141002;border:1.5px solid var(--gold)}
-.btn.send:hover{filter:brightness(1.05)}
+.btn.receive{background:transparent;border:1.5px solid var(--teal);color:var(--teal)}
+.btn.receive:hover{background:rgba(14,131,136,.1)}
+.btn.send{background:var(--teal);color:#eaffff;border:1.5px solid var(--teal)}
+.btn.send:hover{background:#0f9499;filter:brightness(1.02)}
 @media(max-width:760px){
   .wos-hero{padding:36px 20px 18px}
   .wos-bal{font-size:38px;letter-spacing:-1.3px}

@@ -301,7 +301,15 @@ async function render(){
     if(VIEW==='extensions')await vExt(plugins);
     if(VIEW==='partner')await vPartner();
     if(window.applyThemeToggle)window.applyThemeToggle();
+    startLiveUpdates();
   }catch(e){if(String(e.message).includes('401')){localStorage.removeItem('openln_token');login()}else toast(e.message)}
+}
+let liveSource;
+function startLiveUpdates(){
+  if(liveSource) liveSource.close();
+  liveSource = new EventSource('/api/events?token=' + encodeURIComponent(tok()));
+  liveSource.addEventListener('payment', () => { if (VIEW === 'wallet') render(); });
+  liveSource.onerror = () => { liveSource.close(); setTimeout(() => { if (tok()) startLiveUpdates(); }, 5000); };
 }
 /* ---- WALLET VIEW ---- */
 async function vWallet(st,bal){

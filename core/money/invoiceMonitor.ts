@@ -21,6 +21,7 @@ import { advanceWrap, advanceWrapBatch, type WrapRow } from "./holdWrap.js";
 import { checkLnurlVerify } from "./lnAddress.js";
 import { logger } from "./logger.js";
 import { autoSettleShopOrders, directSettleShopOrder } from "./shopOrderAutoSettle.js";
+import { emitAccountEvent } from "../events.js";
 
 // ── Shared settlement logic ───────────────────────────────────────────────────
 
@@ -107,6 +108,7 @@ async function settleInvoice(invoice: PendingInvoiceRow, paidAt: Date): Promise<
   });
 
   if (settled) {
+    emitAccountEvent(invoice.accountId, "payment", { paymentHash: invoice.paymentHash, status: "paid", amountSats: invoice.amountSats });
     if (invoice.cardOrderId) {
       logger.info(
         { invoiceId: invoice.id, orderId: invoice.cardOrderId, amountSats: invoice.amountSats },

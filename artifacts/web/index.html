@@ -320,9 +320,6 @@ async function render(){
     root.innerHTML=`<div class="shell">
     <header class="top"><div class="topin">
       <div class="brand">${MARK}<span>open<em>LN</em></span></div>
-      <nav class="tabs" aria-hidden="true">
-        <button data-v="wallet">Wallet</button><button data-v="extensions">Extensions</button><button data-v="partner">Partner</button>
-      </nav>
       <div style="display:flex;align-items:center;gap:8px">
         <button class="themetoggle" id="themeToggle" aria-label="Toggle theme">☀</button>
         <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
@@ -374,7 +371,7 @@ async function vWallet(st,bal){
     if(list.dataset.open){list.dataset.open='';list.innerHTML=latest?txRow(latest):emptyTx();$('#bhist').textContent='▾ History';
       document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});return}
     list.dataset.open='1';
-    list.innerHTML=rows.length?rows.slice(0,30).map(t=>txRow(t)).join(''):'<div style="padding:26px;text-align:center"><span class="dim" style="font-size:13px">No payments yet</span></div>';
+    list.innerHTML=rows.length?rows.map(t=>txRow(t)).join(''):'<div style="padding:26px;text-align:center"><span class="dim" style="font-size:13px">No payments yet</span></div>';
     $('#bhist').textContent='▴ Close history';
     document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
   };
@@ -408,7 +405,7 @@ function txDetail(t){
   if(c)c.onclick=()=>{navigator.clipboard.writeText(t.bolt11);toast('Invoice copied')};
 }
 const emptyTx=()=>`<div style="padding:34px 0;text-align:center"><div class="dim" style="font-size:13px">No payments yet.<br>Your wallet activity appears here.</div></div>`;
-const extGlyph=id=>({cards:'◧',pos:'▦',reports:'▤',posbox:'▣',shop:'orgia'}[id]||'◆');
+const extGlyph=id=>({cards:'◧',pos:'▦',reports:'▤',posbox:'▣',shop:'⌂',stripe:'₿',satora:'◈'}[id]||'◆');
 /* ---- RECEIVE ---- */
 function receiveModal(){
   const m=modal(`<div class="modalhead"><h2>Receive sats</h2><button class="xbtn">✕</button></div>

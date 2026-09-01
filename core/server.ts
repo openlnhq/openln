@@ -12,6 +12,8 @@ import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
+import { reconcileAccountInvoicesBounded } from "./money/invoiceMonitor.js";
+import { onAccountEvent } from "./events.js";
 import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handleExtensionsRoute } from "../plugins/extensions.js";
@@ -38,7 +40,7 @@ const server = createServer(async (req, res) => {
   try {
     const u = new URL(req.url ?? "/", "http://localhost");
     if (req.method === "GET" && u.pathname === "/health") return json(res, 200, { status: "ok", service: "openln-core", plugins: registry.list().map(p => p.id) });
-    const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1];
+    const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]);
     const currentAccount = cardToken ? await auth.authenticate(cardToken) : undefined;
     if (await handlePartnerRoute(req,res,u)) return;
     if (await handlePosboxRoute(req,res,u,currentAccount)) return;
@@ -54,7 +56,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/plugins") return json(res, 200, registry.list());
     if (req.method === "POST" && u.pathname === "/api/auth/register") { const v = await body(req); try { return json(res, 201, await auth.register(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { return json(res, 200, await auth.login(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
-    const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]; return token ? auth.authenticate(token) : undefined; };
+    const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]); return token ? auth.authenticate(token) : undefined; };
     if (req.method === "POST" && u.pathname === "/api/wallet/connect") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const connection = String(v.connection ?? v.nwcUrl ?? "").trim();
@@ -62,8 +64,19 @@ const server = createServer(async (req, res) => {
       await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection) }).where(eq(accountsTable.id, account.id));
       return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
     }
+    if (req.method === "GET" && u.pathname === "/api/events") {
+      const account = await sessionAccount();
+      if (!account) return json(res, 401, { error: "Authentication required" });
+      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+      res.write(`event: ready\ndata: {}\n\n`);
+      const send = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      const unsubscribe = onAccountEvent(account.id, send);
+      const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 20_000);
+      req.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
+      return;
+    }
     if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
-    if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); if (source.kind !== "nwc") return json(res, 200, { balanceSats: 0, connected: false }); const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); }
+    if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); await reconcileAccountInvoicesBounded(account.id); const source = await resolveWalletSource(account.id); if (source.kind !== "nwc") return json(res, 200, { balanceSats: 0, connected: false }); const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); }
 
     if (req.method === "POST" && u.pathname === "/api/wallet/verify") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });

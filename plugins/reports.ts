@@ -1,11 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, paymentEventsTable, transactionsTable } from "../core/db/index.js";
+import { reconcileAccountInvoicesBounded } from "../core/money/invoiceMonitor.js";
 const json=(r:ServerResponse,s:number,b:unknown)=>{r.writeHead(s,{"content-type":"application/json"});r.end(JSON.stringify(b));return true;};
 export async function handleReportsRoute(req:IncomingMessage,res:ServerResponse,u:URL,account:{id:string}|undefined):Promise<boolean>{
  if(!u.pathname.startsWith("/api/reports/")) return false;
  if(!account)return json(res,401,{error:"Authentication required"});
  if(req.method!=="GET")return json(res,405,{error:"Method not allowed"});
+ await reconcileAccountInvoicesBounded(account.id);
  const from=u.searchParams.get("from")?new Date(u.searchParams.get("from")!):undefined;
  const to=u.searchParams.get("to")?new Date(u.searchParams.get("to")!):undefined;
  const filters=[eq(transactionsTable.accountId,account.id),...(from?[sql`${transactionsTable.createdAt} >= ${from}`]:[]),...(to?[sql`${transactionsTable.createdAt} <= ${to}`]:[])];

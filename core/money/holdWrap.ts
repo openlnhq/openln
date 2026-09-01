@@ -54,6 +54,7 @@ import {
   relayInCooldown,
 } from "./nwc.js";
 import { logger } from "./logger.js";
+import { emitAccountEvent } from "../events.js";
 import { recordPaymentEvent } from "./paymentLog.js";
 
 // Customer-facing hold invoice expiry - short, consistent with POS usage
@@ -405,6 +406,7 @@ async function finalizeSettled(row: WrapRow): Promise<void> {
       fiatCurrency: row.fiatCurrency ?? undefined, fiatAmount: row.fiatAmount ?? undefined, fiatBaseRate: row.fiatBaseRate ?? undefined, fiatEffectiveRate: row.fiatEffectiveRate ?? undefined, fiatModifier: row.fiatModifier ?? undefined, fiatRateSource: row.fiatRateSource ?? undefined, fiatRateDirection: row.fiatRateDirection ?? undefined, fiatRateAt: row.fiatRateAt ?? undefined,
     });
   });
+  emitAccountEvent(row.accountId, "payment", { paymentHash: row.paymentHash, status: "paid", amountSats: row.amountSats - feeSats });
   recordPaymentEvent({
     paymentId: row.id,
     accountId: row.accountId,

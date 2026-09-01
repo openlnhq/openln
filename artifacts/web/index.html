@@ -154,6 +154,29 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .ext .arrow{color:var(--text3);font-size:15px}
 .extgrid{display:grid;gap:8px}
 
+/* wallet home — WoS-style: hero balance, latest tx, chevron history, bottom action bar */
+.wos{display:flex;flex-direction:column;min-height:calc(100vh - 54px)}
+.wos-hero{flex:0 0 auto;text-align:center;padding:52px 20px 22px}
+.wos-hero .conn{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:590;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:16px}
+.wos-hero .conn .dot{margin:0}
+.wos-bal{font-family:'JetBrains Mono',monospace;font-size:46px;font-weight:600;letter-spacing:-1.7px;line-height:1;color:var(--gold);font-variant-numeric:tabular-nums}
+.wos-bal .cur{font-size:15px;font-weight:450;color:var(--text2);letter-spacing:0;margin-left:7px}
+.wos-fiat{font-size:13px;color:var(--text3);margin-top:9px}
+.wos-latest{margin:6px 14px 0}
+.wos-latest .rowtx{padding:15px 4px}
+.wos-hist{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;margin:4px 0 12px;color:var(--text3);font-size:13.5px;font-weight:510;cursor:pointer;padding:9px 18px;border-radius:999px;transition:.14s;width:fit-content;margin-left:auto;margin-right:auto}
+.wos-hist:hover{color:var(--text2);background:var(--surface)}
+.wos-spacer{flex:1 1 auto}
+.wos-actions{position:sticky;bottom:0;display:flex;gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--bg) 30%)}
+.wos-actions .btn{flex:1;justify-content:center;padding:15px 10px;font-size:15.5px;border-radius:999px}
+.btn.receive{background:transparent;border:1.5px solid var(--gold);color:var(--gold)}
+.btn.receive:hover{background:rgba(245,197,24,.08)}
+.btn.send{background:var(--gold);color:#141002;border:1.5px solid var(--gold)}
+.btn.send:hover{filter:brightness(1.05)}
+@media(max-width:760px){
+  .wos-hero{padding:36px 20px 18px}
+  .wos-bal{font-size:38px;letter-spacing:-1.3px}
+}
 /* money input */
 .amtfield{position:relative;margin:4px 0 2px}
 .amtfield input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 56px 16px 16px;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;letter-spacing:-.8px;color:var(--text);text-align:center;transition:.15s}
@@ -283,44 +306,35 @@ async function render(){
 /* ---- WALLET VIEW ---- */
 async function vWallet(st,bal){
   let txs=[];try{txs=await api('/api/reports/transactions')}catch(e){}
-  const rows=(Array.isArray(txs)?txs:txs.transactions||[]).slice(0,7);
+  const rows=(Array.isArray(txs)?txs:txs.transactions||[]);
+  const latest=rows[0];
   $('#view').innerHTML=`
-  <div class="balance">
-    <div class="blabel"><span class="dot ${bal.connected?'':'off'}"></span><span class="overline" style="color:${bal.connected?'var(--text2)':'var(--text3)'}">${bal.connected?'NWC wallet connected':'Wallet not connected'}</span></div>
-    <div class="bval">${fmt(bal.balanceSats)}<span class="cur">sats</span></div>
-    <div class="bsrc">live balance · your keys, your node</div>
-    <div class="bacts">
-      <button class="btn gold" id="brecv">↓ Receive</button>
-      <button class="btn ghost" id="bsend">↑ Send</button>
+  <div class="wos">
+    <div class="wos-hero">
+      <div class="conn"><span class="dot ${bal.connected?'':'off'}"></span>${bal.connected?'NWC connected':'wallet not connected'}</div>
+      <div class="wos-bal">${fmt(bal.balanceSats)}<span class="cur">sats</span></div>
+      <div class="wos-fiat">your keys · your node · live balance</div>
     </div>
-  </div>
-  <div class="grid">
-    <div class="card"><h3>Activity <span class="side">recent payments</span></h3><div id="txlist">${rows.length?rows.map(t=>txRow(t)).join(''):emptyTx()}</div></div>
-    <div>
-      <div class="card"><h3>Extensions <span class="side" id="extcount"></span></h3>
-        <div class="chipwrap" id="extsm" style="margin-top:12px"></div>
-        <button class="btn ghost sm" id="bmarket" style="margin-top:12px">Browse extensions</button>
-      </div>
-      <div class="card"><h3>Wallet</h3>
-        <p class="muted" style="font-size:13px;margin:10px 0 14px">${st.connected?'Connected via Nostr Wallet Connect. Replace to switch wallets — keys never leave your device.':'No wallet connected. Add an NWC connection string to receive sats.'}</p>
-        <button class="btn teal sm" id="bwallet">${st.connected?'Replace wallet':'Connect wallet'}</button>
-        <button class="btn danger sm" id="blogout" style="margin-left:6px">Log out</button>
-      </div>
+    <div class="wos-latest" id="txlist">${latest?txRow(latest):emptyTx()}</div>
+    <div class="wos-hist" id="bhist">▾ History</div>
+    <div class="wos-spacer"></div>
+    <div class="wos-actions">
+      <button class="btn receive" id="brecv">Receive</button>
+      <button class="btn send" id="bsend">Send</button>
     </div>
   </div>`;
   $('#brecv').onclick=receiveModal;
   $('#bsend').onclick=sendModal;
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
-  $('#bwallet').onclick=walletModal;
-  $('#blogout').onclick=()=>{localStorage.removeItem('openln_token');login()};
-  const sm=$('#extsm');
-  let cat=[];try{cat=(await api('/api/extensions')).catalog}catch(e){}
-  const installed=cat.filter(c=>c.installed&&c.enabled);
-  $('#extcount').textContent=installed.length+' active';
-  if(!installed.length){sm.innerHTML='<span class="dim" style="font-size:12.5px">No extensions active — add one from the catalog</span>'}
-  installed.forEach(c=>{const d=document.createElement('button');d.className='chip'+(c.enabled?'':' off');
-    d.innerHTML=`<span class="cdot"></span>${esc(c.name||c.id)}`;d.onclick=()=>extConfigModal(c);sm.append(d)});
-  $('#bmarket').onclick=()=>{VIEW='extensions';render()};
+  $('#bhist').onclick=async()=>{
+    const list=$('#txlist');
+    if(list.dataset.open){list.dataset.open='';list.innerHTML=latest?txRow(latest):emptyTx();$('#bhist').textContent='▾ History';
+      document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});return}
+    list.dataset.open='1';
+    list.innerHTML=rows.length?rows.slice(0,30).map(t=>txRow(t)).join(''):'<div style="padding:26px;text-align:center"><span class="dim" style="font-size:13px">No payments yet</span></div>';
+    $('#bhist').textContent='▴ Close history';
+    document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
+  };
 }
 function txRow(t){
   const inb=(t.direction??'in')==='in';

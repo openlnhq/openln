@@ -174,7 +174,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
   <div>
     <span class="eyebrow">Open-source Lightning POS</span>
     <h1>Staff types.<br>Customer taps. <b>Done.</b></h1>
-    <p class="lead">The RIC lives on the counter and is always awake. Staff type an amount, the customer taps a card or holds up a phone, and the money lands in the merchant's own wallet while they are still standing there.</p>
+    <p class="lead">The RIC stays on the counter. Staff enter the amount. The customer taps a card or presents a phone, and the payment settles to the merchant's own wallet.</p>
     <div class="heroctas"><a class="btn btn-teal" href="#ric">Get a RIC →</a><a class="btn btn-line" href="#cards">See the cards →</a></div>
     <p class="hero-fine">Assembled by local distributors · open hardware · non-custodial</p>
   </div>
@@ -187,7 +187,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
 <!-- THE MONEY PATH -->
 <section class="path" id="path"><div class="wrap">
   <p class="ptl">The money path</p>
-  <div class="hub" role="img" aria-label="A customer card payment is locked to a hold invoice, routed through the openLN hub, and settled into the merchant's own wallet. The merchant wallet connects over NIP-47.">
+  <div class="hub" role="img" aria-label="A customer card payment is locked to a hold invoice, routed through the openLN hub, and settled into the merchant's own wallet. The merchant connects a wallet they control.">
     <svg viewBox="0 0 980 330" xmlns="http://www.w3.org/2000/svg">
       <path id="p1" d="M 150 185 C 320 185, 380 150, 470 150" fill="none" stroke="var(--line)" stroke-width="2.5"/>
       <path id="p2" d="M 510 150 C 600 150, 660 185, 830 185" fill="none" stroke="var(--line)" stroke-width="2.5"/>
@@ -227,10 +227,10 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
       </g>
     </svg>
     <div class="lbl payer">Customer taps<small>an openLN card or any Lightning wallet</small></div>
-    <div class="lbl merchant">Merchant settles<small>their own NIP-47 wallet · their keys</small></div>
+    <div class="lbl merchant">Merchant settles<small>their own wallet · their keys</small></div>
     <div class="lbl hublbl">openLN hub<small>Lightning node · boltcard server</small></div>
   </div>
-  <p class="pathnote">Funds never sit on openLN. Each payment is held, forwarded to the merchant's own wallet, and released — and openLN takes 1% of what is received. That is the entire business model.</p>
+  <p class="pathnote">Funds pass through openLN: held, forwarded to the merchant's wallet, and released. openLN takes 1% of what the merchant receives.</p>
 </div></section>
 
 <!-- THE RIC: what we built -->
@@ -238,14 +238,14 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
   <div>
     <span class="eyebrow">The RIC — Rapid Invoice Channel</span>
     <h2 class="sec" style="margin-top:14px">No <b>training required.</b></h2>
-    <p>A barista can take a Lightning payment in her first minute on shift. The RIC never sleeps, never logs in, and needs no app: two moves on a keypad, and the sale settles. The same terminal writes and wipes tap-to-pay cards at the counter, so the register doubles as the issuance desk.</p>
+    <p>The RIC is for the counter, not a staff member's phone. Staff enter the amount; the customer pays. The same terminal writes and wipes NTAG424 cards at the counter.</p>
     <ul class="specs">
       <li><span>On the counter</span><span>always on · no login · no app</span></li>
       <li><span>Works with</span><span>openLN cards · any Lightning wallet</span></li>
       <li><span>Also does</span><span>writes &amp; wipes NTAG424 cards</span></li>
       <li><span>Hardware</span><span>ESP32 · MIT firmware · build files</span></li>
-      <li><span>Price</span><span>$79 in sats</span></li>
-      <li><span>Dispatch</span><span>same day, from your distributor</span></li>
+      <li><span>Payment</span><span>Lightning</span></li>
+      <li><span>Fulfilment</span><span>local distributor delivery</span></li>
     </ul>
     <div class="builtcta"><a class="btn btn-teal" href="https://cards.openln.com/shop/posbox">Buy a RIC →</a><a class="btn btn-line" href="https://github.com/openlnhq/openln">Open hardware — build files</a></div>
   </div>
@@ -255,10 +255,10 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
 <!-- CARDS -->
 <section class="cards" id="cards"><div class="wrap">
   <div class="spoke-head">
-    <div><span class="eyebrow">Tap-to-pay cards</span><h2 class="sec" style="margin-top:14px">A card is <b>your wallet</b> in your pocket.</h2></div>
+    <div><span class="eyebrow">Tap-to-pay cards</span><h2 class="sec" style="margin-top:14px">A card connected to <b>your account</b>, in your pocket.</h2></div>
     <a class="see-all" href="https://cards.openln.com/shop">Browse the catalog →</a>
   </div>
-  <p style="font-size:15.5px;font-weight:300;color:var(--body);max-width:560px;margin-top:10px">NTAG424 DNA cards bound to your own account — no seed phrase at the register, no phone battery dependency, freeze or wipe from the app. Spend anywhere boltcards are accepted.</p>
+  <p style="font-size:15.5px;font-weight:300;color:var(--body);max-width:560px;margin-top:10px">NTAG424 DNA cards connected to your account. The customer taps; the merchant receives. Freeze or wipe a card from the app.</p>
   <div class="fanbox" id="fan"></div>
   <p class="fan-cap" id="fancap">Every design is printed to order by a local partner — hover a card to see its name</p>
 </div></section>
@@ -292,7 +292,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
 <section class="cta" id="cta"><div class="wrap">
   <svg class="mark" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="var(--m-orb)"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="var(--m-arc)" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="var(--m-arc)" stroke-width="7.5" stroke-linecap="round"/></svg>
   <h2>On every counter, <b>in every city.</b></h2>
-  <p>Create an account, link your wallet, put a RIC on the counter — your first payment lands while the customer is still standing there.</p>
+  <p>Create an account, connect your wallet, and put a RIC on the counter.</p>
   <a class="btn btn-teal" style="padding:13px 28px;font-size:16px" href="/app">Create an account →</a>
 </div></section>
 

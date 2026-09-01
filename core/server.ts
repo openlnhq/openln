@@ -57,6 +57,40 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && u.pathname === "/api/auth/register") { const v = await body(req); try { return json(res, 201, await auth.register(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { return json(res, 200, await auth.login(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
     const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]); return token ? auth.authenticate(token) : undefined; };
+    // ---- Account settings (currency, rate, wallet prefs) ----
+    if (req.method === "GET" && u.pathname === "/api/account/settings") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const [row] = await db.select({ currency: accountsTable.currency, rateSource: accountsTable.rateSource, rateModifier: accountsTable.rateModifier, sendRateModifier: accountsTable.sendRateModifier, walletMode: accountsTable.walletMode, lightningAddress: accountsTable.lightningAddress }).from(accountsTable).where(eq(accountsTable.id, account.id));
+      return json(res, 200, row ?? { currency: "usd", rateSource: "coingecko" });
+    }
+    if (req.method === "PUT" && u.pathname === "/api/account/settings") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req);
+      const updates: Record<string, string | null> = {};
+      if (typeof v.currency === "string" && /^[a-z]{3}$/i.test(v.currency)) updates.currency = v.currency.toLowerCase();
+      if (typeof v.rateSource === "string" && ["coingecko", "binance"].includes(v.rateSource)) updates.rateSource = v.rateSource;
+      if (typeof v.rateModifier === "string") updates.rateModifier = v.rateModifier.trim() || null;
+      if (typeof v.sendRateModifier === "string") updates.sendRateModifier = v.sendRateModifier.trim() || null;
+      if (Object.keys(updates).length === 0) return json(res, 400, { error: "Nothing to update" });
+      await db.update(accountsTable).set(updates).where(eq(accountsTable.id, account.id));
+      return json(res, 200, { ok: true });
+    }
+    if (req.method === "POST" && u.pathname === "/api/account/password") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req);
+      const currentPassword = String(v.currentPassword ?? "");
+      const newPassword = String(v.newPassword ?? "");
+      if (newPassword.length < 12) return json(res, 400, { error: "Password must be at least 12 characters" });
+      const [acc] = await db.select({ entityId: accountsTable.entityId }).from(accountsTable).where(eq(accountsTable.id, account.id));
+      if (!acc) return json(res, 404, { error: "Account not found" });
+      const [entity] = await db.select({ id: entitiesTable.id, passwordHash: entitiesTable.passwordHash }).from(entitiesTable).where(eq(entitiesTable.id, acc.entityId));
+      if (!entity) return json(res, 404, { error: "Account not found" });
+      const { verify, digest } = await import("./auth/password.js");
+      if (!entity.passwordHash || !verify(currentPassword, entity.passwordHash)) return json(res, 401, { error: "Current password is incorrect" });
+      const { randomBytes } = await import("node:crypto");
+      await db.update(entitiesTable).set({ passwordHash: digest(newPassword, randomBytes(16)) }).where(eq(entitiesTable.id, entity.id));
+      return json(res, 200, { ok: true });
+    }
     if (req.method === "POST" && u.pathname === "/api/wallet/connect") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const connection = String(v.connection ?? v.nwcUrl ?? "").trim();

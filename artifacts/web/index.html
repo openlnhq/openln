@@ -189,6 +189,22 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
   .wos-hero{padding:36px 20px 18px}
   .wos-bal{font-size:38px;letter-spacing:-1.3px}
 }
+/* settings page */
+.setgrid{display:grid;gap:14px;max-width:640px}
+.setcard{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);padding:20px}
+.setcard h3{font-size:14px;font-weight:590;letter-spacing:-.1px;margin:0 0 4px}
+.setcard .sub{font-size:12px;color:var(--text3);margin-bottom:16px}
+.setrow{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.setrow:first-of-type{border-top:0;padding-top:4px}
+.setrow label{flex:1;font-size:13px;color:var(--text2)}
+.setrow label small{display:block;font-size:11px;color:var(--text3);margin-top:2px}
+.setrow select,.setrow input{background:var(--surface2);border:1px solid var(--line2);border-radius:8px;padding:9px 11px;font-size:13px;color:var(--text);min-width:150px;font-family:inherit}
+.setrow input.mono{font-family:'JetBrains Mono',monospace}
+.setrow select:focus,.setrow input:focus{outline:none;border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-dim)}
+.set-actions{display:flex;gap:8px;margin-top:14px}
+.walletstate{display:flex;align-items:center;gap:10px;padding:10px 0}
+.walletstate .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+.walletstate .dot.off{background:var(--err)}
 /* money input */
 .amtfield{position:relative;margin:4px 0 2px}
 .amtfield input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 56px 16px 16px;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;letter-spacing:-.8px;color:var(--text);text-align:center;transition:.15s}
@@ -292,7 +308,7 @@ function openDrawer(){
   $('#menuBtn').setAttribute('aria-expanded','true');
   $('#closeDrawer').onclick=close;$('#drawerBackdrop').onclick=e=>{if(e.target.id==='drawerBackdrop')close()};
   host.querySelectorAll('[data-drawer-view]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.drawerView;close();render()});
-  $('#drawerSettings').onclick=()=>{close();walletModal()};
+  $('#drawerSettings').onclick=()=>{close();VIEW='settings';render()};
   $('#drawerLogout').onclick=()=>{close();localStorage.removeItem('openln_token');if(liveSource)liveSource.close();login()};
 }
 async function boot(){
@@ -336,6 +352,7 @@ async function render(){
     if(VIEW==='wallet')await vWallet(st,bal);
     if(VIEW==='extensions')await vExt(plugins);
     if(VIEW==='partner')await vPartner();
+    if(VIEW==='settings')await vSettings();
     if(window.applyThemeToggle)window.applyThemeToggle();
     $('#menuBtn').onclick=openDrawer;
     startLiveUpdates();
@@ -510,6 +527,111 @@ function extConfigModal(c){
   m.querySelector('#cf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{await api(`/api/extensions/${c.id}/config`,{method:'POST',body:JSON.stringify(b)});m.remove();toast('Settings saved')}
     catch(x){toast(x.message)}};
+}
+/* ---- SETTINGS ---- */
+const CURRENCIES = ["usd","eur","thb","gbp","jpy","btc"];
+const RATE_SOURCES = ["coingecko","binance"];
+async function vSettings(){
+  const [settings, status] = await Promise.all([
+    api('/api/account/settings').catch(()=>({currency:'usd',rateSource:'coingecko'})),
+    api('/api/wallet/status').catch(()=>({connected:false,walletMode:'unset'})),
+  ]);
+  $('#view').innerHTML=`<div style="margin-top:30px">
+    <div class="overline">Settings</div>
+    <h1 class="page">Preferences</h1>
+    <p class="muted" style="margin:8px 0 22px;max-width:560px">Currency, exchange rate, wallet and security — all per-account, stored on your openLN account.</p>
+    <div class="setgrid">
+
+      <div class="setcard">
+        <h3>Display currency</h3>
+        <div class="sub">Fiat amounts shown across the app, and used for POS rate conversion.</div>
+        <div class="setrow">
+          <label>Currency<small>Default fiat unit</small></label>
+          <select id="setCurrency">${CURRENCIES.map(c=>`<option value="${c}" ${settings.currency===c?'selected':''}>${c.toUpperCase()}</option>`).join('')}</select>
+        </div>
+        <div class="setrow">
+          <label>Price source<small>Exchange rate provider</small></label>
+          <select id="setRateSource">${RATE_SOURCES.map(s=>`<option value="${s}" ${settings.rateSource===s?'selected':''}>${s}</option>`).join('')}</select>
+        </div>
+        <div class="setrow">
+          <label>Buy rate modifier<small>Multiply the buy/receive rate — e.g. THB*1.01</small></label>
+          <input class="mono" id="setRateModifier" placeholder="THB*1.01" value="${esc(settings.rateModifier||'')}">
+        </div>
+        <div class="setrow">
+          <label>Sell rate modifier<small>Multiply the sell/send rate — e.g. THB*0.99</small></label>
+          <input class="mono" id="setSendRateModifier" placeholder="THB*0.99" value="${esc(settings.sendRateModifier||'')}">
+        </div>
+        <div class="set-actions">
+          <button class="btn teal sm" id="savePrefs">Save preferences</button>
+          <span class="dim" style="font-size:12px;align-self:center" id="prefsStatus"></span>
+        </div>
+      </div>
+
+      <div class="setcard">
+        <h3>Wallet</h3>
+        <div class="sub">How this account receives and sends sats.</div>
+        <div class="walletstate">
+          <span class="dot ${status.connected?'':'off'}"></span>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:590">${status.connected?'NWC wallet connected':'No wallet connected'}</div>
+            <div class="dim" style="font-size:11.5px;margin-top:2px">${status.connected?`Mode: ${esc(status.walletMode||'custom')}`:'Add an NWC connection string to receive and send sats'}</div>
+          </div>
+          <button class="btn ghost sm" id="setWalletBtn">${status.connected?'Replace':'Connect'}</button>
+        </div>
+      </div>
+
+      <div class="setcard">
+        <h3>Security</h3>
+        <div class="sub">Change your account password.</div>
+        <div class="setrow">
+          <label>Current password<small>Required to confirm changes</small></label>
+          <input type="password" id="setPwCurrent" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <div class="setrow">
+          <label>New password<small>Minimum 12 characters</small></label>
+          <input type="password" id="setPwNew" autocomplete="new-password" placeholder="••••••••">
+        </div>
+        <div class="set-actions">
+          <button class="btn teal sm" id="savePw">Change password</button>
+          <span class="dim" style="font-size:12px;align-self:center" id="pwStatus"></span>
+        </div>
+      </div>
+
+    </div>
+  </div>`;
+
+  // save preferences
+  $('#savePrefs').onclick=async()=>{
+    const b=$('#savePrefs'), st=$('#prefsStatus');
+    b.disabled=true; b.textContent='Saving…'; st.textContent='';
+    try{
+      await api('/api/account/settings',{method:'PUT',body:JSON.stringify({
+        currency:$('#setCurrency').value,
+        rateSource:$('#setRateSource').value,
+        rateModifier:$('#setRateModifier').value.trim(),
+        sendRateModifier:$('#setSendRateModifier').value.trim(),
+      })});
+      st.textContent='Saved'; setTimeout(()=>{st.textContent=''},2500);
+    }catch(e){ st.textContent=e.message; }
+    b.disabled=false; b.textContent='Save preferences';
+  };
+
+  // change password
+  $('#savePw').onclick=async()=>{
+    const b=$('#savePw'), st=$('#pwStatus');
+    const cur=$('#setPwCurrent').value, nxt=$('#setPwNew').value;
+    if(!cur||!nxt){ st.textContent='Fill both fields'; return; }
+    b.disabled=true; b.textContent='Changing…'; st.textContent='';
+    try{
+      await api('/api/account/password',{method:'POST',body:JSON.stringify({currentPassword:cur,newPassword:nxt})});
+      st.textContent='Password changed'; $('#setPwCurrent').value=''; $('#setPwNew').value='';
+      setTimeout(()=>{st.textContent=''},2500);
+    }catch(e){ st.textContent=e.message; }
+    b.disabled=false; b.textContent='Change password';
+  };
+
+  // wallet connect/replace
+  $('#setWalletBtn').onclick=walletModal;
 }
 /* ---- PARTNER ---- */
 async function vPartner(){

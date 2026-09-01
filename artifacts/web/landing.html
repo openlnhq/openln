@@ -102,8 +102,8 @@ section.cards{padding:96px 0 6px}
 .spoke-head{display:flex;align-items:baseline;justify-content:space-between;gap:20px;margin-bottom:8px;flex-wrap:wrap}
 .see-all{font-size:14px;color:var(--teal-deep);white-space:nowrap}html.dark .see-all{color:var(--teal)}
 .see-all:hover{text-decoration:underline}
-.fanbox{position:relative;height:360px;display:flex;align-items:flex-end;justify-content:center;perspective:1200px;margin-top:26px}
-.fan-card{position:absolute;width:250px;aspect-ratio:1.586;border-radius:14px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-soft);overflow:hidden;transform-origin:50% 130%;transition:transform .4s cubic-bezier(.2,.9,.3,1.15),box-shadow .3s;cursor:pointer}
+.fanbox{position:relative;height:320px;display:flex;align-items:flex-start;justify-content:center;perspective:1200px;margin-top:8px;padding-top:0}
+.fan-card{position:absolute;top:0;width:250px;aspect-ratio:1.586;border-radius:14px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--sh-soft);overflow:hidden;transform-origin:50% 130%;transition:transform .28s ease-out,box-shadow .25s;cursor:pointer}
 .fan-card img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
 .fan-cap{text-align:center;font-size:13px;color:var(--body);margin-top:12px;min-height:2.4em}
 .fan-cap b{color:var(--ink);font-weight:600}
@@ -323,14 +323,17 @@ CARDS.forEach((c,i)=>{
   d.style.zIndex = String(n-Math.abs(Math.round(t*(n-1))));
   d.innerHTML = `<img src="${c.src}" alt="${c.name}" loading="lazy">`;
   d.onmouseenter = ()=>{
-    d.style.transform = `rotate(0deg) translateY(-46px) scale(1.1)`;
-    d.style.zIndex = "999";
-    document.getElementById("fancap").innerHTML = `<b>${c.name}</b> — NTAG424 DNA · <a class="fanlink" href="https://cards.openln.com/shop">see this design →</a>`;
+    clearTimeout(d._hoverTimer);
+    d._hoverTimer = setTimeout(()=>{
+      d.style.transform = `rotate(0deg) translateY(-46px) scale(1.1)`;
+      d.style.zIndex = "999";
+      document.getElementById("fancap").innerHTML = `<b>${c.name}</b> — NTAG424 DNA · <a class="fanlink" href="https://cards.openln.com/shop">see this design →</a>`;
+    },160);
   };
   fan.appendChild(d);
 });
 fan.onmouseleave = ()=>{
-  fan.querySelectorAll(".fan-card").forEach((el,j)=>{
+  fan.querySelectorAll(".fan-card").forEach((el,j)=>{clearTimeout(el._hoverTimer);
     const tt=(j-(n-1)/2)/((n-1)/2);
     el.style.transform = `rotate(${(tt*spread).toFixed(1)}deg) translateY(${(tt*tt*38).toFixed(1)}px)`;
     el.style.zIndex = String(n-Math.abs(Math.round(tt*(n-1))));

@@ -48,6 +48,15 @@ const server = createServer(async (req, res) => {
     if (await handleExtensionsRoute(req,res,u,currentAccount)) return;
     if (await handleReportsRoute(req,res,u,currentAccount)) return;
     const cardsHandled = await handleCardsRoute(req, res, u, currentAccount); if (cardsHandled) return;
+    if (req.method === "GET" && u.pathname.startsWith("/media/")) {
+      const name = u.pathname.slice(7).replace(/[^a-zA-Z0-9._-]/g, "");
+      try {
+        const data = await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/media/" + name, import.meta.url));
+        const type = name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : "application/octet-stream";
+        res.writeHead(200, { "content-type": type, "cache-control": "public, max-age=86400" });
+        return res.end(data);
+      } catch { return json(res, 404, { error: "Not found" }); }
+    }
     if (req.method === "GET" && u.pathname === "/") {
       try { return res.end(await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/landing.html", import.meta.url), "utf8")); }
       catch { return res.end("<!doctype html><title>openLN</title><h1>openLN</h1><a href='/app'>Open wallet</a>"); }

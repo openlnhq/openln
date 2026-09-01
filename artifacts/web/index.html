@@ -345,7 +345,7 @@ function startLiveUpdates(){
 }
 /* ---- WALLET VIEW ---- */
 async function vWallet(st,bal){
-  let txs=[];try{txs=await api('/api/reports/transactions')}catch(e){}
+  let txs=[];try{txs=await api('/api/reports/transactions?limit=500')}catch(e){}
   const rows=(Array.isArray(txs)?txs:txs.transactions||[]);
   const latest=rows[0];
   $('#view').innerHTML=`

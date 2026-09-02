@@ -205,7 +205,8 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .walletstate{display:flex;align-items:center;gap:10px;padding:10px 0}
 .walletstate .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
 .walletstate .dot.off{background:var(--err)}
-.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.formgrid{grid-template-columns:1fr}}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.formgrid{grid-template-columns:1fr}}.issued-card-list{display:grid;gap:6px}.issued-card-row{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);text-align:left;color:var(--text);cursor:pointer}.issued-card-row:hover{border-color:var(--teal-line)}.card-mini{width:29px;height:19px;border-radius:4px;background:linear-gradient(135deg,#123f3c,#0b1f1e);display:grid;place-items:center;flex-shrink:0}.card-mini-mark{color:var(--teal);font-size:15px;line-height:1}.issued-card-meta{flex:1;min-width:0}.issued-card-meta b{display:block;font-size:12px;font-weight:590}.issued-card-meta small{display:block;color:var(--text3);font-size:10.5px;margin-top:2px}.card-visual-small{display:flex;align-items:center;gap:10px;padding:16px;border-radius:10px;background:linear-gradient(135deg,#123f3c,#071413);color:#eafffd}.card-visual-small .card-status{margin-left:auto;font-size:10px;color:var(--teal);text-transform:uppercase}.manage-actions{display:flex;flex-wrap:wrap;gap:7px}.manage-section{border-top:1px solid var(--line);padding-top:12px}.manage-section .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}.manage-line{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}.dangerText{color:var(--err)!important}
+
 /* money input */
 .amtfield{position:relative;margin:4px 0 2px}
 .amtfield input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 56px 16px 16px;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;letter-spacing:-.8px;color:var(--text);text-align:center;transition:.15s}
@@ -534,12 +535,30 @@ function showIssuedCard(out, keyText){
   m.querySelector('#copyProvision').onclick=()=>navigator.clipboard.writeText(qr).then(()=>toast('Provisioning URL copied'));
   m.querySelector('#copyKeys').onclick=()=>navigator.clipboard.writeText(keyText+'\nlnurlwTemplate: '+(out.lnurlwTemplate||'')).then(()=>toast('Keys copied'));
 }
+function cardManageModal(card,parent){
+  if(!card)return;
+  const m=modal(`<div class="modalhead"><div><h2>${esc(card.name||'Card')}</h2><p class="dim" style="font-size:12px;margin-top:4px">Card management</p></div><button class="xbtn">✕</button></div>
+    <div class="card-visual-small"><span class="card-mini-mark">◌</span><span class="mono">openLN CARD</span><span class="card-status">${esc(card.status)}</span></div>
+    <div class="manage-actions"><button class="btn ghost sm" id="editCard">Edit details</button><button class="btn ghost sm" id="toggleFreeze">${card.status==='frozen'?'Enable card':'Freeze card'}</button><button class="btn ghost sm dangerText" id="disableCard">Disable card</button></div>
+    <div class="manage-section"><div class="dim label">Limits</div><div class="manage-line"><span>Per payment</span><b class="mono">${fmt(card.perTapLimitSats)} sats</b></div><div class="manage-line"><span>Daily</span><b class="mono">${fmt(card.dailyLimitSats)} sats</b></div></div>
+    <div class="manage-section"><div class="dim label">Payment PIN</div><div class="manage-line"><span>Protection</span><b>${card.pinEnabled?'Enabled':'Disabled'}</b></div><div class="manage-line"><span>PIN requirement</span><b>Exactly 4 digits</b></div><button class="btn ghost sm" id="togglePin" style="margin-top:8px">${card.pinEnabled?'Disable PIN':'Enable PIN'}</button></div>
+    <div class="manage-section"><div class="dim label">Card writing</div><p class="dim" style="font-size:11.5px;line-height:1.4">Use the provisioning QR, URL and keys to write this card with a creator app or RIC.</p><button class="btn teal sm" id="viewCardKeys">Show keys and QR</button></div>`);
+  m.querySelector('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:JSON.stringify({})});out.cardId=card.id;out.provisionUrl=location.origin+'/api/provision/'+(out.provisionToken||'');showIssuedCard(out,Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>`${k}: ${v}`).join('\n'));}catch(e){toast(e.message)}};
+  m.querySelector('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:card.status==='frozen'?'active':'frozen'})});m.remove();toast(card.status==='frozen'?'Card enabled':'Card frozen')}catch(e){toast(e.message)}};
+  m.querySelector('#disableCard').onclick=async()=>{if(!confirm('Disable this card?'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});m.remove();toast('Card disabled')}catch(e){toast(e.message)}};
+  m.querySelector('#togglePin').onclick=async()=>{try{if(card.pinEnabled){const p=prompt('Enter current 4-digit PIN');if(!p)return;await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:p,newPin:null})})}else{const p=prompt('Enter exactly 4 digits for the card PIN');if(!p)return;await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({newPin:p})})}m.remove();toast(card.pinEnabled?'PIN disabled':'PIN enabled')}catch(e){toast(e.message)}};
+  m.querySelector('#editCard').onclick=()=>{m.remove();cardEditModal(card,parent)};
+}
+function cardEditModal(card,parent){
+ const m=modal(`<div class="modalhead"><h2>Edit card</h2><button class="xbtn">✕</button></div><form id="editCardForm"><label class="field"><span>Card name</span><input class="input" name="name" value="${esc(card.name||'')}" required maxlength="64"></label><label class="field"><span>Tap note</span><input class="input" name="note" value="${esc(card.note||'')}" maxlength="120"></label><div class="formgrid"><label class="field"><span>Daily limit</span><input class="input mono" name="dailyLimitSats" type="number" min="0" value="${card.dailyLimitSats}"></label><label class="field"><span>Per payment</span><input class="input mono" name="perTapLimitSats" type="number" min="0" value="${card.perTapLimitSats}"></label></div><button class="btn teal" style="width:100%;justify-content:center">Save card</button></form>`);
+ m.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({name:b.name,note:b.note,dailyLimitSats:Number(b.dailyLimitSats),perTapLimitSats:Number(b.perTapLimitSats)})});m.remove();toast('Card updated')}catch(x){toast(x.message)}};
+}
 function cardsConfigModal(){
   const m=modal(`<div class="modalhead"><div><h2>Cards</h2><p class="dim" style="font-size:12px;margin-top:4px">Issue a card for this account</p></div><button class="xbtn">✕</button></div>
   <form id="cardIssue" class="cardform">
     <label class="field"><span>Card name</span><input class="input" name="name" placeholder="Everyday card" required maxlength="64"></label>
     <div class="formgrid"><label class="field"><span>Daily limit (sats)</span><input class="input mono" name="dailyLimitSats" type="number" min="0" placeholder="Default"></label><label class="field"><span>Per-payment limit (sats)</span><input class="input mono" name="perTapLimitSats" type="number" min="0" placeholder="Default"></label></div>
-    <label class="field"><span>Payment PIN <small class="dim">4–8 digits</small></span><input class="input mono" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="••••" required></label>
+    <label class="field"><span>Payment PIN <small class="dim">Exactly 4 digits · LUD-21</small></span><input class="input mono" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="••••" required></label>
     <label class="field"><span>Tap note</span><input class="input" name="note" maxlength="120" placeholder="Payment via openLN card"></label>
     <p class="dim" style="font-size:11.5px;line-height:1.45">The PIN authorizes card payments. It is separate from your account password. You can issue multiple cards.</p>
     <button class="btn teal" style="width:100%;justify-content:center;padding:11px">Issue card</button>
@@ -548,7 +567,8 @@ function cardsConfigModal(){
   </form>`);
   api('/api/me').then(me=>api('/api/accounts/'+me.account.id+'/cards')).then(cards=>{
     const box=m.querySelector('#existingCards');
-    box.innerHTML=`<div class="dim" style="font-size:11px;margin-bottom:7px">Existing cards (${cards.length})</div>`+(cards.length?cards.map(c=>`<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:12px"><span>${esc(c.name||'Unnamed card')} <span class="dim">${esc(c.status)}</span></span><span class="mono dim">${fmt(c.dailyLimitSats)} / day</span></div>`).join(''):'<div class="dim" style="font-size:12px">No cards issued yet.</div>');
+    box.innerHTML='<div class="dim" style="font-size:11px;margin-bottom:8px">Existing cards ('+cards.length+')</div>'+(cards.length?'<div class="issued-card-list">'+cards.map(c=>'<button type="button" class="issued-card-row" data-card-id="'+esc(c.id)+'"><span class="card-mini"><span class="card-mini-mark">◌</span></span><span class="issued-card-meta"><b>'+esc(c.name||'Unnamed card')+'</b><small>'+esc(c.status)+' · '+fmt(c.perTapLimitSats)+' / tap · '+fmt(c.dailyLimitSats)+' / day</small></span><span class="arrow">›</span></button>').join('')+'</div>':'<div class="dim" style="font-size:12px">No cards issued yet.</div>');
+    box.querySelectorAll('[data-card-id]').forEach(b=>b.onclick=()=>cardManageModal(cards.find(c=>c.id===b.dataset.cardId),m));
   }).catch(()=>{});
   m.querySelector('#cardIssue').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{

@@ -148,13 +148,13 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
   .sysgrid{grid-template-columns:1fr 1fr}
   .pgrid{grid-template-columns:1fr}
   .navlinks{display:none}
-  .hub{display:grid;grid-template-columns:max(100px,1fr) 2fr max(100px,1fr);gap:12px 14px;align-items:start;max-width:100%}
-  .hub>svg{grid-column:1/-1;width:100%;margin-bottom:4px}
-  .hub .lbl{position:relative;transform:none;font-size:10px;margin-top:0;white-space:normal;max-width:none}
+  .hub{display:flex;flex-direction:column;gap:14px;align-items:center}
+  .hub>svg{width:100%;max-width:600px;order:1}
+  .hub .lbl{position:relative;transform:none;font-size:10px;margin-top:0;white-space:normal;max-width:90px;text-align:center}
   .hub .lbl small{font-size:11px}
-  .hub .lbl.payer{grid-column:1;text-align:left}
-  .hub .lbl.merchant{grid-column:3;text-align:right}
-  .hub .lbl.hublbl{grid-column:2;text-align:center}
+  .hub .lbl.payer{order:2;text-align:left;align-self:flex-start;margin-left:12px;max-width:80px}
+  .hub .lbl.merchant{order:3;text-align:right;align-self:flex-end;margin-right:12px;max-width:80px}
+  .hub .lbl.hublbl{order:4;text-align:center;max-width:120px}
   .fanbox{height:auto;perspective:none;overflow-x:auto;justify-content:flex-start;align-items:center;padding:20px 24px 30px;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .fan-card{position:relative;width:min(64vw,300px);transform:none!important;flex-shrink:0;scroll-snap-align:center}
 }

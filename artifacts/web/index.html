@@ -520,6 +520,20 @@ async function mAction(id,act,btn){
     vExt();
   }catch(e){toast(e.message)}
 }
+function showIssuedCard(out, keyText){
+  const qr=out.provisionUrl||'';
+  const m=modal(`<div class="modalhead"><div><h2>Card ready to write</h2><p class="dim" style="font-size:12px;margin-top:4px">Use Bolt Card NFC Creator or a RIC</p></div><button class="xbtn">✕</button></div>
+    <div style="display:grid;place-items:center;background:#0a0f0f;border-radius:10px;padding:12px;margin-bottom:14px"><img id="provisionQr" alt="Card provisioning QR code" style="width:220px;height:220px"></div>
+    <p class="dim" style="font-size:11.5px;margin-bottom:6px">Scan this QR with the card creator app, or use the provisioning URL in your RIC.</p>
+    <div class="codebox mono" style="font-size:11px;overflow-wrap:anywhere">${esc(qr)}</div>
+    <button class="btn ghost sm" id="copyProvision" style="width:100%;justify-content:center;margin-top:8px">Copy provisioning URL</button>
+    <details style="margin-top:14px"><summary class="dim" style="font-size:12px;cursor:pointer">Show Bolt Card keys</summary><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px">${esc(keyText)}\nlnurlwTemplate: ${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys" style="width:100%;justify-content:center;margin-top:8px">Copy keys</button></details>
+    <p class="dim" style="font-size:11px;line-height:1.4;margin-top:12px">Save these values securely. The provisioning URL is single-use.</p>`);
+  const img=m.querySelector('#provisionQr');
+  img.src='/api/cards/'+encodeURIComponent(out.cardId)+'/provision-qr';
+  m.querySelector('#copyProvision').onclick=()=>navigator.clipboard.writeText(qr).then(()=>toast('Provisioning URL copied'));
+  m.querySelector('#copyKeys').onclick=()=>navigator.clipboard.writeText(keyText+'\nlnurlwTemplate: '+(out.lnurlwTemplate||'')).then(()=>toast('Keys copied'));
+}
 function cardsConfigModal(){
   const m=modal(`<div class="modalhead"><div><h2>Cards</h2><p class="dim" style="font-size:12px;margin-top:4px">Issue a card for this account</p></div><button class="xbtn">✕</button></div>
   <form id="cardIssue" class="cardform">
@@ -542,9 +556,10 @@ function cardsConfigModal(){
       const payload={name:b.name,note:b.note||undefined,dailyLimitSats:b.dailyLimitSats?Number(b.dailyLimitSats):undefined,perTapLimitSats:b.perTapLimitSats?Number(b.perTapLimitSats):undefined};
       const out=await api('/api/accounts/'+me.account.id+'/cards',{method:'POST',body:JSON.stringify(payload)});
       if(out.cardId){
-        // Set card name, limits and note immediately after issuance.
         await api('/api/cards/'+out.cardId,{method:'PATCH',body:JSON.stringify({name:payload.name,note:payload.note,perTapLimitSats:payload.perTapLimitSats,dailyLimitSats:payload.dailyLimitSats})});
-        m.remove();toast(`Card issued: ${payload.name||'Card'}`);
+        await api('/api/cards/'+out.cardId+'/pin',{method:'POST',body:JSON.stringify({pin:String(b.pin)})});
+        const keyText=Object.entries(out.keys||{}).map(([k,v])=>`${k}: ${v}`).join('\n');
+        m.remove(); toast(`Card issued: ${payload.name||'Card'}`); showIssuedCard(out, keyText);
       }else{m.remove();toast('Card issued')}
     }catch(x){m.querySelector('#cardIssueErr').textContent=x.message;}
   };

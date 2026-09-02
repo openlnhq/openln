@@ -148,13 +148,13 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
   .sysgrid{grid-template-columns:1fr 1fr}
   .pgrid{grid-template-columns:1fr}
   .navlinks{display:none}
-  .hub{position:relative;max-width:600px;margin:0 auto}
-  .hub svg{width:100%;height:auto}
-  .hub .lbl{position:absolute;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);white-space:nowrap}
-  .hub .lbl small{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:10px;color:var(--body);margin-top:2px}
-  .lbl.payer{left:0;top:50%;transform:translateY(-50%)}
-  .lbl.merchant{right:0;top:50%;transform:translateY(-50%);text-align:right}
-  .lbl.hublbl{left:50%;transform:translateX(-50%);top:100%;text-align:center;margin-top:8px}
+  .hub{position:relative;max-width:600px;margin:0 auto;padding-bottom:60px}
+  .hub svg{width:100%;height:auto;display:block}
+  .hub .lbl{position:absolute;font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+  .hub .lbl small{display:block;font-weight:400;letter-spacing:0;text-transform:none;font-size:10px;color:var(--body);margin-top:1px;white-space:normal}
+  .lbl.payer{left:0;top:40%;transform:translateY(-50%);text-align:left;max-width:70px}
+  .lbl.merchant{right:0;top:40%;transform:translateY(-50%);text-align:right;max-width:70px}
+  .lbl.hublbl{left:50%;transform:translateX(-50%);bottom:0;text-align:center;white-space:normal;max-width:100px}
   .fanbox{height:auto;perspective:none;overflow-x:auto;justify-content:flex-start;align-items:center;padding:20px 24px 30px;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .fan-card{position:relative;width:min(64vw,300px);transform:none!important;flex-shrink:0;scroll-snap-align:center}
 }

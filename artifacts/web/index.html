@@ -205,7 +205,82 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .walletstate{display:flex;align-items:center;gap:10px;padding:10px 0}
 .walletstate .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
 .walletstate .dot.off{background:var(--err)}
-.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.formgrid{grid-template-columns:1fr}}.issued-card-list{display:grid;gap:6px}.issued-card-row{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);text-align:left;color:var(--text);cursor:pointer}.issued-card-row:hover{border-color:var(--teal-line)}.card-mini{width:29px;height:19px;border-radius:4px;background:linear-gradient(135deg,#123f3c,#0b1f1e);display:grid;place-items:center;flex-shrink:0}.card-mini-mark{color:var(--teal);font-size:15px;line-height:1}.issued-card-meta{flex:1;min-width:0}.issued-card-meta b{display:block;font-size:12px;font-weight:590}.issued-card-meta small{display:block;color:var(--text3);font-size:10.5px;margin-top:2px}.card-visual-small{display:flex;align-items:center;gap:10px;padding:16px;border-radius:10px;background:linear-gradient(135deg,#123f3c,#071413);color:#eafffd}.card-visual-small .card-status{margin-left:auto;font-size:10px;color:var(--teal);text-transform:uppercase}.manage-actions{display:flex;flex-wrap:wrap;gap:7px}.manage-section{border-top:1px solid var(--line);padding-top:12px}.manage-section .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}.manage-line{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}.dangerText{color:var(--err)!important}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.formgrid{grid-template-columns:1fr}}.issued-card-list{display:grid;gap:6px}.issued-card-row{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);text-align:left;color:var(--text);cursor:pointer}.issued-card-row:hover{border-color:var(--teal-line)}.card-mini{width:29px;height:19px;border-radius:4px;background:linear-gradient(135deg,#123f3c,#0b1f1e);display:grid;place-items:center;flex-shrink:0}.card-mini-mark{color:var(--teal);font-size:15px;line-height:1}.issued-card-meta{flex:1;min-width:0}.issued-card-meta b{display:block;font-size:12px;font-weight:590}.issued-card-meta small{display:block;color:var(--text3);font-size:10.5px;margin-top:2px}
+.manage-actions{display:flex;flex-wrap:wrap;gap:7px}.manage-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.manage-section .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}.manage-line{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}.dangerText{color:var(--err)!important}
+/* real card face — CR80 ratio 85.6x54mm ≈ 1.586:1 */
+.cardface{position:relative;width:100%;max-width:340px;aspect-ratio:1.586/1;border-radius:16px;margin:0 auto;padding:20px 22px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;
+  background:radial-gradient(120% 140% at 100% 0%, rgba(20,184,166,.35), transparent 55%),radial-gradient(120% 140% at 0% 100%, rgba(245,197,24,.10), transparent 50%),linear-gradient(155deg,#0e2b29 0%,#0a1917 55%,#071211 100%);
+  box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 18px 40px -12px rgba(0,0,0,.6);color:#eafffd}
+.cardface::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.025) 0px,rgba(255,255,255,.025) 1px,transparent 1px,transparent 5px);pointer-events:none}
+.cardface.frozen{filter:saturate(.35) brightness(.85)}
+.cardface.cancelled{filter:grayscale(1) brightness(.6)}
+.cardface-top{display:flex;align-items:flex-start;justify-content:space-between;position:relative;z-index:1}
+.cardface-chip{width:34px;height:25px;border-radius:5px;background:linear-gradient(155deg,#e8d38a,#b8964f);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);position:relative}
+.cardface-chip::before,.cardface-chip::after{content:'';position:absolute;background:rgba(0,0,0,.22)}
+.cardface-chip::before{left:50%;top:4px;bottom:4px;width:1px}
+.cardface-chip::after{top:50%;left:4px;right:4px;height:1px}
+.cardface-badge{font-size:9.5px;text-transform:uppercase;letter-spacing:.09em;padding:4px 9px;border-radius:20px;background:rgba(20,184,166,.18);color:#7cf5df;backdrop-filter:blur(2px)}
+.cardface-badge.frozen{background:rgba(245,197,24,.18);color:var(--gold)}
+.cardface-badge.cancelled{background:rgba(248,113,113,.18);color:#ffb3b3}
+.cardface-mid{position:relative;z-index:1;font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.14em;color:rgba(234,255,253,.55)}
+.cardface-bottom{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+.cardface-name{font-size:15.5px;font-weight:590;letter-spacing:-.1px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cardface-network{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(234,255,253,.45);flex-shrink:0}
+.qrbox{display:grid;place-items:center;background:#0a0f0f;border-radius:10px;padding:16px;margin-bottom:14px;min-height:252px}
+.qrbox img{width:220px;height:220px;display:block}
+.qrbox .dim{font-size:12px}
+/* RIC */
+.ricgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;max-width:520px}
+.rictile{text-align:left;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:18px;display:flex;flex-direction:column;gap:8px;transition:.15s}
+.rictile:hover{border-color:var(--teal-line);transform:translateY(-1px)}
+.rictile-ico{width:34px;height:34px;border-radius:9px;background:var(--teal-dim);color:var(--teal);display:grid;place-items:center;font-size:16px}
+.rictile-label{font-size:14px;font-weight:590}
+.rictile-sub{font-size:11.5px;color:var(--text3)}
+.ricrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;max-width:640px}
+.ricrow+.ricrow{margin-top:8px}
+.ricrow-top{display:flex;align-items:center;gap:7px;font-size:13.5px}
+.ricdot{width:7px;height:7px;border-radius:50%;background:var(--text3);opacity:.5;display:inline-block}
+.ricdot.on{background:var(--ok);opacity:1}
+.ricstatus{font-size:11.5px;color:var(--text3)}
+.ricstatus.on{color:var(--ok)}
+.ricsteps{display:flex;flex-direction:column;gap:10px}
+.ricstep{display:flex;gap:12px;border:1px solid var(--line);border-radius:var(--r-md);padding:14px;background:var(--surface2);opacity:.4;transition:.15s}
+.ricstep.active{opacity:1;border-color:var(--teal-line);background:var(--teal-dim)}
+.ricstep.done{opacity:.7;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.05)}
+.ricstep.error{opacity:1;border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.06)}
+.ricstep-n{width:22px;height:22px;border-radius:50%;background:var(--surface3);color:var(--text2);font-size:11px;font-weight:700;display:grid;place-items:center;flex-shrink:0}
+.ricstep.active .ricstep-n{background:var(--teal-dim);color:var(--teal)}
+.ricstep.done .ricstep-n{background:rgba(52,211,153,.18);color:var(--ok)}
+.ricstep-label{font-size:13px;font-weight:590;margin-bottom:6px}
+.ricprogress{height:6px;background:var(--surface3);border-radius:4px;overflow:hidden}
+.ricprogress-bar{height:100%;background:var(--teal);border-radius:4px;transition:width .2s}
+.warnbox{border:1px solid rgba(248,113,113,.3);background:rgba(248,113,113,.08);color:#ffb3b3;border-radius:var(--r-md);padding:13px 14px;font-size:12.5px;line-height:1.5}
+.warnbox.ok{border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08);color:var(--ok);font-weight:590}
+.ricform .input{width:100%}
+.ricsteps-plain{display:grid;gap:9px;padding-left:2px}
+.ricsteps-plain li{list-style:none;display:flex;gap:9px;font-size:12.5px;color:var(--text2);line-height:1.4;counter-increment:ricstep}
+.ricsteps-plain{counter-reset:ricstep}
+.ricsteps-plain li::before{content:counter(ricstep);width:18px;height:18px;border-radius:50%;background:var(--teal-dim);color:var(--teal);font-size:10px;font-weight:700;display:grid;place-items:center;flex-shrink:0;margin-top:1px}
+.backlink{font-size:12.5px;color:var(--text2);display:inline-flex;align-items:center;gap:4px;padding:6px 2px}.backlink:hover{color:var(--text)}
+.cardsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+.cardtile{position:relative;text-align:left;border:1px solid var(--line);border-radius:var(--r-lg);background:var(--surface);padding:14px;min-height:158px;display:flex;flex-direction:column;gap:8px;transition:.15s}
+.cardtile:hover{border-color:var(--teal-line);transform:translateY(-1px)}
+.cardtile.frozen{}
+.cardtile.cancelled{opacity:.55}
+.cardtile.new{align-items:center;justify-content:center;background:var(--surface);border-style:dashed;border-color:var(--line2);gap:8px}
+.cardtile-plus{font-size:22px;color:var(--teal);line-height:1}
+.cardtile-label{font-size:12.5px;color:var(--text2);font-weight:510}
+.cardtile-face{position:relative;height:66px;border-radius:9px;padding:10px 11px;display:flex;align-items:flex-start;justify-content:space-between;overflow:hidden;
+  background:radial-gradient(130% 160% at 100% 0%, rgba(20,184,166,.32), transparent 55%),linear-gradient(155deg,#0e2b29 0%,#0a1917 55%,#071211 100%)}
+.cardtile.frozen .cardtile-face{filter:saturate(.35) brightness(.85)}
+.cardtile.cancelled .cardtile-face{filter:grayscale(1) brightness(.6)}
+.cardtile-chip{width:20px;height:15px;border-radius:3px;background:linear-gradient(155deg,#e8d38a,#b8964f)}
+.cardtile-badge{font-size:9px;text-transform:uppercase;letter-spacing:.07em;padding:3px 7px;border-radius:20px;background:rgba(20,184,166,.18);color:#7cf5df;height:fit-content}
+.cardtile-badge.frozen{background:rgba(245,197,24,.18);color:var(--gold)}
+.cardtile-badge.cancelled{background:rgba(248,113,113,.18);color:#ffb3b3}
+.cardtile-name{font-size:14px;font-weight:590;letter-spacing:-.1px;margin-top:2px}
+.cardtile-meta{font-size:11px;color:var(--text3)}
+@media(max-width:640px){.cardsgrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 
 /* money input */
 .amtfield{position:relative;margin:4px 0 2px}
@@ -298,7 +373,9 @@ function openDrawer(){
       <div class="drawer-head"><span class="drawer-title">openLN</span><button class="xbtn" id="closeDrawer" aria-label="Close menu">✕</button></div>
       <nav class="drawer-nav">
         <button class="drawer-link ${VIEW==='wallet'?'on':''}" data-drawer-view="wallet">Wallet <span class="arrow">›</span></button>
-        <a class="drawer-link" href="https://cards.openln.com">Cards <span class="arrow">↗</span></a>
+        <button class="drawer-link ${VIEW==='cards'?'on':''}" data-drawer-view="cards">Cards <span class="arrow">›</span></button>
+        <a class="drawer-link" href="https://cards.openln.com">Card shop <span class="arrow">↗</span></a>
+        <button class="drawer-link ${VIEW==='ric'?'on':''}" data-drawer-view="ric">RIC <span class="arrow">›</span></button>
         <button class="drawer-link ${VIEW==='extensions'?'on':''}" data-drawer-view="extensions">Extensions <span class="arrow">›</span></button>
         <button class="drawer-link ${VIEW==='partner'?'on':''}" data-drawer-view="partner">Partner <span class="arrow">›</span></button>
         <div class="drawer-divider"></div>
@@ -352,6 +429,8 @@ async function render(){
     <div id="view"></div></div>`;
     document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render()});
     if(VIEW==='wallet')await vWallet(st,bal);
+    if(VIEW==='cards')await vCards();
+    if(VIEW==='ric')await vRic();
     if(VIEW==='extensions')await vExt(plugins);
     if(VIEW==='partner')await vPartner();
     if(VIEW==='settings')await vSettings();
@@ -521,67 +600,442 @@ async function mAction(id,act,btn){
     vExt();
   }catch(e){toast(e.message)}
 }
+async function loadAuthedImage(path, imgEl){
+  try{
+    const tok=localStorage.getItem('openln_token');
+    const r=await fetch(path,{headers:tok?{Authorization:'Bearer '+tok}:{}});
+    if(!r.ok)throw Error('QR unavailable');
+    const blob=await r.blob();
+    imgEl.src=URL.createObjectURL(blob);
+  }catch(e){ imgEl.replaceWith(Object.assign(document.createElement('div'),{className:'dim',style:'font-size:12px',textContent:'QR unavailable — use the provisioning URL below.'})); }
+}
 function showIssuedCard(out, keyText){
   const qr=out.provisionUrl||'';
   const m=modal(`<div class="modalhead"><div><h2>Card ready to write</h2><p class="dim" style="font-size:12px;margin-top:4px">Use Bolt Card NFC Creator or a RIC</p></div><button class="xbtn">✕</button></div>
-    <div style="display:grid;place-items:center;background:#0a0f0f;border-radius:10px;padding:12px;margin-bottom:14px"><img id="provisionQr" alt="Card provisioning QR code" style="width:220px;height:220px"></div>
+    <div class="qrbox"><img id="provisionQr" alt="Card provisioning QR code"></div>
     <p class="dim" style="font-size:11.5px;margin-bottom:6px">Scan this QR with the card creator app, or use the provisioning URL in your RIC.</p>
     <div class="codebox mono" style="font-size:11px;overflow-wrap:anywhere">${esc(qr)}</div>
     <button class="btn ghost sm" id="copyProvision" style="width:100%;justify-content:center;margin-top:8px">Copy provisioning URL</button>
     <details style="margin-top:14px"><summary class="dim" style="font-size:12px;cursor:pointer">Show Bolt Card keys</summary><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px">${esc(keyText)}\nlnurlwTemplate: ${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys" style="width:100%;justify-content:center;margin-top:8px">Copy keys</button></details>
     <p class="dim" style="font-size:11px;line-height:1.4;margin-top:12px">Save these values securely. The provisioning URL is single-use.</p>`);
-  const img=m.querySelector('#provisionQr');
-  img.src='/api/cards/'+encodeURIComponent(out.cardId)+'/provision-qr';
+  loadAuthedImage('/api/cards/'+encodeURIComponent(out.cardId)+'/provision-qr', m.querySelector('#provisionQr'));
   m.querySelector('#copyProvision').onclick=()=>navigator.clipboard.writeText(qr).then(()=>toast('Provisioning URL copied'));
   m.querySelector('#copyKeys').onclick=()=>navigator.clipboard.writeText(keyText+'\nlnurlwTemplate: '+(out.lnurlwTemplate||'')).then(()=>toast('Keys copied'));
 }
-function cardManageModal(card,parent){
-  if(!card)return;
-  const m=modal(`<div class="modalhead"><div><h2>${esc(card.name||'Card')}</h2><p class="dim" style="font-size:12px;margin-top:4px">Card management</p></div><button class="xbtn">✕</button></div>
-    <div class="card-visual-small"><span class="card-mini-mark">◌</span><span class="mono">openLN CARD</span><span class="card-status">${esc(card.status)}</span></div>
-    <div class="manage-actions"><button class="btn ghost sm" id="editCard">Edit details</button><button class="btn ghost sm" id="toggleFreeze">${card.status==='frozen'?'Enable card':'Freeze card'}</button><button class="btn ghost sm dangerText" id="disableCard">Disable card</button></div>
-    <div class="manage-section"><div class="dim label">Limits</div><div class="manage-line"><span>Per payment</span><b class="mono">${fmt(card.perTapLimitSats)} sats</b></div><div class="manage-line"><span>Daily</span><b class="mono">${fmt(card.dailyLimitSats)} sats</b></div></div>
-    <div class="manage-section"><div class="dim label">Payment PIN</div><div class="manage-line"><span>Protection</span><b>${card.pinEnabled?'Enabled':'Disabled'}</b></div><div class="manage-line"><span>PIN requirement</span><b>Exactly 4 digits</b></div><button class="btn ghost sm" id="togglePin" style="margin-top:8px">${card.pinEnabled?'Disable PIN':'Enable PIN'}</button></div>
-    <div class="manage-section"><div class="dim label">Card writing</div><p class="dim" style="font-size:11.5px;line-height:1.4">Use the provisioning QR, URL and keys to write this card with a creator app or RIC.</p><button class="btn teal sm" id="viewCardKeys">Show keys and QR</button></div>`);
-  m.querySelector('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:JSON.stringify({})});out.cardId=card.id;out.provisionUrl=location.origin+'/api/provision/'+(out.provisionToken||'');showIssuedCard(out,Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>`${k}: ${v}`).join('\n'));}catch(e){toast(e.message)}};
-  m.querySelector('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:card.status==='frozen'?'active':'frozen'})});m.remove();toast(card.status==='frozen'?'Card enabled':'Card frozen')}catch(e){toast(e.message)}};
-  m.querySelector('#disableCard').onclick=async()=>{if(!confirm('Disable this card?'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});m.remove();toast('Card disabled')}catch(e){toast(e.message)}};
-  m.querySelector('#togglePin').onclick=async()=>{try{if(card.pinEnabled){const p=prompt('Enter current 4-digit PIN');if(!p)return;await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:p,newPin:null})})}else{const p=prompt('Enter exactly 4 digits for the card PIN');if(!p)return;await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({newPin:p})})}m.remove();toast(card.pinEnabled?'PIN disabled':'PIN enabled')}catch(e){toast(e.message)}};
-  m.querySelector('#editCard').onclick=()=>{m.remove();cardEditModal(card,parent)};
+function cardsConfigModal(){ VIEW='cards'; render(); }
+/* ---- CARDS (full management view) ---- */
+let CARD_ACCOUNT_ID=null;
+async function vCards(){
+  $('#view').innerHTML=`<div style="margin-top:30px" id="cardsRoot">
+    <div class="overline">Cards</div>
+    <h1 class="page">Bolt Cards</h1>
+    <p class="muted" style="margin:8px 0 22px;max-width:560px">Issue and manage NTAG424 cards for this account. Each card pays from your own connected wallet, gated by a per-card PIN and spend limits.</p>
+    <div id="cardsBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
+  </div>`;
+  await renderCardsList();
 }
-function cardEditModal(card,parent){
- const m=modal(`<div class="modalhead"><h2>Edit card</h2><button class="xbtn">✕</button></div><form id="editCardForm"><label class="field"><span>Card name</span><input class="input" name="name" value="${esc(card.name||'')}" required maxlength="64"></label><label class="field"><span>Tap note</span><input class="input" name="note" value="${esc(card.note||'')}" maxlength="120"></label><div class="formgrid"><label class="field"><span>Daily limit</span><input class="input mono" name="dailyLimitSats" type="number" min="0" value="${card.dailyLimitSats}"></label><label class="field"><span>Per payment</span><input class="input mono" name="perTapLimitSats" type="number" min="0" value="${card.perTapLimitSats}"></label></div><button class="btn teal" style="width:100%;justify-content:center">Save card</button></form>`);
- m.querySelector('form').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({name:b.name,note:b.note,dailyLimitSats:Number(b.dailyLimitSats),perTapLimitSats:Number(b.perTapLimitSats)})});m.remove();toast('Card updated')}catch(x){toast(x.message)}};
+async function renderCardsList(){
+  const body=$('#cardsBody'); if(!body)return;
+  try{
+    const me=await api('/api/me'); CARD_ACCOUNT_ID=me.account.id;
+    const cards=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards');
+    body.innerHTML=`
+      <div class="cardsgrid">
+        <button class="cardtile new" id="issueCardTile">
+          <div class="cardtile-plus">+</div>
+          <div class="cardtile-label">Issue new card</div>
+        </button>
+        ${cards.map(c=>cardTile(c)).join('')}
+      </div>
+      ${cards.length?'':'<p class="dim" style="font-size:12.5px;margin-top:16px">No cards yet. Issue one to get a provisioning QR you can write with a Bolt Card creator app or a RIC.</p>'}
+    `;
+    $('#issueCardTile').onclick=()=>vCardIssueForm();
+    body.querySelectorAll('[data-card-id]').forEach(b=>b.onclick=()=>vCardDetail(cards.find(c=>c.id===b.dataset.cardId)));
+  }catch(e){ body.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p>`; }
 }
-function cardsConfigModal(){
-  const m=modal(`<div class="modalhead"><div><h2>Cards</h2><p class="dim" style="font-size:12px;margin-top:4px">Issue a card for this account</p></div><button class="xbtn">✕</button></div>
-  <form id="cardIssue" class="cardform">
-    <label class="field"><span>Card name</span><input class="input" name="name" placeholder="Everyday card" required maxlength="64"></label>
-    <div class="formgrid"><label class="field"><span>Daily limit (sats)</span><input class="input mono" name="dailyLimitSats" type="number" min="0" placeholder="Default"></label><label class="field"><span>Per-payment limit (sats)</span><input class="input mono" name="perTapLimitSats" type="number" min="0" placeholder="Default"></label></div>
-    <label class="field"><span>Payment PIN <small class="dim">Exactly 4 digits · LUD-21</small></span><input class="input mono" name="pin" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" placeholder="••••" required></label>
-    <label class="field"><span>Tap note</span><input class="input" name="note" maxlength="120" placeholder="Payment via openLN card"></label>
-    <p class="dim" style="font-size:11.5px;line-height:1.45">The PIN authorizes card payments. It is separate from your account password. You can issue multiple cards.</p>
-    <button class="btn teal" style="width:100%;justify-content:center;padding:11px">Issue card</button>
-    <p id="cardIssueErr" style="font-size:12px;color:var(--err)"></p>
-    <div id="existingCards" style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"></div>
-  </form>`);
-  api('/api/me').then(me=>api('/api/accounts/'+me.account.id+'/cards')).then(cards=>{
-    const box=m.querySelector('#existingCards');
-    box.innerHTML='<div class="dim" style="font-size:11px;margin-bottom:8px">Existing cards ('+cards.length+')</div>'+(cards.length?'<div class="issued-card-list">'+cards.map(c=>'<button type="button" class="issued-card-row" data-card-id="'+esc(c.id)+'"><span class="card-mini"><span class="card-mini-mark">◌</span></span><span class="issued-card-meta"><b>'+esc(c.name||'Unnamed card')+'</b><small>'+esc(c.status)+' · '+fmt(c.perTapLimitSats)+' / tap · '+fmt(c.dailyLimitSats)+' / day</small></span><span class="arrow">›</span></button>').join('')+'</div>':'<div class="dim" style="font-size:12px">No cards issued yet.</div>');
-    box.querySelectorAll('[data-card-id]').forEach(b=>b.onclick=()=>cardManageModal(cards.find(c=>c.id===b.dataset.cardId),m));
-  }).catch(()=>{});
-  m.querySelector('#cardIssue').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
+function cardStatusLabel(c){ return c.status==='active'?'Active':c.status==='frozen'?'Frozen':'Cancelled'; }
+function cardTile(c){
+  const st=c.status||'active';
+  return `<button type="button" class="cardtile ${st}" data-card-id="${esc(c.id)}">
+    <div class="cardtile-face">
+      <div class="cardtile-chip"></div>
+      <span class="cardtile-badge ${st}">${esc(cardStatusLabel(c))}</span>
+    </div>
+    <div class="cardtile-name">${esc(c.name||'Unnamed card')}</div>
+    <div class="cardtile-meta">${fmt(c.perTapLimitSats)} / tap · ${fmt(c.dailyLimitSats)} / day</div>
+    <div class="cardtile-meta dim">${c.pinEnabled?'PIN protected':'No PIN'}${c.pinLocked?' · locked':''}</div>
+  </button>`;
+}
+function vCardIssueForm(){
+  const body=$('#cardsBody');
+  body.innerHTML=`
+    <button class="backlink" id="cardsBack">‹ All cards</button>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <h3 style="margin-bottom:16px">Issue a new card</h3>
+      <form id="cardIssue" class="cardform">
+        <label class="field"><span>Card name</span><input class="input" name="name" placeholder="Everyday card" required maxlength="64" autofocus></label>
+        <div class="formgrid">
+          <label class="field"><span>Daily limit (sats)</span><input class="input mono" name="dailyLimitSats" type="number" min="0" placeholder="Default"></label>
+          <label class="field"><span>Per-payment limit (sats)</span><input class="input mono" name="perTapLimitSats" type="number" min="0" placeholder="Default"></label>
+        </div>
+        <label class="field"><span>Payment PIN <small class="dim">4 digits · LUD-21</small></span><input class="input mono" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required></label>
+        <label class="field"><span>Tap note</span><input class="input" name="note" maxlength="120" placeholder="Payment via openLN card"></label>
+        <p class="dim" style="font-size:11.5px;line-height:1.45">The PIN authorizes card payments. It is separate from your account password. You can issue as many cards as you need.</p>
+        <button class="btn teal" style="width:100%;justify-content:center;padding:11px">Issue card</button>
+        <p id="cardIssueErr" style="font-size:12px;color:var(--err)"></p>
+      </form>
+    </div>`;
+  $('#cardsBack').onclick=renderCardsList;
+  $('#cardIssue').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{
-      const me=await api('/api/me');
-      const payload={name:b.name,note:b.note||undefined,dailyLimitSats:b.dailyLimitSats?Number(b.dailyLimitSats):undefined,perTapLimitSats:b.perTapLimitSats?Number(b.perTapLimitSats):undefined};
-      const out=await api('/api/accounts/'+me.account.id+'/cards',{method:'POST',body:JSON.stringify(payload)});
+      const payload={name:b.name,pin:String(b.pin),note:b.note||undefined,dailyLimitSats:b.dailyLimitSats?Number(b.dailyLimitSats):undefined,perTapLimitSats:b.perTapLimitSats?Number(b.perTapLimitSats):undefined};
+      const out=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards',{method:'POST',body:JSON.stringify(payload)});
       if(out.cardId){
         await api('/api/cards/'+out.cardId,{method:'PATCH',body:JSON.stringify({name:payload.name,note:payload.note,perTapLimitSats:payload.perTapLimitSats,dailyLimitSats:payload.dailyLimitSats})});
-        await api('/api/cards/'+out.cardId+'/pin',{method:'POST',body:JSON.stringify({pin:String(b.pin)})});
         const keyText=Object.entries(out.keys||{}).map(([k,v])=>`${k}: ${v}`).join('\n');
-        m.remove(); toast(`Card issued: ${payload.name||'Card'}`); showIssuedCard(out, keyText);
-      }else{m.remove();toast('Card issued')}
-    }catch(x){m.querySelector('#cardIssueErr').textContent=x.message;}
+        toast(`Card issued: ${payload.name||'Card'}`); showIssuedCard(out, keyText);
+        renderCardsList();
+      }else{toast('Card issued');renderCardsList()}
+    }catch(x){$('#cardIssueErr').textContent=x.message;}
+  };
+}
+function vCardDetail(card){
+  if(!card)return renderCardsList();
+  const body=$('#cardsBody');
+  const st=card.status||'active';
+  body.innerHTML=`
+    <button class="backlink" id="cardsBack">‹ All cards</button>
+    <div class="card" style="max-width:560px;margin-top:14px">
+      <div class="cardface ${st}">
+        <div class="cardface-top"><div class="cardface-chip"></div><span class="cardface-badge ${st}">${esc(cardStatusLabel(card))}</span></div>
+        <div class="cardface-mid">•••• •••• •••• ${esc(card.id.slice(0,4).toUpperCase())}</div>
+        <div class="cardface-bottom"><span class="cardface-name">${esc(card.name||'Unnamed card')}</span><span class="cardface-network">openLN</span></div>
+      </div>
+      <div class="manage-actions" style="margin-top:16px">
+        <button class="btn ghost sm" id="editCard">Edit details</button>
+        <button class="btn ghost sm" id="toggleFreeze">${st==='frozen'?'Enable card':'Freeze card'}</button>
+        <button class="btn ghost sm dangerText" id="disableCard" ${st==='cancelled'?'disabled':''}>Disable card</button>
+      </div>
+      <div class="manage-section"><div class="dim label">Card</div>
+        <div class="manage-line"><span>Name</span><b>${esc(card.name||'Unnamed card')}</b></div>
+        <div class="manage-line"><span>Tap note</span><b>${esc(card.note||'—')}</b></div>
+        <div class="manage-line"><span>Issued</span><b class="mono">${card.createdAt?new Date(card.createdAt).toLocaleDateString():'—'}</b></div>
+      </div>
+      <div class="manage-section"><div class="dim label">Limits</div>
+        <div class="manage-line"><span>Per payment</span><b class="mono">${fmt(card.perTapLimitSats)} sats</b></div>
+        <div class="manage-line"><span>Daily</span><b class="mono">${fmt(card.dailyLimitSats)} sats</b></div>
+      </div>
+      <div class="manage-section"><div class="dim label">Payment PIN</div>
+        <div class="manage-line"><span>Protection</span><b>${card.pinEnabled?'Enabled':'Disabled'}</b>${card.pinLocked?' <span style="color:var(--err);font-size:11px">· locked</span>':''}</div>
+        <div class="manage-actions" style="margin-top:8px">
+          <button class="btn ghost sm" id="togglePin">${card.pinEnabled?'Change PIN':'Enable PIN'}</button>
+          ${card.pinEnabled?'<button class="btn ghost sm dangerText" id="removePin">Remove PIN</button>':''}
+          ${card.pinLocked?'<button class="btn ghost sm" id="unlockPin">Unlock PIN</button>':''}
+        </div>
+      </div>
+      <div class="manage-section"><div class="dim label">Card writing</div>
+        <p class="dim" style="font-size:11.5px;line-height:1.4">Reveal the provisioning QR, URL and Bolt Card keys to write this card with a creator app or RIC.</p>
+        <div class="manage-actions" style="margin-top:8px">
+          <button class="btn teal sm" id="viewCardKeys">Show keys and QR</button>
+          <button class="btn ghost sm dangerText" id="wipeCard">Wipe card</button>
+        </div>
+      </div>
+    </div>`;
+  $('#cardsBack').onclick=renderCardsList;
+  $('#editCard').onclick=()=>vCardEditForm(card);
+  $('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:JSON.stringify({})});out.cardId=card.id;out.provisionUrl=location.origin+'/api/provision/'+(out.provisionToken||'');showIssuedCard(out,Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>`${k}: ${v}`).join('\n'));}catch(e){toast(e.message)}};
+  $('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:st==='frozen'?'active':'frozen'})});toast(st==='frozen'?'Card enabled':'Card frozen');renderCardsList()}catch(e){toast(e.message)}};
+  $('#disableCard').onclick=async()=>{if(!confirm('Disable this card? This cannot be undone.'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});toast('Card disabled');renderCardsList()}catch(e){toast(e.message)}};
+  $('#togglePin').onclick=()=>vCardPinForm(card);
+  $('#removePin')?.addEventListener('click',async()=>{const p=prompt('Enter current 4-digit PIN to remove it');if(!p)return;try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:p,newPin:null})});toast('PIN removed');renderCardsList()}catch(e){toast(e.message)}});
+  $('#unlockPin')?.addEventListener('click',async()=>{try{await api('/api/cards/'+card.id+'/pin/unlock',{method:'POST',body:JSON.stringify({})});toast('PIN unlocked');vCardDetail({...card,pinLocked:null})}catch(e){toast(e.message)}});
+  $('#wipeCard').onclick=()=>vCardWipe(card);
+}
+function vCardWipe(card){
+  const m=modal(`<div class="modalhead"><div><h2>Wipe card</h2><p class="dim" style="font-size:12px;margin-top:4px">Reset the physical NTAG424 to factory defaults</p></div><button class="xbtn">✕</button></div>
+    <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">This reveals the card's current keys and the NTAG424 factory-default settings so a creator app or RIC can erase it. Once you confirm the physical wipe, this card record is marked <b>cancelled</b> and cannot be reused.</p>
+    <div id="wipeBody"><button class="btn teal" id="loadWipeKeys" style="width:100%;justify-content:center;padding:11px">Reveal wipe keys</button></div>`);
+  m.querySelector('#loadWipeKeys').onclick=async()=>{
+    const box=m.querySelector('#wipeBody');
+    box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spin"></span></div>`;
+    try{
+      const out=await api('/api/pos/wipe-keys/'+card.id,{method:'GET'});
+      const keyText=Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>`${k}: ${v}`).join('\n');
+      box.innerHTML=`<pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(keyText)}\nfactorySettings: ${esc(out.factorySettings||'')}</pre>
+        <button class="btn ghost sm" id="copyWipeKeys" style="width:100%;justify-content:center;margin-top:8px">Copy keys</button>
+        <button class="btn danger" id="confirmWiped" style="width:100%;justify-content:center;margin-top:14px;padding:11px">Card physically wiped — mark cancelled</button>`;
+      box.querySelector('#copyWipeKeys').onclick=()=>navigator.clipboard.writeText(keyText+'\nfactorySettings: '+(out.factorySettings||'')).then(()=>toast('Keys copied'));
+      box.querySelector('#confirmWiped').onclick=async()=>{
+        try{await api('/api/pos/mark-wiped/'+card.id,{method:'POST',body:JSON.stringify({})});m.remove();toast('Card wiped and cancelled');renderCardsList()}
+        catch(e){toast(e.message)}
+      };
+    }catch(e){box.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p>`}
+  };
+}
+function vCardEditForm(card){
+  const body=$('#cardsBody');
+  body.innerHTML=`
+    <button class="backlink" id="cardsBack">‹ Back</button>
+    <div class="card" style="max-width:520px;margin-top:14px">
+      <h3 style="margin-bottom:16px">Edit ${esc(card.name||'card')}</h3>
+      <form id="editCardForm" class="cardform">
+        <label class="field"><span>Card name</span><input class="input" name="name" value="${esc(card.name||'')}" required maxlength="64"></label>
+        <label class="field"><span>Tap note</span><input class="input" name="note" value="${esc(card.note||'')}" maxlength="120"></label>
+        <div class="formgrid">
+          <label class="field"><span>Daily limit</span><input class="input mono" name="dailyLimitSats" type="number" min="0" value="${card.dailyLimitSats}"></label>
+          <label class="field"><span>Per payment</span><input class="input mono" name="perTapLimitSats" type="number" min="0" value="${card.perTapLimitSats}"></label>
+        </div>
+        <button class="btn teal" style="width:100%;justify-content:center;padding:11px">Save card</button>
+        <p id="editCardErr" style="font-size:12px;color:var(--err)"></p>
+      </form>
+    </div>`;
+  $('#cardsBack').onclick=()=>vCardDetail(card);
+  $('#editCardForm').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
+    try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({name:b.name,note:b.note,dailyLimitSats:Number(b.dailyLimitSats),perTapLimitSats:Number(b.perTapLimitSats)})});toast('Card updated');renderCardsList()}
+    catch(x){$('#editCardErr').textContent=x.message}
+  };
+}
+function vCardPinForm(card){
+  const body=$('#cardsBody'); const changing=!!card.pinEnabled;
+  body.innerHTML=`
+    <button class="backlink" id="cardsBack">‹ Back</button>
+    <div class="card" style="max-width:460px;margin-top:14px">
+      <h3 style="margin-bottom:16px">${changing?'Change':'Enable'} card PIN</h3>
+      <form id="pinForm" class="cardform">
+        ${changing?'<label class="field"><span>Current PIN</span><input class="input mono" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required autofocus></label>':''}
+        <label class="field"><span>New PIN <small class="dim">4 digits</small></span><input class="input mono" name="newPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required ${changing?'':'autofocus'}></label>
+        <button class="btn teal" style="width:100%;justify-content:center;padding:11px">${changing?'Update PIN':'Enable PIN'}</button>
+        <p id="pinFormErr" style="font-size:12px;color:var(--err)"></p>
+      </form>
+    </div>`;
+  $('#cardsBack').onclick=()=>vCardDetail(card);
+  $('#pinForm').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
+    try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:b.pin,newPin:b.newPin})});toast(changing?'PIN updated':'PIN enabled');renderCardsList()}
+    catch(x){$('#pinFormErr').textContent=x.message}
+  };
+}
+/* ---- RIC (flash + link + manage devices) ---- */
+const RIC_BLE_SERVICE_UUID  = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const RIC_CHAR_SSID_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const RIC_CHAR_PASS_UUID    = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+const RIC_CHAR_TOKEN_UUID   = "6e400004-b5a3-f393-e0a9-e50e24dcca9e";
+const RIC_CHAR_URL_UUID     = "6e400005-b5a3-f393-e0a9-e50e24dcca9e";
+const RIC_CHAR_CURRENCY_UUID= "6e400006-b5a3-f393-e0a9-e50e24dcca9e";
+const RIC_CHAR_STATUS_UUID  = "6e400007-b5a3-f393-e0a9-e50e24dcca9e";
+function ricEncode(s){ return new TextEncoder().encode(s); }
+function ricFmtDate(s){ if(!s) return 'Never used'; return new Date(s).toLocaleDateString('en-GB'); }
+function ricIsOnline(lastUsedAt){ if(!lastUsedAt) return false; return Date.now()-new Date(lastUsedAt).getTime() < 10*60*1000; }
+let RIC_ACCOUNT_ID=null;
+
+async function vRic(){
+  $('#view').innerHTML=`<div style="margin-top:30px" id="ricRoot">
+    <div class="overline">Hardware</div>
+    <h1 class="page">RIC</h1>
+    <p class="muted" style="margin:8px 0 22px;max-width:560px">Rapid Invoice Channel — a standalone Lightning terminal. Flash a device over USB, then link it to this account over Bluetooth to give it WiFi and a wallet.</p>
+    <div class="ricgrid">
+      <button class="rictile" id="ricFlashTile"><div class="rictile-ico">⚡</div><div class="rictile-label">Flash device</div><div class="rictile-sub">Install firmware over USB</div></button>
+      <button class="rictile" id="ricLinkTile"><div class="rictile-ico">◉</div><div class="rictile-label">Link device</div><div class="rictile-sub">Pair via Bluetooth</div></button>
+    </div>
+    <div class="overline" style="margin-top:28px;margin-bottom:10px">Linked devices</div>
+    <div id="ricDevices"><div style="padding:24px 0;text-align:center"><span class="spin"></span></div></div>
+  </div>`;
+  $('#ricFlashTile').onclick=()=>ricFlashModal();
+  $('#ricLinkTile').onclick=()=>ricLinkModal();
+  await renderRicDevices();
+}
+async function renderRicDevices(){
+  const box=$('#ricDevices'); if(!box)return;
+  try{
+    const me=await api('/api/me'); RIC_ACCOUNT_ID=me.account.id;
+    const devices=await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens');
+    if(!devices.length){ box.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px"><div style="font-size:24px;margin-bottom:8px">▣</div><p class="dim" style="font-size:13px">No devices linked yet</p><p class="dim" style="font-size:11.5px;margin-top:4px">Flash and link your first RIC to get started</p></div>`; return; }
+    box.innerHTML=devices.map(d=>`
+      <div class="card ricrow" data-token-id="${esc(d.id)}">
+        <div class="ricrow-meta">
+          <div class="ricrow-top"><b>${esc(d.label||'RIC')}</b>${ricIsOnline(d.lastUsedAt)?'<span class="ricdot on"></span><span class="ricstatus on">online</span>':'<span class="ricdot"></span><span class="ricstatus">offline</span>'}</div>
+          <div class="dim" style="font-size:11.5px;margin-top:3px">Linked ${ricFmtDate(d.createdAt)} · Last used ${ricFmtDate(d.lastUsedAt)}</div>
+        </div>
+        <button class="btn ghost sm dangerText" data-release="${esc(d.id)}">Release</button>
+      </div>`).join('');
+    box.querySelectorAll('[data-release]').forEach(b=>b.onclick=()=>ricReleaseModal(devices.find(d=>d.id===b.dataset.release)));
+  }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p>`; }
+}
+
+function ricStepRow(n,label,state){ // state: 'pending'|'active'|'done'
+  return `<div class="ricstep ${state}"><div class="ricstep-n">${state==='done'?'✓':n}</div><div class="ricstep-body"><div class="ricstep-label">${esc(label)}</div><div class="ricstep-slot" id="ricStepSlot${n}"></div></div></div>`;
+}
+
+function ricFlashModal(){
+  const hasSerial = !!navigator.serial;
+  let phase='idle'; let port=null;
+  const m=modal(`<div class="modalhead"><div><h2>Flash device</h2><p class="dim" style="font-size:12px;margin-top:4px">Install RIC firmware over USB</p></div><button class="xbtn">✕</button></div>
+    ${hasSerial?`
+      <div class="ricsteps">
+        ${ricStepRow(1,'Connect','active')}
+        ${ricStepRow(2,'Flash firmware','pending')}
+        ${ricStepRow(3,'Result','pending')}
+      </div>
+      <p class="dim" style="font-size:11.5px;text-align:center;margin-top:14px">Requires Chrome or Edge on desktop (USB access)</p>
+    `:`<div class="warnbox">WebSerial is not available in this page context. Open this page in Chrome or Edge on desktop, then reconnect the USB device.</div>`}`);
+  if(!hasSerial)return;
+  const slot=n=>m.querySelector('#ricStepSlot'+n);
+  const setStep=(n,state)=>{ m.querySelectorAll('.ricstep')[n-1].className='ricstep '+state; if(state==='done')m.querySelectorAll('.ricstep')[n-1].querySelector('.ricstep-n').textContent='✓'; };
+  slot(1).innerHTML=`<button class="btn teal sm" id="ricConnect">Connect to device</button>`;
+  m.querySelector('#ricConnect').onclick=async()=>{
+    slot(1).innerHTML=`<span class="dim" style="font-size:12.5px">Opening port picker…</span>`;
+    try{
+      port=await navigator.serial.requestPort();
+      setStep(1,'done'); slot(1).innerHTML=`<span style="color:var(--ok);font-size:12.5px">Port selected</span>`;
+      setStep(2,'active');
+      slot(2).innerHTML=`<button class="btn teal sm" id="ricFlash">Flash firmware</button>`;
+      m.querySelector('#ricFlash').onclick=async()=>{
+        slot(2).innerHTML=`<div class="ricprogress"><div class="ricprogress-bar" id="ricBar" style="width:0%"></div></div><p class="dim" style="font-size:11.5px;margin-top:6px" id="ricPct">0% written</p>`;
+        setStep(3,'active'); slot(3).innerHTML=`<span class="dim" style="font-size:12.5px">Preparing…</span>`;
+        try{
+          const mod=await import('https://esm.sh/esptool-js@0.6.0');
+          const transport=new mod.Transport(port,true);
+          const loader=new mod.ESPLoader({transport,baudrate:115200,terminal:{clean:()=>{},writeLine:()=>{},write:()=>{}},enableTracing:false});
+          const chip=await loader.main();
+          const fwRes=await fetch('/api/posbox/firmware');
+          if(!fwRes.ok)throw Error('Failed to download firmware');
+          const data=new Uint8Array(await fwRes.arrayBuffer());
+          await loader.writeFlash({fileArray:[{data,address:0x0}],flashSize:'keep',flashMode:'keep',flashFreq:'keep',eraseAll:false,compress:true,
+            reportProgress:(_i,written,total)=>{ const pct=total>0?Math.round(written/total*100):0; const bar=m.querySelector('#ricBar'); if(bar)bar.style.width=pct+'%'; const p=m.querySelector('#ricPct'); if(p)p.textContent=pct+'% written'; }});
+          await loader.softReset(false);
+          setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">Written successfully${chip?' · '+esc(chip)+' detected':''}</span>`;
+          setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Firmware installed</p><p class="dim" style="font-size:11.5px;margin-top:4px">The device will now boot and start Bluetooth provisioning. Use "Link device" to connect it to your account.</p>`;
+        }catch(e){ setStep(3,'error'); slot(3).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Flash failed')}</p><button class="btn ghost sm" id="ricRetryFlash" style="margin-top:8px">Try again</button>`; m.querySelector('#ricRetryFlash').onclick=()=>{m.remove();ricFlashModal();}; }
+      };
+    }catch(e){
+      if(e && e.name==='NotFoundError'){ slot(1).innerHTML=`<button class="btn teal sm" id="ricConnect2">Connect to device</button>`; m.querySelector('#ricConnect2').onclick=()=>{m.remove();ricFlashModal();}; return; }
+      setStep(1,'error'); slot(1).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Failed to open port')}</p><button class="btn ghost sm" id="ricRetryConn" style="margin-top:8px">Try again</button>`;
+      m.querySelector('#ricRetryConn').onclick=()=>{m.remove();ricFlashModal();};
+    }
+  };
+}
+
+function ricLinkModal(){
+  const hasBluetooth = !!navigator.bluetooth;
+  const isIOS=/ipad|iphone|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  let gatt=null, device=null, deviceName=null;
+  const m=modal(`<div class="modalhead"><div><h2>Link device</h2><p class="dim" style="font-size:12px;margin-top:4px">Pair via Bluetooth</p></div><button class="xbtn">✕</button></div>
+    ${hasBluetooth?`
+      <div class="ricsteps">
+        ${ricStepRow(1,'Connect','active')}
+        ${ricStepRow(2,'WiFi credentials','pending')}
+        ${ricStepRow(3,'Result','pending')}
+      </div>
+    `:`<div class="warnbox">${isIOS?'Bluetooth device linking is not supported on iPhone or iPad — Apple blocks Web Bluetooth on all iOS browsers. Use a laptop or desktop running Chrome or Edge.':'Web Bluetooth is not available in this browser. Open this page in Chrome or Edge on a laptop or desktop.'}</div>`}`);
+  if(!hasBluetooth)return;
+  const slot=n=>m.querySelector('#ricStepSlot'+n);
+  const setStep=(n,state)=>{ m.querySelectorAll('.ricstep')[n-1].className='ricstep '+state; if(state==='done')m.querySelectorAll('.ricstep')[n-1].querySelector('.ricstep-n').textContent='✓'; };
+  slot(1).innerHTML=`<button class="btn teal sm" id="ricScan">Scan for nearby device</button>`;
+  m.querySelector('#ricScan').onclick=async()=>{
+    slot(1).innerHTML=`<span class="dim" style="font-size:12.5px">Scanning…</span>`;
+    try{
+      device=await navigator.bluetooth.requestDevice({filters:[{name:'posBOX'},{name:'RIC'}],optionalServices:[RIC_BLE_SERVICE_UUID]});
+      if(!device.gatt)throw Error('Device has no GATT server');
+      gatt=await device.gatt.connect();
+      deviceName=device.name||'RIC';
+      setStep(1,'done'); slot(1).innerHTML=`<span style="color:var(--ok);font-size:12.5px">${esc(deviceName)} found</span>`;
+      setStep(2,'active');
+      slot(2).innerHTML=`
+        <div class="ricform">
+          <input class="input" id="ricSsid" placeholder="Network name (SSID)">
+          <input class="input" type="password" id="ricPass" placeholder="Password" style="margin-top:8px">
+          <button class="btn teal sm" id="ricProvision" style="margin-top:10px" disabled>Provision device</button>
+        </div>`;
+      const ssidEl=m.querySelector('#ricSsid'), passEl=m.querySelector('#ricPass'), provBtn=m.querySelector('#ricProvision');
+      ssidEl.oninput=()=>{ provBtn.disabled=!ssidEl.value.trim(); };
+      provBtn.onclick=async()=>{
+        setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">Credentials ready</span>`;
+        setStep(3,'active'); slot(3).innerHTML=`<span class="dim" style="font-size:12.5px" id="ricProvStatus">Sending credentials…</span>`;
+        const statusEl=()=>m.querySelector('#ricProvStatus');
+        let issuedTokenId=null, tokenWritten=false;
+        try{
+          const service=await gatt.getPrimaryService(RIC_BLE_SERVICE_UUID);
+          const [cSsid,cPass,cToken,cUrl,cCurrency,cStatus]=await Promise.all([
+            service.getCharacteristic(RIC_CHAR_SSID_UUID),service.getCharacteristic(RIC_CHAR_PASS_UUID),
+            service.getCharacteristic(RIC_CHAR_TOKEN_UUID),service.getCharacteristic(RIC_CHAR_URL_UUID),
+            service.getCharacteristic(RIC_CHAR_CURRENCY_UUID),service.getCharacteristic(RIC_CHAR_STATUS_UUID)]);
+          const currency=(await api('/api/account/settings').catch(()=>({currency:'usd'}))).currency||'usd';
+          const serverUrl=location.origin+'/api';
+          if(statusEl())statusEl().textContent='Issuing device token...';
+          const tokenResp=await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens',{method:'POST',body:JSON.stringify({label:deviceName||'RIC'})});
+          issuedTokenId=tokenResp.id;
+          if(statusEl())statusEl().textContent='Waiting for device to connect...';
+          await cStatus.startNotifications();
+          await new Promise((resolve,reject)=>{
+            let settled=false;
+            const settle=fn=>{ if(settled)return; settled=true; clearTimeout(timeout); device.removeEventListener('gattserverdisconnected',onDisconnect); fn(); };
+            const timeout=setTimeout(()=>settle(()=>{ tokenWritten?resolve():reject(Error('Timed out — credentials not written to device')); }),45000);
+            const onDisconnect=()=>settle(()=>{ tokenWritten?resolve():reject(Error('Device disconnected before provisioning completed')); });
+            device.addEventListener('gattserverdisconnected',onDisconnect);
+            cStatus.addEventListener('characteristicvaluechanged',ev=>{
+              const dv=ev.target.value||new DataView(new ArrayBuffer(0));
+              const raw=new TextDecoder('utf-8',{fatal:false}).decode(dv);
+              const val=raw.replace(/\0.*$/,'').replace(/[^\x20-\x7E]/g,'').trim();
+              if(val && statusEl())statusEl().textContent=val;
+              if(val==='connected'){ settle(()=>resolve()); }
+              else if(val.startsWith('error:')){ settle(()=>reject(Error(val.slice(6)||'Device reported an error'))); }
+            });
+            (async()=>{
+              try{
+                if(statusEl())statusEl().textContent='Writing to device...';
+                await cSsid.writeValueWithoutResponse(ricEncode(ssidEl.value));
+                await cPass.writeValueWithoutResponse(ricEncode(passEl.value));
+                await cToken.writeValueWithoutResponse(ricEncode(tokenResp.token));
+                tokenWritten=true;
+                await cUrl.writeValueWithoutResponse(ricEncode(serverUrl));
+                await cCurrency.writeValueWithoutResponse(ricEncode(currency));
+                if(statusEl())statusEl().textContent='Waiting for device to connect...';
+              }catch(e){ settle(()=>reject(e)); }
+            })();
+          });
+          setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Device is ready to accept payments</p><p class="dim" style="font-size:11.5px;margin-top:4px">Your RIC is connected and linked to this account.</p>`;
+          renderRicDevices();
+        }catch(e){
+          if(issuedTokenId && !tokenWritten){ api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens/'+issuedTokenId,{method:'DELETE'}).catch(()=>{}); }
+          setStep(3,'error'); slot(3).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Provisioning failed')}</p><button class="btn ghost sm" id="ricRetryLink" style="margin-top:8px">Try again</button>`;
+          m.querySelector('#ricRetryLink').onclick=()=>{m.remove();ricLinkModal();};
+        }
+      };
+    }catch(e){
+      if(e && e.name==='NotFoundError'){ slot(1).innerHTML=`<button class="btn teal sm" id="ricScan2">Scan for nearby device</button>`; m.querySelector('#ricScan2').onclick=()=>{m.remove();ricLinkModal();}; return; }
+      setStep(1,'error'); slot(1).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Bluetooth scan failed')}</p><button class="btn ghost sm" id="ricRetryScan" style="margin-top:8px">Try again</button>`;
+      m.querySelector('#ricRetryScan').onclick=()=>{m.remove();ricLinkModal();};
+    }
+  };
+}
+
+function ricReleaseModal(device){
+  if(!device)return;
+  const m=modal(`<div class="modalhead"><div><h2>Release device</h2><p class="dim" style="font-size:12px;margin-top:4px">${esc(device.label||'RIC')}</p></div><button class="xbtn">✕</button></div>
+    <div id="ricRelBody">
+      <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:16px">This revokes the device token. The next time it connects to WiFi it will detect the change, wipe its configuration, and reboot into Bluetooth setup mode — ready to be linked to a new WiFi network or account.</p>
+      <div style="display:flex;gap:8px">
+        <button class="btn danger" id="ricConfirmRelease" style="flex:1;justify-content:center;padding:11px">Release device</button>
+        <button class="btn ghost" id="ricCancelRelease" style="flex:1;justify-content:center;padding:11px">Cancel</button>
+      </div>
+    </div>`);
+  m.querySelector('#ricCancelRelease').onclick=()=>m.remove();
+  m.querySelector('#ricConfirmRelease').onclick=async()=>{
+    const box=m.querySelector('#ricRelBody');
+    box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spin"></span></div>`;
+    try{
+      await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens/'+device.id,{method:'DELETE'});
+      box.innerHTML=`
+        <div class="warnbox ok" style="margin-bottom:14px">Device released</div>
+        <p class="dim label" style="margin-bottom:8px">What to do next</p>
+        <ol class="ricsteps-plain">
+          <li>Enable the WiFi network "${esc(device.label||'your old WiFi')}" that the device is configured for (even briefly — 30s is enough).</li>
+          <li>The device will connect, detect the revocation, wipe its config, and reboot into Bluetooth setup mode.</li>
+          <li>Turn off that WiFi again.</li>
+          <li>Tap "Link device" to pair it with the new WiFi and this account.</li>
+        </ol>
+        <button class="btn ghost" id="ricReleaseDone" style="width:100%;justify-content:center;margin-top:14px;padding:11px">Done</button>`;
+      m.querySelector('#ricReleaseDone').onclick=()=>{m.remove();renderRicDevices();};
+    }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p><button class="btn ghost sm" id="ricRelRetry" style="margin-top:10px">Try again</button>`; m.querySelector('#ricRelRetry').onclick=()=>{m.remove();ricReleaseModal(device);}; }
   };
 }
 function extConfigModal(c){

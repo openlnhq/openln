@@ -27,7 +27,7 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     }
     const v = await body(req);
     const pin = String(v.pin ?? "").trim();
-    if (!/^[0-9]{4,8}$/.test(pin)) return json(res, 400, { error: "PIN must be exactly 4 digits" }) as never;
+    if (!/^[0-9]{4}$/.test(pin)) return json(res, 400, { error: "PIN must be exactly 4 digits" }) as never;
     const k = [key(),key(),key(),key(),key()]; const token = randomBytes(24).toString("hex");
     const [card] = await db.insert(cardsTable).values({ accountId: account.id, name: typeof v.name === "string" ? v.name.trim().slice(0,64) || null : null, note: typeof v.note === "string" ? v.note.trim().slice(0,120) || null : null, perTapLimitSats: typeof v.perTapLimitSats === "number" ? Math.max(0, Math.floor(v.perTapLimitSats)) : undefined, dailyLimitSats: typeof v.dailyLimitSats === "number" ? Math.max(0, Math.floor(v.dailyLimitSats)) : undefined, pinHash: pinHash(pin), aesKey0: encrypt(k[0]), aesKey1: encrypt(k[1]), aesKey2: encrypt(k[2]), aesKey3: encrypt(k[3]), aesKey4: encrypt(k[4]), provisionToken: hash(token), provisionTokenExpiresAt: new Date(Date.now()+86400000) }).returning();
     return json(res, 201, { cardId: card.id, name: card.name, status: card.status, perTapLimitSats: card.perTapLimitSats, dailyLimitSats: card.dailyLimitSats, provisionUrl: `https://${DOMAIN}/api/provision/${token}`, lnurlwTemplate: `lnurlw://${DOMAIN}/card/${card.id}?p=${"0".repeat(32)}&c=${"0".repeat(16)}`, keys: Object.fromEntries(k.map((v,i)=>[`key${i}`,v])), createdAt: card.createdAt }) as never;
@@ -73,7 +73,7 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const [card] = await db.select().from(cardsTable).where(and(eq(cardsTable.id,cardAction[1]),eq(cardsTable.accountId,account.id)));
     if (!card) return json(res,404,{error:"Card not found"}) as never;
     const v=await body(req);
-    if(cardAction[2]==="pin") { const p=String(v.pin??""); if(!/^[0-9]{4,8}$/.test(p)) return json(res,400,{error:"PIN must be exactly 4 digits"}) as never; await db.update(cardsTable).set({pinHash:pinHash(p)}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:true}) as never; }
+    if(cardAction[2]==="pin") { const p=String(v.pin??""); if(!/^[0-9]{4}$/.test(p)) return json(res,400,{error:"PIN must be exactly 4 digits"}) as never; await db.update(cardsTable).set({pinHash:pinHash(p)}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:true}) as never; }
     return json(res,200,{cardId:card.id,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4),lnurlwTemplate:`lnurlw://${DOMAIN}/card/${card.id}?p=${"0".repeat(32)}&c=${"0".repeat(16)}`}) as never;
   }
   const deviceNext = u.pathname === "/api/pos/next-provision";

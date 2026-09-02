@@ -40,8 +40,31 @@ const server = createServer(async (req, res) => {
   try {
     const u = new URL(req.url ?? "/", "http://localhost");
     if (req.method === "GET" && u.pathname === "/health") return json(res, 200, { status: "ok", service: "openln-core", plugins: registry.list().map(p => p.id) });
+    // RIC/CYD firmware connectivity check — calls `${serverUrl}/healthz` where serverUrl is `${origin}/api` (see BitposClient.cpp beginAuthRequest). No auth: pure reachability probe before the device attempts authenticated calls.
+    if (req.method === "GET" && u.pathname === "/api/healthz") return json(res, 200, { status: "ok" });
     const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]);
     const currentAccount = cardToken ? await auth.authenticate(cardToken) : undefined;
+    // RIC/CYD device boot handshake — GET /pos/config (device fetches merchant currency + rate modifiers) and GET /price (BTC/fiat rate). Ported verbatim from bitPOS routes/pos.ts + routes/price.ts.
+    if (req.method === "GET" && u.pathname === "/api/pos/config") {
+      if (!currentAccount) return json(res, 401, { error: "Authentication required" });
+      const [account] = await db.select({ currency: accountsTable.currency, rateModifier: accountsTable.rateModifier, sendRateModifier: accountsTable.sendRateModifier }).from(accountsTable).where(eq(accountsTable.id, currentAccount.id));
+      if (!account) return json(res, 404, { error: "Account not found" });
+      return json(res, 200, { currency: account.currency, rateModifier: account.rateModifier ?? "", sendRateModifier: account.sendRateModifier ?? "" });
+    }
+    if (req.method === "GET" && u.pathname === "/api/price") {
+      const { getBtcPrice, getBtcPriceFor, applyRateModifier } = await import("./money/price.js");
+      const vs = u.searchParams.get("vs_currency");
+      const source = u.searchParams.get("source")?.toLowerCase() === "binance" ? "binance" : "coingecko";
+      const modifier = u.searchParams.get("modifier") ?? undefined;
+      if (vs && vs.trim()) {
+        const currency = vs.trim().toLowerCase();
+        let price = await getBtcPriceFor(currency, source as "coingecko" | "binance");
+        if (modifier) price = applyRateModifier(price, modifier);
+        return json(res, 200, { currency, price, source, modified: !!modifier });
+      }
+      const price = await getBtcPrice();
+      return json(res, 200, price);
+    }
     if (await handlePartnerRoute(req,res,u)) return;
     if (await handlePosboxRoute(req,res,u,currentAccount)) return;
     if (handleShopRoute(req,res,u)) return;

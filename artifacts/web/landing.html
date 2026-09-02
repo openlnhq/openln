@@ -148,10 +148,13 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
   .sysgrid{grid-template-columns:1fr 1fr}
   .pgrid{grid-template-columns:1fr}
   .navlinks{display:none}
-  .hub .lbl{position:static;transform:none;text-align:center;width:100%;margin-top:10px}
-  .hub .lbl.payer{order:2}.hub .lbl.hublbl{order:4}.hub .lbl.merchant{order:3}
-  .hub{display:flex;flex-direction:column;align-items:center}
-  .hub>svg{order:1}
+  .hub{display:grid;grid-template-columns:max(100px,1fr) 2fr max(100px,1fr);gap:12px 14px;align-items:start;max-width:100%}
+  .hub>svg{grid-column:1/-1;width:100%;margin-bottom:4px}
+  .hub .lbl{position:relative;transform:none;font-size:10px;margin-top:0;white-space:normal;max-width:none}
+  .hub .lbl small{font-size:11px}
+  .hub .lbl.payer{grid-column:1;text-align:left}
+  .hub .lbl.merchant{grid-column:3;text-align:right}
+  .hub .lbl.hublbl{grid-column:2;text-align:center}
   .fanbox{height:auto;perspective:none;overflow-x:auto;justify-content:flex-start;align-items:center;padding:20px 24px 30px;gap:10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
   .fan-card{position:relative;width:min(64vw,300px);transform:none!important;flex-shrink:0;scroll-snap-align:center}
 }
@@ -172,15 +175,15 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
 
 <section class="hero"><div class="wrap"><div class="heroin">
   <div>
-    <span class="eyebrow">Open-source Lightning POS</span>
-    <h1>Staff types.<br>Customer taps. <b>Done.</b></h1>
-    <p class="lead">The RIC stays on the counter. Staff enter the amount. The customer taps a card or presents a phone, and the payment settles to the merchant's own wallet.</p>
+    <span class="eyebrow">Open-source Lightning Terminal</span>
+    <h1>ACCEPT<br>BITCOIN<br>ANYWHERE</b></h1>
+    <p class="lead">Open an account, charge in sats, settle over Lightning.<br>No installs, no KYC, no bank, no chargebacks.<br>Your keys, Your coins.</p>
     <div class="heroctas"><a class="btn btn-teal" href="#ric">Get a RIC →</a><a class="btn btn-line" href="#cards">See the cards →</a></div>
-    <p class="hero-fine">Assembled by local distributors · open hardware · non-custodial</p>
+    <p class="hero-fine">RIC's are Assembled by local distributors · open hardware · non-custodial</p>
   </div>
   <div class="video">
     <video src="/media/ric-hero.mp4" poster="/media/ric-poster.jpg" autoplay muted loop playsinline></video>
-    <span class="vtag">RIC — RAPID INVOICE CHANNEL</span><span class="vprice">$79</span>
+    <span class="vtag">RIC - RAPID INVOICE CHANNEL</span><span class="vprice">S.R.P. $49</span>
   </div>
 </div></div></section>
 
@@ -228,15 +231,15 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
     </svg>
     <div class="lbl payer">Customer taps<small>an openLN card or any Lightning wallet</small></div>
     <div class="lbl merchant">Merchant settles<small>their own wallet · their keys</small></div>
-    <div class="lbl hublbl">openLN hub<small>Lightning node · boltcard server</small></div>
+    <div class="lbl hublbl">openLN hub<small>Lightning node · BoltCard server · NOSTR node</small></div>
   </div>
-  <p class="pathnote">Funds pass through openLN: held, forwarded to the merchant's wallet, and released. openLN takes 1% of what the merchant receives.</p>
+  <p class="pathnote">openLN is a non-custodial router: we use Wrapped Hodl Invoices to forward funds to the merchant's wallet. The routing fee is 1% of what the merchant receives.</p>
 </div></section>
 
 <!-- THE RIC: what we built -->
 <section class="built" id="ric"><div class="wrap"><div class="builtin">
   <div>
-    <span class="eyebrow">The RIC — Rapid Invoice Channel</span>
+    <span class="eyebrow">The RIC - Rapid Invoice Channel</span>
     <h2 class="sec" style="margin-top:14px">No <b>training required.</b></h2>
     <p>The RIC is for the counter, not a staff member's phone. Staff enter the amount; the customer pays. The same terminal writes and wipes NTAG424 cards at the counter.</p>
     <ul class="specs">
@@ -247,7 +250,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
       <li><span>Payment</span><span>Lightning</span></li>
       <li><span>Fulfilment</span><span>local distributor delivery</span></li>
     </ul>
-    <div class="builtcta"><a class="btn btn-teal" href="https://cards.openln.com/shop/posbox">Buy a RIC →</a><a class="btn btn-line" href="https://github.com/openlnhq/openln">Open hardware — build files</a></div>
+    <div class="builtcta"><a class="btn btn-teal" href="https://cards.openln.com/shop/posbox">Buy a RIC →</a><a class="btn btn-line" href="https://github.com/openlnhq/openln">Open hardware - build files</a></div>
   </div>
   <figure class="ricstill"><img src="/media/ric-still.jpg" alt="The RIC terminal on a counter" loading="lazy"></figure>
 </div></div></section>
@@ -258,18 +261,18 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
     <div><span class="eyebrow">Tap-to-pay cards</span><h2 class="sec" style="margin-top:14px">A card connected to <b>your account</b>, in your pocket.</h2></div>
     <a class="see-all" href="https://cards.openln.com/shop">Browse the catalog →</a>
   </div>
-  <p style="font-size:15.5px;font-weight:300;color:var(--body);max-width:560px;margin-top:10px">NTAG424 DNA cards connected to your account. The customer taps; the merchant receives. Freeze or wipe a card from the app.</p>
+  <p style="font-size:15.5px;font-weight:300;color:var(--body);max-width:560px;margin-top:10px">NTAG424 DNA cards connected to your account. Tap the card; the merchant receives (reverse flow also possible). Freeze or wipe a card from the app.</p>
   <div class="fanbox" id="fan"></div>
-  <p class="fan-cap" id="fancap">Every design is printed to order by a local partner — hover a card to see its name</p>
+  <p class="fan-cap" id="fancap">Every design is printed to order by a local partner - design your own at the Card Studio for FREE.</p>
 </div></section>
 
 <!-- THE SYSTEM -->
 <section class="system" id="system"><div class="wrap">
   <span class="eyebrow">The system</span>
-  <h2 class="sec" style="margin-top:14px">One hub. <b>Everything extends it.</b></h2>
+  <h2 class="sec" style="margin-top:14px">One hub. <b>Extend it.</b></h2>
   <div class="sysgrid">
     <a class="stile" href="/app"><span class="ti">◉</span><h4>NIP-47 wallet hub</h4><p>Your account connects to a wallet you hold. The hub routes; it never stores.</p></a>
-    <a class="stile" href="https://github.com/openlnhq/openln"><span class="ti">⛓</span><h4>Node + boltcard server</h4><p>Full stack included: your Lightning node, the boltcard issuance server, the ledger.</p></a>
+    <a class="stile" href="https://github.com/openlnhq/openln"><span class="ti">⛓</span><h4>Nodes + Servers</h4><p>Full stack includes Lightning node, boltcard issuance server, NOSTR node.</p></a>
     <a class="stile" href="/app"><span class="ti">◇</span><h4>Extensions</h4><p>POS, reports, card rails and crypto rails install per account and disable anytime.</p></a>
     <a class="stile" href="https://github.com/openlnhq/openln/blob/main/LICENSE"><span class="ti">⌘</span><h4>Open everything</h4><p>AGPL-3.0 platform, MIT firmware, CERN-OHL-S hardware files. Verify, don't trust.</p></a>
   </div>
@@ -279,7 +282,7 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
 <section class="distro" id="distributors"><div class="wrap">
   <span class="eyebrow" style="color:var(--gold)">Distributor program</span>
   <h2 class="sec" style="color:#fff;margin-top:14px">Bring the RIC <b>to your city.</b></h2>
-  <p>Distributors source parts locally, build the terminals, print the cards, and stand up the merchants. You keep 100% of every hardware sale and earn on every payment your devices route, for their lifetime — tracked in the ledger, paid out on request.</p>
+  <p>Distributors source parts locally, build the terminals, print the cards, and onboard the merchants. You keep 100% of every hardware sale and earn on every payment your devices route, for their lifetime - tracked in the ledger, paid out on request.</p>
   <div class="pgrid">
     <div class="pcard"><div class="region">Thailand</div><div class="pn">Koh Samui</div><div class="pd">RIC assembly and card printing. Same-day dispatch worldwide.</div></div>
     <div class="pcard"><div class="region">South Africa</div><div class="pn">Johannesburg</div><div class="pd">Local assembly and merchant onboarding for the African market.</div></div>
@@ -338,7 +341,7 @@ fan.onmouseleave = ()=>{
     el.style.transform = `rotate(${(tt*spread).toFixed(1)}deg) translateY(${(tt*tt*38).toFixed(1)}px)`;
     el.style.zIndex = String(n-Math.abs(Math.round(tt*(n-1))));
   });
-  document.getElementById("fancap").innerHTML = "Every design is printed to order by a local partner — hover a card to see its name";
+  document.getElementById("fancap").innerHTML = "Every design is printed to order by a local partner - design your own at the Card Studio for FREE.";
 };
 (function(){
   var t=document.getElementById('themeToggle'),root=document.documentElement;

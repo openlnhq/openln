@@ -67,6 +67,10 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { return json(res, 200, await auth.login(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
     const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]); return token ? auth.authenticate(token) : undefined; };
     // ---- Account settings (currency, rate, wallet prefs) ----
+    if (req.method === "GET" && u.pathname === "/api/me") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      return json(res, 200, { account: { id: account.id, handle: account.handle } });
+    }
     if (req.method === "GET" && u.pathname === "/api/account/settings") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const [row] = await db.select({ currency: accountsTable.currency, rateSource: accountsTable.rateSource, rateModifier: accountsTable.rateModifier, sendRateModifier: accountsTable.sendRateModifier, walletMode: accountsTable.walletMode, lightningAddress: accountsTable.lightningAddress }).from(accountsTable).where(eq(accountsTable.id, account.id));

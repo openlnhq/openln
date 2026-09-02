@@ -14,6 +14,8 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> { le
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 const key = () => randomBytes(16).toString("hex");
 const pinHash = (pin: string) => { const salt = randomBytes(16); return `${salt.toString("base64url")}.${scryptSync(pin, salt, 32).toString("base64url")}`; };
+const pinVerify = (pin: string, stored: string | null) => { try { if (!stored) return false; const [salt, val] = stored.split("."); const got=scryptSync(pin,Buffer.from(salt,"base64url"),32).toString("base64url"); return got===val; } catch { return false; } };
+
 
 export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse, u: URL, account: { id: string } | undefined): Promise<boolean> {
   const accountPath = u.pathname.match(/^\/api\/accounts\/([^/]+)\/cards$/);
@@ -25,7 +27,7 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     }
     const v = await body(req);
     const pin = String(v.pin ?? "").trim();
-    if (!/^[0-9]{4,8}$/.test(pin)) return json(res, 400, { error: "PIN must contain 4–8 digits" }) as never;
+    if (!/^[0-9]{4,8}$/.test(pin)) return json(res, 400, { error: "PIN must be exactly 4 digits" }) as never;
     const k = [key(),key(),key(),key(),key()]; const token = randomBytes(24).toString("hex");
     const [card] = await db.insert(cardsTable).values({ accountId: account.id, name: typeof v.name === "string" ? v.name.trim().slice(0,64) || null : null, note: typeof v.note === "string" ? v.note.trim().slice(0,120) || null : null, perTapLimitSats: typeof v.perTapLimitSats === "number" ? Math.max(0, Math.floor(v.perTapLimitSats)) : undefined, dailyLimitSats: typeof v.dailyLimitSats === "number" ? Math.max(0, Math.floor(v.dailyLimitSats)) : undefined, pinHash: pinHash(pin), aesKey0: encrypt(k[0]), aesKey1: encrypt(k[1]), aesKey2: encrypt(k[2]), aesKey3: encrypt(k[3]), aesKey4: encrypt(k[4]), provisionToken: hash(token), provisionTokenExpiresAt: new Date(Date.now()+86400000) }).returning();
     return json(res, 201, { cardId: card.id, name: card.name, status: card.status, perTapLimitSats: card.perTapLimitSats, dailyLimitSats: card.dailyLimitSats, provisionUrl: `https://${DOMAIN}/api/provision/${token}`, lnurlwTemplate: `lnurlw://${DOMAIN}/card/${card.id}?p=${"0".repeat(32)}&c=${"0".repeat(16)}`, keys: Object.fromEntries(k.map((v,i)=>[`key${i}`,v])), createdAt: card.createdAt }) as never;
@@ -51,13 +53,27 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const svg = await QRCode.toString(url,{type:"svg",margin:1,width:320,color:{dark:"#ffffff",light:"#0a0f0f"}});
     res.writeHead(200,{"content-type":"image/svg+xml","cache-control":"no-store"}); res.end(svg); return true;
   }
+  const pinPath = u.pathname.match(/^\/api\/cards\/([^/]+)\/pin(?:\/(unlock|limit))?$/);
+  if (pinPath && (req.method === "PUT" || req.method === "POST")) {
+    if (!account) return json(res,401,{error:"Authentication required"}) as never;
+    const [card] = await db.select().from(cardsTable).where(and(eq(cardsTable.id,pinPath[1]),eq(cardsTable.accountId,account.id)));
+    if (!card) return json(res,404,{error:"Card not found"}) as never;
+    const v=await body(req); const sub=pinPath[2];
+    if(sub === "unlock") { if(!card.pinLockedAt) return json(res,200,{ok:true,pinLocked:false}) as never; await db.update(cardsTable).set({pinLockedAt:null,pinFailCount:0}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinLocked:false}) as never; }
+    if(sub === "limit") { const x=v.pinLimitMsats===null?null:Number(v.pinLimitMsats); if(x!==null && (!Number.isFinite(x)||x<0)) return json(res,400,{error:"Invalid PIN threshold"}) as never; await db.update(cardsTable).set({pinLimitMsats:x}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinLimitMsats:x}) as never; }
+    const p=String(v.newPin ?? v.pin ?? ""); if(!p && v.newPin !== null) return json(res,400,{error:"PIN required"}) as never;
+    if(v.newPin === null) { if(!pinVerify(String(v.pin??""),card.pinHash)) return json(res,401,{error:"Incorrect PIN"}) as never; await db.update(cardsTable).set({pinHash:null,pinLimitMsats:null,pinFailCount:0,pinLockedAt:null}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:false}) as never; }
+    if(!/^[0-9]{4}$/.test(p)) return json(res,400,{error:"PIN must be exactly 4 digits"}) as never;
+    if(v.newPin && v.pin && v.newPin!==v.pin) { if(!pinVerify(String(v.pin),card.pinHash)) return json(res,401,{error:"Incorrect PIN"}) as never; }
+    await db.update(cardsTable).set({pinHash:pinHash(p),pinFailCount:0,pinLockedAt:null}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:true}) as never;
+  }
   const cardAction = u.pathname.match(/^\/api\/cards\/([^/]+)\/(keys|pin)$/);
   if (cardAction && req.method === "POST") {
     if (!account) return json(res,401,{error:"Authentication required"}) as never;
     const [card] = await db.select().from(cardsTable).where(and(eq(cardsTable.id,cardAction[1]),eq(cardsTable.accountId,account.id)));
     if (!card) return json(res,404,{error:"Card not found"}) as never;
     const v=await body(req);
-    if(cardAction[2]==="pin") { const p=String(v.pin??""); if(!/^[0-9]{4,8}$/.test(p)) return json(res,400,{error:"PIN must contain 4–8 digits"}) as never; await db.update(cardsTable).set({pinHash:pinHash(p)}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:true}) as never; }
+    if(cardAction[2]==="pin") { const p=String(v.pin??""); if(!/^[0-9]{4,8}$/.test(p)) return json(res,400,{error:"PIN must be exactly 4 digits"}) as never; await db.update(cardsTable).set({pinHash:pinHash(p)}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:true}) as never; }
     return json(res,200,{cardId:card.id,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4),lnurlwTemplate:`lnurlw://${DOMAIN}/card/${card.id}?p=${"0".repeat(32)}&c=${"0".repeat(16)}`}) as never;
   }
   const deviceNext = u.pathname === "/api/pos/next-provision";

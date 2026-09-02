@@ -20,6 +20,7 @@
   "dependencies": {
     "@getalby/sdk": "^7.0.0",
     "@noble/secp256k1": "^3.1.0",
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.44.0",
     "drizzle-zod": "^0.8.3",
     "node-cron": "^4.2.1",

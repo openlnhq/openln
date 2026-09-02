@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { db, entitiesTable, accountsTable, deviceTokensTable } from "../db/index.js";
 import { eq, and, isNull } from "drizzle-orm";
 export interface Account { id: string; handle: string; createdAt: string }
@@ -6,7 +7,39 @@ export interface Session { token: string; account: Account; expiresAt: string }
 const TTL_MS = 3 * 60 * 60 * 1000;
 const secret = () => process.env.SESSION_SECRET ?? (() => { throw new Error("SESSION_SECRET must be set"); })();
 function digest(password: string, salt: Buffer): string { return `${salt.toString("base64url")}.${scryptSync(password, salt, 32).toString("base64url")}`; }
-function verify(password: string, stored: string): boolean { try { const [s, h] = stored.split("."); const got = scryptSync(password, Buffer.from(s, "base64url"), 32); const want = Buffer.from(h, "base64url"); return got.length === want.length && timingSafeEqual(got, want); } catch { return false; } }
+
+/**
+ * Legacy identity consolidation (2026-09-02): entities migrated from
+ * bitpos_dev (bcrypt, $2 prefix, 60 chars) and maekob (scrypt, hex
+ * "salt:key" with a 64-byte key) carry their ORIGINAL hash verbatim —
+ * never re-hashed blind, since the plaintext is never known. verify()
+ * detects format by shape and checks against the matching algorithm.
+ * On a successful legacy-format login, the caller re-hashes to openLN's
+ * native format (migrate-on-login) so accounts converge over time without
+ * ever forcing a password reset.
+ */
+type HashFormat = "native" | "bcrypt" | "maekob-scrypt";
+function detectFormat(stored: string): HashFormat {
+  if (stored.startsWith("$2")) return "bcrypt";
+  if (/^[0-9a-f]{32}:[0-9a-f]{128}$/.test(stored)) return "maekob-scrypt";
+  return "native";
+}
+function verify(password: string, stored: string): boolean {
+  const fmt = detectFormat(stored);
+  try {
+    if (fmt === "bcrypt") return bcrypt.compareSync(password, stored);
+    if (fmt === "maekob-scrypt") {
+      const [salt, key] = stored.split(":");
+      const got = scryptSync(password, Buffer.from(salt, "hex"), 64);
+      const want = Buffer.from(key, "hex");
+      return got.length === want.length && timingSafeEqual(got, want);
+    }
+    const [s, h] = stored.split(".");
+    const got = scryptSync(password, Buffer.from(s, "base64url"), 32);
+    const want = Buffer.from(h, "base64url");
+    return got.length === want.length && timingSafeEqual(got, want);
+  } catch { return false; }
+}
 function sign(value: string): string { return createHmac("sha256", secret()).update(value).digest("base64url"); }
 
 /**
@@ -42,6 +75,34 @@ export class AuthService {
   async login(handle: string, password: string): Promise<Session> {
     const [row] = await db.select({ id: entitiesTable.id, handle: entitiesTable.handle, createdAt: entitiesTable.createdAt, passwordHash: entitiesTable.passwordHash }).from(entitiesTable).where(eq(entitiesTable.handle, handle.toLowerCase()));
     if (!row || !row.passwordHash || !verify(password, row.passwordHash)) throw Error("Invalid handle or password");
+    if (detectFormat(row.passwordHash) !== "native") {
+      db.update(entitiesTable).set({ passwordHash: digest(password, randomBytes(16)) }).where(eq(entitiesTable.id, row.id)).catch(() => {});
+    }
+    const [account] = await db.select({ id: accountsTable.id }).from(accountsTable).where(eq(accountsTable.entityId, row.id));
+    if (!account) throw Error("Account not found");
+    return this.newSession({ id: account.id, handle: row.handle, createdAt: row.createdAt.toISOString() });
+  }
+  /**
+   * Ported verbatim (semantics) from bitPOS's /auth/access-state: tells the
+   * client which credential step a handle needs, without leaking account
+   * data. legacyPin=true means the entity was migrated in with a bitPOS PIN
+   * and no password yet — the client should route to migrate-password.
+   */
+  async accessState(handle: string): Promise<{ exists: boolean; passwordSet: boolean; legacyPin: boolean }> {
+    const [row] = await db.select({ passwordHash: entitiesTable.passwordHash, pinHash: entitiesTable.pinHash }).from(entitiesTable).where(eq(entitiesTable.handle, handle.toLowerCase()));
+    return { exists: Boolean(row), passwordSet: Boolean(row?.passwordHash), legacyPin: Boolean(row && !row.passwordHash) };
+  }
+  /**
+   * Ported verbatim from bitPOS's /auth/migrate-password: the bitPOS PIN
+   * (bcrypt-hashed in pinHash, untouched by this migration) proves ownership
+   * once, then a real password becomes the login credential going forward.
+   * The PIN itself is left in place for in-app sensitive-action re-auth.
+   */
+  async migratePassword(handle: string, pin: string, password: string): Promise<Session> {
+    if (password.length < 12) throw Error("Password must be at least 12 characters");
+    const [row] = await db.select({ id: entitiesTable.id, handle: entitiesTable.handle, createdAt: entitiesTable.createdAt, passwordHash: entitiesTable.passwordHash, pinHash: entitiesTable.pinHash }).from(entitiesTable).where(eq(entitiesTable.handle, handle.toLowerCase()));
+    if (!row || row.passwordHash || !row.pinHash || !bcrypt.compareSync(pin, row.pinHash)) throw Error("Invalid credentials");
+    await db.update(entitiesTable).set({ passwordHash: digest(password, randomBytes(16)) }).where(eq(entitiesTable.id, row.id));
     const [account] = await db.select({ id: accountsTable.id }).from(accountsTable).where(eq(accountsTable.entityId, row.id));
     if (!account) throw Error("Account not found");
     return this.newSession({ id: account.id, handle: row.handle, createdAt: row.createdAt.toISOString() });

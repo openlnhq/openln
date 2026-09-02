@@ -403,15 +403,76 @@ function login(){
     <p class="sub">Connect your own Nostr Wallet Connect wallet. openLN never takes custody of your sats.</p>
     <form id="lf">
       <label class="field"><span>Handle</span><input class="input" name="handle" placeholder="satoshi" required autofocus></label>
-      <label class="field"><span>Password</span><input class="input" name="password" type="password" placeholder="••••••••" required></label>
+      <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Continue</button>
+    </form>
+    <p class="hint" id="lerr" style="color:var(--err)"></p>
+    <p class="hint">New here? Enter a handle to create your wallet.</p>
+  </div></div>`;
+  $('#lf').onsubmit=async e=>{e.preventDefault();
+    const handle=new FormData(e.target).get('handle');
+    $('#lerr').textContent='';
+    let state;
+    try{state=await api('/api/auth/access-state',{method:'POST',body:JSON.stringify({handle})})}
+    catch(x){$('#lerr').textContent=x.message;return}
+    if(!state.exists) return loginRegister(handle);
+    if(state.legacyPin) return loginMigratePin(handle);
+    return loginPassword(handle);
+  };
+}
+function loginPassword(handle){
+  root.innerHTML=`<div class="login"><div class="loginbox">
+    <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
+    <div class="overline">Wallet core</div>
+    <h1 style="margin-top:8px">Welcome back.</h1>
+    <p class="sub">Signing in as <b>${handle}</b>.</p>
+    <form id="lf">
+      <label class="field"><span>Password</span><input class="input" name="password" type="password" placeholder="••••••••" required autofocus></label>
       <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Enter wallet</button>
     </form>
     <p class="hint" id="lerr" style="color:var(--err)"></p>
-    <p class="hint">New here? The same form creates your wallet.</p>
+    <p class="hint"><a href="#" id="lback">← use a different handle</a></p>
   </div></div>`;
+  $('#lback').onclick=e=>{e.preventDefault();login()};
+  $('#lf').onsubmit=async e=>{e.preventDefault();const password=new FormData(e.target).get('password');
+    try{const s=await api('/api/auth/login',{method:'POST',body:JSON.stringify({handle,password})});localStorage.setItem('openln_token',s.token);render()}
+    catch(x){$('#lerr').textContent=x.message}};
+}
+function loginRegister(handle){
+  root.innerHTML=`<div class="login"><div class="loginbox">
+    <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
+    <div class="overline">Wallet core</div>
+    <h1 style="margin-top:8px">Create your wallet.</h1>
+    <p class="sub">Handle <b>${handle}</b> is available. Choose a password.</p>
+    <form id="lf">
+      <label class="field"><span>Password</span><input class="input" name="password" type="password" placeholder="At least 12 characters" required autofocus minlength="12"></label>
+      <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Create wallet</button>
+    </form>
+    <p class="hint" id="lerr" style="color:var(--err)"></p>
+    <p class="hint"><a href="#" id="lback">← use a different handle</a></p>
+  </div></div>`;
+  $('#lback').onclick=e=>{e.preventDefault();login()};
+  $('#lf').onsubmit=async e=>{e.preventDefault();const password=new FormData(e.target).get('password');
+    try{const s=await api('/api/auth/register',{method:'POST',body:JSON.stringify({handle,password})});localStorage.setItem('openln_token',s.token);render()}
+    catch(x){$('#lerr').textContent=x.message}};
+}
+function loginMigratePin(handle){
+  root.innerHTML=`<div class="login"><div class="loginbox">
+    <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
+    <div class="overline">Legacy bitPOS account</div>
+    <h1 style="margin-top:8px">Set a password.</h1>
+    <p class="sub"><b>${handle}</b> was migrated from bitPOS and still uses a PIN. Enter your bitPOS PIN once to prove it's you, then choose a password for openLN.com going forward. Your PIN keeps working for sensitive in-app actions.</p>
+    <form id="lf">
+      <label class="field"><span>bitPOS PIN</span><input class="input" name="pin" type="password" inputmode="numeric" placeholder="••••" required autofocus></label>
+      <label class="field"><span>New password</span><input class="input" name="password" type="password" placeholder="At least 12 characters" required minlength="12"></label>
+      <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Set password &amp; enter wallet</button>
+    </form>
+    <p class="hint" id="lerr" style="color:var(--err)"></p>
+    <p class="hint"><a href="#" id="lback">← use a different handle</a></p>
+  </div></div>`;
+  $('#lback').onclick=e=>{e.preventDefault();login()};
   $('#lf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{const s=await api('/api/auth/login',{method:'POST',body:JSON.stringify(b)});localStorage.setItem('openln_token',s.token);render()}
-    catch(x){try{const s=await api('/api/auth/register',{method:'POST',body:JSON.stringify(b)});localStorage.setItem('openln_token',s.token);render()}catch(y){$('#lerr').textContent=y.message}}};
+    try{const s=await api('/api/auth/migrate-password',{method:'POST',body:JSON.stringify({handle,pin:b.pin,password:b.password})});localStorage.setItem('openln_token',s.token);render()}
+    catch(x){$('#lerr').textContent=x.message}};
 }
 async function render(){
   try{

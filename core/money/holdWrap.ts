@@ -70,7 +70,7 @@ const FORWARD_ABANDON_MS = 30 * 60 * 1000;
 
 /** 1% incoming fee: max(1 sat, ceil(1%)), clamped so the merchant always gets >= 1 sat. */
 export function incomingFeeSats(amountSats: number): number {
-  return Math.min(Math.max(1, Math.ceil(amountSats * 0.01)), Math.max(0, amountSats - 1));
+  return Math.min(Math.max(1, Math.ceil(amountSats * 0.02)), Math.max(0, amountSats - 1));
 }
 
 export interface WrappedInvoice {

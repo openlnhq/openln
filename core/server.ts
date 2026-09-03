@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { AuthService } from "./auth/service.js";
 import { WalletService } from "./wallet/service.js";
 import { createBuiltinRegistry } from "./plugins/builtin.js";
-import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable, paymentEventsTable } from "./db/index.js";
+import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
 import { createWrappedInvoice, advanceWrap, type WrapRow } from "./money/holdWrap.js";
@@ -20,6 +20,7 @@ import { handleExtensionsRoute } from "../plugins/extensions.js";
 import { handlePosboxRoute } from "../plugins/posbox.js";
 import { handleShopRoute } from "../plugins/shop.js";
 import { handlePartnerRoute } from "../plugins/partner.js";
+import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
 const DOMAIN = process.env.DOMAIN ?? "openln.com";
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
@@ -91,6 +92,12 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && u.pathname === "/api/auth/access-state") { const v = await body(req); try { return json(res, 200, await auth.accessState(String(v.handle ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/migrate-password") { const v = await body(req); try { return json(res, 200, await auth.migratePassword(String(v.handle ?? ""), String(v.pin ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
     const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]); return token ? auth.authenticate(token) : undefined; };
+    // Admin payments ops console (treasury dashboard, payment list/detail, advance/lookup/remediate).
+    // Ported verbatim from bitPOS's routes/adminPayments.ts — single hook point, auth handled inside.
+    if (u.pathname.startsWith("/api/admin/payments")) {
+      const account = await sessionAccount();
+      if (await handleAdminPaymentsRoute(req, res, u, account)) return;
+    }
     // ---- Account settings (currency, rate, wallet prefs) ----
     if (req.method === "GET" && u.pathname === "/api/me") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
@@ -273,16 +280,6 @@ const server = createServer(async (req, res) => {
       const completedInboundSats = rows.filter(r => r.direction === "in" && r.status === "completed").reduce((n, r) => n + (r.amountSats ?? 0), 0);
       const feeRevenueSats = rows.filter(r => r.type === "fee" && r.status === "completed").reduce((n, r) => n + (r.amountSats ?? 0), 0);
       return json(res, 200, { pendingSats, completedInboundSats, feeRevenueSats, plugins: [] });
-    }
-    if (req.method === "GET" && (u.pathname === "/api/admin/payments" || u.pathname === "/api/adminPayments")) {
-      const limit = Math.min(100, Math.max(1, Number(u.searchParams.get("limit") ?? 50)));
-      const rows = await db.select().from(transactionsTable).limit(Number.isFinite(limit) ? limit : 50);
-      return json(res, 200, { transactions: rows });
-    }
-    if (req.method === "GET" && u.pathname === "/api/admin/payment-events") {
-      const limit = Math.min(100, Math.max(1, Number(u.searchParams.get("limit") ?? 50)));
-      const rows = await db.select().from(paymentEventsTable).limit(Number.isFinite(limit) ? limit : 50);
-      return json(res, 200, { events: rows });
     }
     if (req.method === "GET" && u.pathname === "/api/accounts") {
       const handle = u.searchParams.get("handle")?.trim().toLowerCase();

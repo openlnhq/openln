@@ -342,6 +342,45 @@ table.tb td{padding:10px;border-bottom:1px solid var(--line)}
 table.tb tr:last-child td{border-bottom:0}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--text3);border-top-color:var(--teal);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+/* admin treasury console */
+.admgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:14px}
+.admstat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:12px 13px}
+.admstat .lbl{font-size:9.5px;font-weight:590;letter-spacing:.1em;text-transform:uppercase;color:var(--text3)}
+.admstat .val{font-family:'JetBrains Mono',monospace;font-size:19px;font-weight:600;letter-spacing:-.5px;margin-top:5px;color:var(--text)}
+.admstat .val.g{color:var(--ok)}.admstat .val.a{color:var(--gold)}.admstat .val.r{color:var(--err)}
+.admstat .sub{font-size:10.5px;color:var(--text3);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admrow{display:grid;grid-template-columns:76px 92px 1fr 130px 84px 70px;gap:8px;align-items:center;padding:10px 10px;border-top:1px solid var(--line);cursor:pointer;transition:background .12s;text-align:left;width:100%}
+.admrow:first-of-type{border-top:0}
+.admrow:hover{background:var(--surface)}
+.admrow .k{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
+@media(max-width:820px){.admrow{grid-template-columns:1fr 1fr;grid-auto-rows:auto}}
+.admpill{display:inline-block;font-size:9.5px;font-weight:590;padding:2.5px 8px;border-radius:999px;letter-spacing:.02em;border:1px solid transparent}
+.admpill.slate{background:var(--surface3);color:var(--text2)}
+.admpill.blue{background:rgba(56,142,229,.14);color:#7db8f0;border-color:rgba(56,142,229,.3)}
+.admpill.amber{background:var(--gold-dim);color:var(--gold);border-color:rgba(245,197,24,.3)}
+.admpill.violet{background:rgba(167,139,250,.14);color:#c4b3fb;border-color:rgba(167,139,250,.3)}
+.admpill.green{background:rgba(52,211,153,.12);color:var(--ok);border-color:rgba(52,211,153,.3)}
+.admpill.red{background:rgba(248,113,113,.12);color:var(--err);border-color:rgba(248,113,113,.3)}
+.admpill.rose{background:rgba(248,113,113,.18);color:#ffb3c4;border-color:rgba(248,113,113,.35)}
+.admfilters{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
+.admfilters .input{flex:1;min-width:180px}
+.admfilters select{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;font-size:12.5px;color:var(--text);font-family:inherit}
+.admtimeline{display:flex;flex-direction:column;gap:0}
+.admtl-item{display:flex;gap:10px;padding-bottom:12px}
+.admtl-item:last-child{padding-bottom:0}
+.admtl-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;background:var(--text3)}
+.admtl-dot.success{background:var(--ok)}.admtl-dot.fail{background:var(--err)}.admtl-dot.ambiguous{background:var(--gold)}.admtl-dot.pending{background:#e8c542}
+.admtl-line{width:1px;flex:1;background:var(--line);margin:2px 0 0 3.5px}
+.admtl-body{min-width:0;flex:1}
+.admtl-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)}
+.admtl-msg{font-size:12.5px;color:var(--text);margin-top:2px}
+.admtl-err{font-size:10.5px;color:var(--err);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.admactions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.admlegs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.admleg{font-size:10.5px;font-family:'JetBrains Mono',monospace;padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface2)}
+.admkv{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:12px}
+.admkv .k{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
+.admkv .v{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text);margin-top:2px;overflow-wrap:anywhere}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;510;590;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -360,6 +399,11 @@ function modal(html){const w=document.createElement('div');w.className='modal';w
 <script>
 /* ============ APP ============ */
 let VIEW='wallet';
+let IS_ADMIN=false;
+async function probeAdmin(){
+  try{ await api('/api/admin/payments/treasury'); IS_ADMIN=true; }
+  catch(e){ IS_ADMIN=false; }
+}
 function openDrawer(){
   const host=document.body;
   const existing = document.querySelector('.drawer-backdrop');
@@ -378,6 +422,7 @@ function openDrawer(){
         <button class="drawer-link ${VIEW==='ric'?'on':''}" data-drawer-view="ric">RIC <span class="arrow">›</span></button>
         <button class="drawer-link ${VIEW==='extensions'?'on':''}" data-drawer-view="extensions">Extensions <span class="arrow">›</span></button>
         <button class="drawer-link ${VIEW==='partner'?'on':''}" data-drawer-view="partner">Partner <span class="arrow">›</span></button>
+        ${IS_ADMIN?`<button class="drawer-link ${VIEW==='adminpayments'?'on':''}" data-drawer-view="adminpayments">Treasury <span class="arrow">›</span></button>`:''}
         <div class="drawer-divider"></div>
         <button class="drawer-link" id="drawerSettings">Settings <span class="arrow">›</span></button>
         <button class="drawer-link" id="drawerLogout">Log out <span class="arrow">→</span></button>
@@ -393,6 +438,7 @@ function openDrawer(){
 async function boot(){
   if(!tok())return login();
   try{await api('/api/wallet/status')}catch(e){localStorage.removeItem('openln_token');return login()}
+  await probeAdmin();
   render();
 }
 function login(){
@@ -475,6 +521,7 @@ function loginMigratePin(handle){
     catch(x){$('#lerr').textContent=x.message}};
 }
 async function render(){
+  admStopPoll();
   try{
     const [st,pl]=await Promise.all([api('/api/wallet/status'),api('/api/plugins')]);
     let bal={balanceSats:0,connected:false};try{bal=await api('/api/wallet/balance')}catch(e){}
@@ -494,6 +541,7 @@ async function render(){
     if(VIEW==='ric')await vRic();
     if(VIEW==='extensions')await vExt(plugins);
     if(VIEW==='partner')await vPartner();
+    if(VIEW==='adminpayments')await vAdminPayments();
     if(VIEW==='settings')await vSettings();
     if(window.applyThemeToggle)window.applyThemeToggle();
     $('#menuBtn').onclick=openDrawer;
@@ -1255,6 +1303,266 @@ async function renderPartner(rows,pid){
     <tbody>${rows.slice().reverse().map(r=>`<tr><td class="mono" style="font-size:11px">${esc((r.paymentHash||'').slice(0,14))}…</td><td class="mono">${fmt(r.amountSats)}</td><td class="mono" style="color:var(--gold)">${fmt(r.feeShareSats)}</td><td><span class="badge ${r.payoutState==='accrued'?'pend':'ok'}">${esc(r.payoutState)}</span></td><td class="dim">${ago(r.createdAt)}</td></tr>`).join('')}</tbody></table>`
     :`<div style="padding:26px 0;text-align:center"><span class="dim" style="font-size:13px">No attributed payments yet. Flash a POSBOX with your claim code to begin.</span></div>`}</div></div>`;
   if(claim)$('#pcopy').onclick=()=>{navigator.clipboard.writeText(claim.claimCode);toast('Claim code copied')};
+}
+/* ---- ADMIN PAYMENTS (treasury ops console) ---- */
+let ADM_ID=null; // selected payment id, null = list view
+let ADM_Q='', ADM_KIND='all', ADM_STATUS='all';
+let ADM_POLL_TIMER=null, ADM_LIVE=true;
+function admStopPoll(){ if(ADM_POLL_TIMER){clearInterval(ADM_POLL_TIMER);ADM_POLL_TIMER=null} }
+const ADM_STATUS_META={
+  created:{label:'Hold open',color:'slate'}, accepted:{label:'Customer paid',color:'blue'},
+  forwarding:{label:'Paying merchant',color:'amber'}, forwarded:{label:'Merchant paid',color:'violet'},
+  settled:{label:'Settled',color:'green'}, cancelled:{label:'Cancelled',color:'red'},
+  needs_reconciliation:{label:'Needs recon',color:'rose'},
+};
+function admPill(status,label){
+  const meta=ADM_STATUS_META[status]||{label:status,color:'slate'};
+  return `<span class="admpill ${meta.color}">${esc(label||status||'—')}</span>`;
+}
+function admTxPill(status){
+  const color=status==='completed'?'green':status==='failed'?'red':'amber';
+  return `<span class="admpill ${color}">${esc(status)}</span>`;
+}
+function admShort(h,n){ n=n||10; if(!h)return '—'; return h.length>n+3?h.slice(0,n)+'…':h; }
+async function vAdminPayments(){
+  if(ADM_ID) return vAdminDetail(ADM_ID);
+  return vAdminList();
+}
+async function vAdminList(){
+  $('#view').innerHTML=`<div style="margin-top:30px" id="admRoot">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div><div class="overline">Treasury</div>
+      <h1 class="page">Payments ops console</h1>
+      <p class="muted" style="margin:8px 0 0;max-width:640px">Hold-wrap pipeline, float balance, and payment/transaction ledger. Admin-only.</p></div>
+      <button class="btn ghost sm" id="admLiveToggle" style="white-space:nowrap"><span class="pulse ${ADM_LIVE?'':'ok'}" style="margin-right:6px"></span>${ADM_LIVE?'Live':'Paused'}</button>
+    </div>
+    <div id="admBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
+  </div>`;
+  $('#admLiveToggle').onclick=()=>{ADM_LIVE=!ADM_LIVE;if(ADM_LIVE)admStartListPoll();else admStopPoll();vAdminList()};
+  await admRenderList();
+  if(ADM_LIVE)admStartListPoll();
+}
+function admStartListPoll(){
+  admStopPoll();
+  ADM_POLL_TIMER=setInterval(()=>{ if(ADM_ID===null && VIEW==='adminpayments') admRenderList(true) },3000);
+}
+async function admRenderList(silent){
+  const body=$('#admBody'); if(!body) return;
+  try{
+    const params=new URLSearchParams();
+    if(ADM_Q) params.set('q',ADM_Q);
+    if(ADM_KIND!=='all') params.set('kind',ADM_KIND);
+    if(ADM_STATUS!=='all') params.set('status',ADM_STATUS);
+    params.set('limit','100');
+    const data=await api(`/api/admin/payments?${params}`);
+    const T=data.treasury;
+    body.innerHTML=`
+      ${T?admTreasuryBlock(T):''}
+      <div class="admfilters">
+        <input class="input mono" id="admSearch" placeholder="hash · handle · memo · uuid" value="${esc(ADM_Q)}">
+        <select id="admKind">
+          <option value="all" ${ADM_KIND==='all'?'selected':''}>All</option>
+          <option value="wrap" ${ADM_KIND==='wrap'?'selected':''}>Wraps only</option>
+          <option value="send" ${ADM_KIND==='send'?'selected':''}>Sends only</option>
+          <option value="stuck" ${ADM_KIND==='stuck'?'selected':''}>Stuck</option>
+        </select>
+        <select id="admStatus">
+          <option value="all">Any status</option>
+          <option value="created">created</option>
+          <option value="accepted">accepted</option>
+          <option value="forwarding">forwarding</option>
+          <option value="forwarded">forwarded</option>
+          <option value="settled">settled</option>
+          <option value="cancelled">cancelled</option>
+          <option value="needs_reconciliation">needs_recon</option>
+          <option value="pending">tx pending</option>
+          <option value="completed">tx completed</option>
+          <option value="failed">tx failed</option>
+        </select>
+        <button class="btn teal sm" id="admSearchBtn">Search</button>
+      </div>
+      <div class="card" style="margin-top:10px;padding:0;overflow:hidden">
+        <div id="admRows">${admRowsHtml(data)}</div>
+      </div>`;
+    $('#admStatus').value=ADM_STATUS;
+    $('#admSearchBtn').onclick=()=>{ADM_Q=$('#admSearch').value.trim();ADM_KIND=$('#admKind').value;ADM_STATUS=$('#admStatus').value;admRenderList()};
+    $('#admSearch').onkeydown=e=>{if(e.key==='Enter')$('#admSearchBtn').click()};
+    body.querySelectorAll('[data-adm-id]').forEach(b=>b.onclick=()=>{ADM_ID=b.dataset.admId;vAdminDetail(ADM_ID)});
+  }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${esc(e.message)}</p></div>`; }
+}
+function admTreasuryBlock(T){
+  return `<div class="admgrid">
+    <div class="admstat"><div class="lbl">Float balance</div><div class="val ${T.float.balanceSats==null?'r':(T.float.availableSats??0)<1000?'a':'g'}">${T.float.balanceSats==null?'ERR':fmt(T.float.balanceSats)}</div><div class="sub">${T.float.error?esc(T.float.error):`avail ${fmt(T.float.availableSats)} · obl ${fmt(T.float.obligationSats)}`}</div></div>
+    <div class="admstat"><div class="lbl">Fee revenue</div><div class="val g">${fmt(T.revenue.feeRevenueSats)}</div><div class="sub">${T.revenue.settledWraps} wraps · ${T.revenue.effectiveFeeBps} bps eff</div></div>
+    <div class="admstat"><div class="lbl">Wrapped volume</div><div class="val">${fmt(T.revenue.wrappedVolumeSats)}</div><div class="sub">merchant got ${fmt(T.revenue.merchantPaidSats)}</div></div>
+    <div class="admstat"><div class="lbl">Open wraps</div><div class="val ${T.wraps.stuck>0?'r':T.float.openWraps>0?'a':''}">${T.float.openWraps}/${T.float.openCap}</div><div class="sub">${fmt(T.wraps.openVolumeSats)} sats locked</div></div>
+    <div class="admstat"><div class="lbl">Needs recon</div><div class="val ${T.wraps.stuck>0?'r':''}">${T.wraps.stuck}</div><div class="sub">${T.wraps.cancelled} cancelled · ${fmt(T.revenue.cancelledVolumeSats)} sats</div></div>
+    <div class="admstat"><div class="lbl">24h</div><div class="val ${T.last24h.sendFails>0?'a':''}">${T.last24h.wrapsSettled} wraps</div><div class="sub">fee ${fmt(T.last24h.feeSats)} · send fail ${T.last24h.sendFails}</div></div>
+  </div>
+  <p class="dim" style="font-size:11px;margin-top:8px;max-width:720px">${esc(T.mix.note)} Wrapped ${fmt(T.mix.wrappedInvoices)} · direct ${fmt(T.mix.directInvoices)}. Tx in ${fmt(T.transactions.volumeInSats)} · out ${fmt(T.transactions.volumeOutSats)} · fail ${T.transactions.failedOut}.</p>`;
+}
+function admRowsHtml(data){
+  const rows=[];
+  for(const w of (data.wraps||[])) rows.push({sort:w.createdAt,html:admWrapRow(w)});
+  for(const t of (data.transactions||[])) rows.push({sort:t.createdAt,html:admTxRow(t)});
+  rows.sort((a,b)=>b.sort.localeCompare(a.sort));
+  if(!rows.length) return `<div style="text-align:center;color:var(--text3);font-size:13px;padding:32px 0">No payments match.</div>`;
+  return rows.map(r=>r.html).join('');
+}
+function admWrapRow(w){
+  const meta=ADM_STATUS_META[w.wrapStatus||'created']||ADM_STATUS_META.created;
+  return `<button type="button" class="admrow" data-adm-id="${esc(w.id)}">
+    <div class="k" style="color:var(--teal)">Hold wrap</div>
+    <div>${admPill(w.wrapStatus,meta.label)}</div>
+    <div class="mono" style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">L1 ${admShort(w.paymentHash,8)} · L2 ${admShort(w.merchantPaymentHash,8)}${w.memo?' · '+esc(w.memo):''}</div>
+    <div class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${w.handle?'@'+esc(w.handle):'—'}${w.businessName?` <span class="dim">· ${esc(w.businessName)}</span>`:''}</div>
+    <div style="text-align:right"><div style="font-weight:590">${fmt(w.amountSats)}</div>${(w.feeSats||0)>0?`<div class="mono" style="font-size:9.5px;color:var(--gold)">fee ${fmt(w.feeSats)}</div>`:''}</div>
+    <div class="mono dim" style="font-size:9.5px">${ago(w.createdAt)}</div>
+  </button>`;
+}
+function admTxRow(t){
+  const pillColor=t.status==='completed'?'green':t.status==='failed'?'red':'amber';
+  return `<button type="button" class="admrow" data-adm-id="${esc(t.id)}">
+    <div class="k">${esc(t.direction)}·${esc(t.type)}</div>
+    <div><span class="admpill ${pillColor}">${esc(t.status)}</span></div>
+    <div class="mono" style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${admShort(t.paymentHash,12)}${t.failureReason?' · '+esc(t.failureReason):''}${t.memo?' · '+esc(t.memo):''}</div>
+    <div class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.handle?'@'+esc(t.handle):'—'}${t.counterpartHandle?` <span class="dim">→ @${esc(t.counterpartHandle)}</span>`:''}</div>
+    <div style="text-align:right;font-weight:590">${fmt(t.amountSats)}</div>
+    <div class="mono dim" style="font-size:9.5px">${ago(t.createdAt)}</div>
+  </button>`;
+}
+async function vAdminDetail(id){
+  $('#view').innerHTML=`<div style="margin-top:30px" id="admRoot">
+    <button class="backlink" id="admBack">‹ All payments</button>
+    <div id="admDetailBody" style="margin-top:10px"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
+  </div>`;
+  $('#admBack').onclick=()=>{ADM_ID=null;vAdminList()};
+  await admRenderDetail(id);
+  admStartDetailPoll(id);
+}
+function admStartDetailPoll(id){
+  admStopPoll();
+  ADM_POLL_TIMER=setInterval(()=>{ if(ADM_ID===id && VIEW==='adminpayments') admRenderDetail(id,true) },2000);
+}
+async function admRenderDetail(id,silent){
+  const body=$('#admDetailBody'); if(!body) return;
+  const noteVal=silent?($('#admNote')?.value??''):'';
+  try{
+    const d=await api(`/api/admin/payments/${encodeURIComponent(id)}`);
+    const amt=d.invoice?d.invoice.amountSats:(d.transaction?d.transaction.amountSats:0);
+    const statusLabel=d.invoice?.wrapStatus?(d.statusMeta?.label||d.invoice.wrapStatus):(d.transaction?.status||'');
+    const statusColor=d.statusMeta?.color||(d.transaction?.status==='completed'?'green':d.transaction?.status==='failed'?'red':'amber');
+    body.innerHTML=`
+      <div class="card">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:flex-start">
+          <div>
+            <div class="overline">${d.invoice?.wrapStatus?'Hold-wrap invoice':'Transaction'}</div>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;margin-top:4px">${fmt(amt)} <span class="dim" style="font-size:12px;font-weight:450">sats</span></div>
+            <div class="dim" style="font-size:11.5px;margin-top:2px">${d.handle?'@'+esc(d.handle):''} ${d.businessName?'· '+esc(d.businessName):''}</div>
+          </div>
+          <span class="admpill ${statusColor}" style="font-size:11px;padding:4px 10px">${esc(d.invoice?.wrapStatus||d.transaction?.status||'')}${statusLabel?' — '+esc(statusLabel):''}</span>
+        </div>
+        ${d.pipeline?admPipelineBlock(d):''}
+        <div class="admkv">
+          ${admKv('ID',d.invoice?.id||d.transaction?.id)}
+          ${admKv('Payment hash',d.invoice?.paymentHash||d.transaction?.paymentHash)}
+          ${admKv('Merchant hash',d.invoice?.merchantPaymentHash)}
+          ${admKv('Created',d.invoice?.createdAt||d.transaction?.createdAt)}
+          ${admKv('Updated',d.invoice?.wrapUpdatedAt)}
+          ${admKv('Paid at',d.invoice?.paidAt)}
+          ${admKv('Preimages',d.invoice?`hold=${d.invoice.hasHoldPreimage?'yes':'no'} m=${d.invoice.hasPreimage?'yes':'no'}`:null)}
+          ${admKv('Failure',d.transaction?.failureReason)}
+        </div>
+        ${(d.counterparts&&d.counterparts.length)?`<div style="margin-top:10px"><div class="overline">Legs on this hash</div><div class="admlegs">${d.counterparts.map(c=>`<button type="button" class="admleg" data-adm-id="${esc(c.id)}">${esc(c.direction)} @${esc(c.handle||'?')} · ${esc(c.status)} · ${fmt(c.amountSats)}</button>`).join('')}</div></div>`:''}
+      </div>
+      <div class="card">
+        <h3>Manage</h3>
+        <div class="admactions">
+          ${d.actions?.canAdvance?'<button class="btn teal sm" data-adm-act="advance">Advance wrap</button>':''}
+          ${d.actions?.canLookup?'<button class="btn ghost sm" data-adm-act="lookup">Live NWC lookup</button>':''}
+          ${d.actions?.canRemediateTx?'<button class="btn ghost sm" data-adm-act="remediate">Remediate tx</button>':''}
+          ${d.actions?.canRemediateTx?'<button class="btn ghost sm dangerText" data-adm-act="force-remediate">Force remediate</button>':''}
+        </div>
+        <div class="copyrow">
+          <input class="input" id="admNote" placeholder="Ops note…" value="${esc(noteVal)}">
+          <button class="btn ghost sm" id="admAddNote">Note</button>
+        </div>
+        <pre class="codebox mono" id="admActionMsg" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px;display:none;max-height:180px;overflow-y:auto"></pre>
+        ${d.live?`<pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:10px;max-height:140px;overflow-y:auto">LIVE: ${esc(JSON.stringify(d.live,null,2))}</pre>`:''}
+      </div>
+      <div class="card">
+        <h3>Lifecycle timeline</h3>
+        <div class="admtimeline" style="margin-top:10px">${(d.timeline||[]).map((ev,i,arr)=>admTimelineItem(ev,i===arr.length-1)).join('')}</div>
+      </div>`;
+    body.querySelectorAll('[data-adm-id]').forEach(b=>b.onclick=()=>{ADM_ID=b.dataset.admId;admRenderDetail(ADM_ID)});
+    const msgBox=$('#admActionMsg');
+    const showMsg=(txt)=>{msgBox.style.display='block';msgBox.textContent=txt};
+    body.querySelectorAll('[data-adm-act]').forEach(b=>b.onclick=async()=>{
+      const act=b.dataset.admAct;
+      try{
+        let out;
+        if(act==='advance') out=await api(`/api/admin/payments/${encodeURIComponent(id)}/advance`,{method:'POST',body:JSON.stringify({})});
+        else if(act==='lookup') out=await api(`/api/admin/payments/${encodeURIComponent(id)}/lookup`,{method:'POST',body:JSON.stringify({})});
+        else if(act==='remediate'){ if(!confirm('Mark completed only with proof?'))return; out=await api(`/api/admin/payments/${encodeURIComponent(id)}/remediate-tx`,{method:'POST',body:JSON.stringify({})}); }
+        else if(act==='force-remediate'){ if(!confirm('FORCE without wallet proof?'))return; out=await api(`/api/admin/payments/${encodeURIComponent(id)}/remediate-tx`,{method:'POST',body:JSON.stringify({force:true})}); }
+        showMsg(JSON.stringify(out,null,2));
+        await admRenderDetail(id);
+      }catch(e){ showMsg(e.message); }
+    });
+    $('#admAddNote').onclick=async()=>{
+      const note=$('#admNote').value.trim(); if(!note)return;
+      try{ await api('/api/admin/payments/events',{method:'POST',body:JSON.stringify({paymentId:id,message:note})}); $('#admNote').value=''; toast('Note added'); await admRenderDetail(id); }
+      catch(e){ showMsg(e.message); }
+    };
+  }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${esc(e.message)}</p></div>`; }
+}
+function admKv(label,value){
+  if(value===null||value===undefined||value==='') return '';
+  return `<div><div class="k">${esc(label)}</div><div class="v">${esc(String(value))}</div></div>`;
+}
+function admPipelineBlock(d){
+  const steps=['created','accepted','forwarding','forwarded','settled'];
+  const labels={created:'HOLD',accepted:'PAID',forwarding:'FWD',forwarded:'MRCH',settled:'SETL'};
+  const cells=(d.pipeline||[]).map(s=>{
+    const on=s.done||s.current;
+    const style=s.current?'background:var(--teal);color:#eaffff':on?'background:var(--teal-dim);color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal-line)':'color:var(--text3);box-shadow:inset 0 0 0 1px var(--line)';
+    return `<span class="mono" style="font-size:9px;padding:3px 7px;border-radius:5px;${style}">${labels[s.key]||s.key.slice(0,4).toUpperCase()}</span>`;
+  }).join('<span class="dim" style="font-size:11px;padding:0 2px">→</span>');
+  return `<div style="margin-top:14px">
+    <div class="overline">Two-leg hold wrap</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+      <div style="flex:1;min-width:180px;border:1px solid rgba(56,142,229,.3);background:rgba(56,142,229,.06);border-radius:8px;padding:8px 10px">
+        <div class="mono" style="font-size:9px;letter-spacing:.08em;color:#7db8f0">1ST MILE · CUSTOMER → HOLD ${d.firstMile?.done?'✓':''}</div>
+        <div style="font-weight:590;margin-top:3px">${fmt(d.firstMile?.amountSats)} sats</div>
+        <div class="mono dim" style="font-size:9.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.firstMile?.paymentHash||'—')}</div>
+      </div>
+      <div style="flex:1;min-width:180px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.06);border-radius:8px;padding:8px 10px">
+        <div class="mono" style="font-size:9px;letter-spacing:.08em;color:#c4b3fb">2ND MILE · FLOAT → MERCHANT ${d.lastMile?.done?'✓':''}</div>
+        <div style="font-weight:590;margin-top:3px">${fmt(d.lastMile?.amountSats)} sats ${d.lastMile?.feeSats?`<span style="color:var(--gold);font-size:11px;font-weight:450">fee ${fmt(d.lastMile.feeSats)}</span>`:''}</div>
+        <div class="mono dim" style="font-size:9.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.lastMile?.paymentHash||'—')}</div>
+      </div>
+    </div>
+    <div style="margin-top:8px">${cells}</div>
+  </div>`;
+}
+function admTimelineItem(ev,isLast){
+  return `<div class="admtl-item">
+    <div style="display:flex;flex-direction:column;align-items:center">
+      <div class="admtl-dot ${esc(ev.status||'info')}"></div>
+      ${isLast?'':'<div class="admtl-line"></div>'}
+    </div>
+    <div class="admtl-body">
+      <div class="admtl-meta">
+        <span>${esc(new Date(ev.at).toLocaleString(undefined,{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}))}</span>
+        <span style="text-transform:uppercase;color:var(--text2)">${esc(ev.event)}</span>
+        ${ev.mile?`<span style="text-transform:uppercase;border:1px solid var(--line);border-radius:4px;padding:1px 5px">${esc(String(ev.mile).replace('_',' '))}</span>`:''}
+        ${ev.source==='event'?'<span style="color:var(--teal)">rec</span>':''}
+        ${typeof ev.durationMs==='number'?`<span>${ev.durationMs}ms</span>`:''}
+      </div>
+      <div class="admtl-msg">${esc(ev.message||'')}</div>
+      ${ev.errorMessage?`<div class="admtl-err">${ev.errorClass?'['+esc(ev.errorClass)+'] ':''}${esc(ev.errorMessage)}</div>`:''}
+    </div>
+  </div>`;
 }
 (function(){
   var root=document.documentElement;

@@ -72,6 +72,14 @@ const server = createServer(async (req, res) => {
     if (await handleExtensionsRoute(req,res,u,currentAccount)) return;
     if (await handleReportsRoute(req,res,u,currentAccount)) return;
     const cardsHandled = await handleCardsRoute(req, res, u, currentAccount); if (cardsHandled) return;
+    if (req.method === "GET" && u.pathname.startsWith("/icons/")) {
+      const name = u.pathname.slice(7).replace(/[^a-zA-Z0-9._-]/g, "");
+      try {
+        const data = await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/icons/" + name, import.meta.url));
+        res.writeHead(200, { "content-type": "image/png", "cache-control": "public, max-age=86400" });
+        return res.end(data);
+      } catch { return json(res, 404, { error: "Not found" }); }
+    }
     if (req.method === "GET" && u.pathname.startsWith("/media/")) {
       const name = u.pathname.slice(7).replace(/[^a-zA-Z0-9._-]/g, "");
       try {

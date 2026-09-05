@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>openLN — the Lightning point of sale for every counter</title>
+<title>openLN ⚡ Open-source Lightning Terminal</title>
 <meta name="description" content="The RIC is an always-on Lightning terminal for the counter: staff type an amount, customers pay by card or phone. openLN is the open-source system around it — NIP-47 wallet hub, Lightning node, boltcard server, tap-to-pay cards.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -28,7 +28,7 @@ a{color:inherit;text-decoration:none}
 /* nav */
 header.nav{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
 .navin{display:flex;align-items:center;gap:30px;height:62px}
-.brand{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:600;letter-spacing:-.3px}
+.brand{display:flex;align-items:center;gap:1px;font-size:19px;font-weight:600;letter-spacing:-.3px}
 .brand em{font-style:normal;color:var(--teal-deep)}
 html.dark .brand em{color:var(--teal)}
 .mark{width:26px;height:26px;display:inline-block;vertical-align:middle}
@@ -115,6 +115,7 @@ section.system{padding:90px 0 10px}
 .stile{border:1px solid var(--line);border-radius:6px;background:var(--paper);padding:20px;box-shadow:var(--sh-soft);transition:.18s;display:block}
 .stile:hover{border-color:var(--teal-line);box-shadow:var(--sh);transform:translateY(-1px)}
 .stile .ti{font-size:16px;color:var(--teal-deep)}html.dark .stile .ti{color:var(--teal)}
+.stile .ti img{width:34px;height:34px;display:block;object-fit:contain;mix-blend-mode:screen;}
 .stile h4{font-size:14.5px;font-weight:600;letter-spacing:-.12px;margin:9px 0 4px}
 .stile p{font-size:12.8px;font-weight:300;color:var(--body);line-height:1.45}
 
@@ -176,14 +177,14 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
 <section class="hero"><div class="wrap"><div class="heroin">
   <div>
     <span class="eyebrow">Open-source Lightning Terminal</span>
-    <h1>ACCEPT<br>BITCOIN<br>ANYWHERE</b></h1>
-    <p class="lead">Open an account, charge in sats, settle over Lightning.<br>No installs, no KYC, no bank, no chargebacks.<br>Your keys, Your coins.</p>
+    <h1>Bitcoin is the way out.<br>We build it together.</b></h1>
+    <p class="lead">OpenLN gives merchants the tools to join the circular economy<br>- one simple, self-custodial payment at a time.</p>
     <div class="heroctas"><a class="btn btn-teal" href="#ric">Get a RIC →</a><a class="btn btn-line" href="#cards">See the cards →</a></div>
     <p class="hero-fine">RIC's are Assembled by local distributors · open hardware · non-custodial</p>
   </div>
   <div class="video">
     <video src="/media/ric-hero.mp4" poster="/media/ric-poster.jpg" autoplay muted loop playsinline></video>
-    <span class="vtag">RIC - RAPID INVOICE CHANNEL</span><span class="vprice">S.R.P. $49</span>
+    <span class="vtag">RIC - RAPID INVOICE CHANNEL</span><span class="vprice">$49</span>
   </div>
 </div></div></section>
 
@@ -229,28 +230,28 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
         <line x1="56" y1="72" x2="96" y2="72" stroke="var(--line)" stroke-width="3"/>
       </g>
     </svg>
-    <div class="lbl payer">Customer taps<small>an openLN card or any Lightning wallet</small></div>
-    <div class="lbl merchant">Merchant settles<small>their own wallet · their keys</small></div>
-    <div class="lbl hublbl">openLN hub<small>Lightning node · BoltCard server · NOSTR node</small></div>
+    <div class="lbl payer">Customer<small>Taps or scans with any Lightning wallet</small></div>
+    <div class="lbl merchant">Merchant<small>Payments settle to their own wallet</small></div>
+    <div class="lbl hublbl">NWC Compatible<small>Use any NIP-47 wallet.</small></div>
   </div>
-  <p class="pathnote">openLN is a non-custodial router: we use Wrapped Hodl Invoices to forward funds to the merchant's wallet. The routing fee is 1% of what the merchant receives.</p>
+  <p class="pathnote">openLN uses NOSTR Wallet Connect to forward funds to the merchant's wallet.<br><b>Your Keys · Your Coins<b></p>
 </div></section>
 
 <!-- THE RIC: what we built -->
 <section class="built" id="ric"><div class="wrap"><div class="builtin">
   <div>
     <span class="eyebrow">The RIC - Rapid Invoice Channel</span>
-    <h2 class="sec" style="margin-top:14px">No <b>training required.</b></h2>
+    <h2 class="sec" style="margin-top:14px"><b>No training required.</b></h2>
     <p>The RIC is for the counter, not a staff member's phone. Staff enter the amount; the customer pays. The same terminal writes and wipes NTAG424 cards at the counter.</p>
     <ul class="specs">
-      <li><span>On the counter</span><span>always on · no login · no app</span></li>
-      <li><span>Works with</span><span>openLN cards · any Lightning wallet</span></li>
-      <li><span>Also does</span><span>writes &amp; wipes NTAG424 cards</span></li>
-      <li><span>Hardware</span><span>ESP32 · MIT firmware · build files</span></li>
+      <li><span>On the counter</span><span>always on</span></li>
+      <li><span>Works with</span><span>Boltcards · NWC</span></li>
+      <li><span>Also does</span><span>writes &amp; wipes cards</span></li>
+      <li><span>Hardware</span><span>ESP32-2432S028R</span></li>
+      <li><span>Firmware</span><span>MIT License</span></li>
       <li><span>Payment</span><span>Lightning</span></li>
-      <li><span>Fulfilment</span><span>local distributor delivery</span></li>
     </ul>
-    <div class="builtcta"><a class="btn btn-teal" href="https://cards.openln.com/shop/posbox">Buy a RIC →</a><a class="btn btn-line" href="https://github.com/openlnhq/openln">Open hardware - build files</a></div>
+    <div class="builtcta"><a class="btn btn-teal" href="https://cards.openln.com/shop/">Buy a RIC →</a><a class="btn btn-line" href="https://github.com/openlnhq/openln">Open hardware - build files</a></div>
   </div>
   <figure class="ricstill"><img src="/media/ric-still.jpg" alt="The RIC terminal on a counter" loading="lazy"></figure>
 </div></div></section>
@@ -269,19 +270,19 @@ footer{background:var(--dark);color:rgba(238,246,245,.55);padding:38px 0}
 <!-- THE SYSTEM -->
 <section class="system" id="system"><div class="wrap">
   <span class="eyebrow">The system</span>
-  <h2 class="sec" style="margin-top:14px">One hub. <b>Extend it.</b></h2>
+  <h2 class="sec" style="margin-top:14px">Your hub. <b>Own it.</b></h2>
   <div class="sysgrid">
-    <a class="stile" href="/app"><span class="ti">◉</span><h4>NIP-47 wallet hub</h4><p>Your account connects to a wallet you hold. The hub routes; it never stores.</p></a>
-    <a class="stile" href="https://github.com/openlnhq/openln"><span class="ti">⛓</span><h4>Nodes + Servers</h4><p>Full stack includes Lightning node, boltcard issuance server, NOSTR node.</p></a>
-    <a class="stile" href="/app"><span class="ti">◇</span><h4>Extensions</h4><p>POS, reports, card rails and crypto rails install per account and disable anytime.</p></a>
-    <a class="stile" href="https://github.com/openlnhq/openln/blob/main/LICENSE"><span class="ti">⌘</span><h4>Open everything</h4><p>AGPL-3.0 platform, MIT firmware, CERN-OHL-S hardware files. Verify, don't trust.</p></a>
+    <a class="stile" href="/app"><span class="ti"><img src="/icons/system-2.png" alt="" aria-hidden="true"></span><h4>NIP-47 wallet hub</h4><p>Your account connects to a wallet you hold. The hub routes; it never stores.</p></a>
+    <a class="stile" href="https://github.com/openlnhq/openln"><span class="ti"><img src="/icons/system-3.png" alt="" aria-hidden="true"></span><h4>Nodes + Servers</h4><p>Full stack includes Lightning node, boltcard issuance server, NOSTR node.</p></a>
+    <a class="stile" href="/app"><span class="ti"><img src="/icons/system-4.png" alt="" aria-hidden="true"></span><h4>Extensions</h4><p>POS, reports, card rails and crypto rails install per account and disable anytime.</p></a>
+    <a class="stile" href="https://github.com/openlnhq/openln/blob/main/LICENSE"><span class="ti"><img src="/icons/system-1.png" alt="" aria-hidden="true"></span><h4>Open source</h4><p>AGPL-3.0 platform, MIT firmware. <br><b>Don't trust, verify.<b><br></p></a>
   </div>
 </div></section>
 
 <!-- DISTRIBUTORS -->
 <section class="distro" id="distributors"><div class="wrap">
   <span class="eyebrow" style="color:var(--gold)">Distributor program</span>
-  <h2 class="sec" style="color:#fff;margin-top:14px">Bring the RIC <b>to your city.</b></h2>
+  <h2 class="sec" style="color:#fff;margin-top:14px">Become a <b>Partner.</b></h2>
   <p>Distributors source parts locally, build the terminals, print the cards, and onboard the merchants. You keep 100% of every hardware sale and earn on every payment your devices route, for their lifetime - tracked in the ledger, paid out on request.</p>
   <div class="pgrid">
     <div class="pcard"><div class="region">Thailand</div><div class="pn">Koh Samui</div><div class="pd">RIC assembly and card printing. Same-day dispatch worldwide.</div></div>

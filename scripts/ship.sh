@@ -56,16 +56,22 @@ case "${1:-}" in
     # dev must be on the same commit, otherwise this is untested code
     DEV_ON=$(ssh "$DEV_HOST" 'cut -d" " -f1 ~/openln/.deployed 2>/dev/null || git -C ~/openln rev-parse --short HEAD')
     [ "$(git rev-parse --short "$MAIN")" = "$DEV_ON" ] || die "dev.openln.com is on $DEV_ON, main is $(git rev-parse --short "$MAIN") — ship dev + test first"
-    log "production ← main (fast-forward)"
-    git push -q origin "$MAIN:refs/heads/production"
+    # Order matters: deploy from a temp ref first, move `production` only after the deploy
+    # succeeded — so `production` always points at what openln.com actually runs.
+    log "stage candidate → Gitea (production-candidate)"
+    git push -q -f origin "$MAIN:refs/heads/production-candidate"
     log "deploy openln.com"
     # deploy.sh lives in the repo; on a target that predates it, bootstrap by piping it over ssh
     if ssh "$PROD_HOST" 'test -x /opt/openln/scripts/deploy.sh'; then
-      ssh "$PROD_HOST" '/opt/openln/scripts/deploy.sh prod'
+      ssh "$PROD_HOST" 'OPENLN_BRANCH=production-candidate /opt/openln/scripts/deploy.sh prod'
     else
       log "bootstrap: target has no deploy.sh yet — running the local copy over ssh"
-      ssh "$PROD_HOST" 'bash -s prod' < scripts/deploy.sh
+      ssh "$PROD_HOST" 'OPENLN_BRANCH=production-candidate bash -s prod' < scripts/deploy.sh
     fi
+    log "production ← main (fast-forward, deploy verified)"
+    git push -q origin "$MAIN:refs/heads/production"
+    ssh "$PROD_HOST" 'cd /opt/openln && git fetch -q origin production && git branch -q -u origin/production production'
+    git push -q origin --delete production-candidate 2>/dev/null || true
     if git remote get-url "$GITHUB_REMOTE" >/dev/null 2>&1; then
       log "mirror → GitHub (openlnhq/openln)"
       git push -q "$GITHUB_REMOTE" "$MAIN:refs/heads/main" || log "WARN: GitHub mirror push failed (non-fatal)"

@@ -13,10 +13,13 @@ set -euo pipefail
 
 TARGET="${1:-}"
 case "$TARGET" in
-  dev)  DIR="$HOME/openln"; BRANCH="main";       PORT=3147; RESTART="sudo systemctl restart openln" ;;
-  prod) DIR="/opt/openln";  BRANCH="production"; PORT=3160; RESTART="systemctl restart openln" ;;
+  dev)  DIR="$HOME/openln"; ENV_BRANCH="main";       PORT=3147; RESTART="sudo systemctl restart openln" ;;
+  prod) DIR="/opt/openln";  ENV_BRANCH="production"; PORT=3160; RESTART="systemctl restart openln" ;;
   *) echo "usage: $0 dev|prod" >&2; exit 2 ;;
 esac
+# ship.sh promote deploys from a staging ref (production-candidate) and moves `production`
+# only after success. The local branch is always named after the environment.
+BRANCH="${OPENLN_BRANCH:-$ENV_BRANCH}"
 
 ENVF="$DIR/artifacts/api-server/.env"
 log(){ printf '\033[1;36m[deploy:%s]\033[0m %s\n' "$TARGET" "$*"; }
@@ -29,14 +32,14 @@ done
 
 BEFORE=$(git rev-parse --short HEAD)
 log "fetching origin/$BRANCH"
-git fetch -q origin "$BRANCH"
+git fetch -q origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   echo "FATAL: working tree has uncommitted changes — someone edited $DIR directly." >&2
   git status --short --untracked-files=no >&2
   echo "Commit them from a dev checkout (or: git stash) before deploying. Deployment targets are read-only." >&2
   exit 1
 fi
-git checkout -q -B "$BRANCH" "origin/$BRANCH"
+git checkout -q -B "$ENV_BRANCH" "origin/$BRANCH"
 git reset -q --hard "origin/$BRANCH"
 AFTER=$(git rev-parse --short HEAD)
 log "$BEFORE → $AFTER ($(git log -1 --format='%s' | cut -c1-70))"

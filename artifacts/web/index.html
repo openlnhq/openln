@@ -418,7 +418,7 @@ function openDrawer(){
       <nav class="drawer-nav">
         <button class="drawer-link ${VIEW==='wallet'?'on':''}" data-drawer-view="wallet">Wallet <span class="arrow">›</span></button>
         <button class="drawer-link ${VIEW==='cards'?'on':''}" data-drawer-view="cards">Cards <span class="arrow">›</span></button>
-        <a class="drawer-link" href="https://cards.openln.com">Card shop <span class="arrow">↗</span></a>
+        <a class="drawer-link" id="cardShopLink" href="https://cards.openln.com">Card shop <span class="arrow">↗</span></a>
         <button class="drawer-link ${VIEW==='ric'?'on':''}" data-drawer-view="ric">RIC <span class="arrow">›</span></button>
         <button class="drawer-link ${VIEW==='extensions'?'on':''}" data-drawer-view="extensions">Extensions <span class="arrow">›</span></button>
         <button class="drawer-link ${VIEW==='partner'?'on':''}" data-drawer-view="partner">Partner <span class="arrow">›</span></button>
@@ -434,6 +434,14 @@ function openDrawer(){
   host.querySelectorAll('[data-drawer-view]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.drawerView;close();render()});
   $('#drawerSettings').onclick=async()=>{close();VIEW='settings';try{await render()}catch(e){console.error('settings render error',e);toast(e.message)}};
   $('#drawerLogout').onclick=()=>{close();localStorage.removeItem('openln_token');if(liveSource)liveSource.close();login()};
+  $('#cardShopLink').onclick=async(e)=>{
+    e.preventDefault();
+    try{
+      const r=await api('/api/auth/embed-token',{method:'POST'});
+      if(r&&r.embedUrl){window.location.href=r.embedUrl;return}
+    }catch(err){}
+    window.location.href='https://cards.openln.com';
+  };
 }
 async function boot(){
   if(!tok())return login();
@@ -621,12 +629,24 @@ const extGlyph=id=>({cards:'◧',pos:'▦',reports:'▤',posbox:'▣',shop:'⌂'
 /* ---- RECEIVE ---- */
 function receiveModal(){
   const m=modal(`<div class="modalhead"><h2>Receive sats</h2><button class="xbtn">✕</button></div>
+  <div class="lnaddr" id="lnaddrBlock" style="display:none;margin-bottom:16px">
+    <span class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.04em">Your lightning address</span>
+    <div class="copyrow" style="margin-top:6px"><input class="input mono" id="lnaddrInput" readonly value=""><button class="btn ghost sm" id="lnaddrCopy">Copy</button></div>
+  </div>
   <form id="rf">
     <div class="amtfield"><input name="amountSats" type="number" min="1" placeholder="0" inputmode="numeric" required autofocus><span class="suffix">sats</span></div>
     <div class="amtchips"><button type="button" data-amt="100">100</button><button type="button" data-amt="500">500</button><button type="button" data-amt="1000">1k</button><button type="button" data-amt="10000">10k</button></div>
     <label class="field" style="margin-top:14px"><span>Memo <span class="dim">optional</span></span><input class="input" name="memo" placeholder="Payment for..."></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:12px;margin-top:4px">Create invoice</button>
   </form><div id="rres"></div>`);
+  api('/api/me').then(me=>{
+    if(me&&me.account&&me.account.handle){
+      const addr=(me.account.lightningAddress)||(me.account.handle+'@openln.com');
+      const blk=m.querySelector('#lnaddrBlock');blk.style.display='';
+      m.querySelector('#lnaddrInput').value=addr;
+      m.querySelector('#lnaddrCopy').onclick=()=>{navigator.clipboard.writeText(addr);toast('Lightning address copied')};
+    }
+  }).catch(()=>{});
   m.querySelectorAll('.amtchips button').forEach(ch=>ch.onclick=()=>{m.querySelector('[name=amountSats]').value=ch.dataset.amt;m.querySelector('[name=amountSats]').focus()});
   m.querySelector('#rf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     m.querySelector('#rres').innerHTML=`<div style="text-align:center;padding:18px"><span class="spin"></span></div>`;

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { AuthService } from "./auth/service.js";
@@ -100,6 +101,33 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && u.pathname === "/api/auth/access-state") { const v = await body(req); try { return json(res, 200, await auth.accessState(String(v.handle ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/migrate-password") { const v = await body(req); try { return json(res, 200, await auth.migratePassword(String(v.handle ?? ""), String(v.pin ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
     const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]); return token ? auth.authenticate(token) : undefined; };
+    // Cross-subdomain handoff to cards.openln.com (still maekob's app), exact
+    // same mechanism bitpos.app already uses in production for its "Business"
+    // tab iframe: sign a short-lived (8 min) HMAC token with the shared secret
+    // maekob already trusts, hand the frontend an embed URL; maekob's own
+    // /auth/embed verifies it and mints maekob's own session. No shared cookie,
+    // no new trust surface beyond adding "openln" as a second accepted issuer
+    // on maekob's existing verifier (bitpos's iss stays valid too).
+    if (req.method === "POST" && u.pathname === "/api/auth/embed-token") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const secret = process.env.MAEKOB_SHARED_SECRET;
+      if (!secret) return json(res, 503, { error: "Card shop is not configured (missing MAEKOB_SHARED_SECRET)" });
+      const embedUrlBase = process.env.MAEKOB_EMBED_URL ?? "https://maekob.com/embed";
+      // Prefer the account's real linked lightning address (set for legacy
+      // bitpos/maekob migrated users) so maekob's lookup-by-lightningAddress
+      // resolves to the SAME pre-existing account instead of auto-creating a
+      // new "handle_XXXX" one. Only synthesize handle@openln.com when the
+      // account genuinely has none on file (brand-new openln-native users).
+      const [acctRow] = await db.select({ lightningAddress: accountsTable.lightningAddress }).from(accountsTable).where(eq(accountsTable.id, account.id));
+      const lightningAddress = acctRow?.lightningAddress || `${account.handle}@openln.com`;
+      const now = Math.floor(Date.now() / 1000);
+      const payloadObj = { iss: "openln", sub: account.id, handle: account.handle, lightningAddress, iat: now, exp: now + 8 * 60 };
+      const headerB64 = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+      const payloadB64 = Buffer.from(JSON.stringify(payloadObj)).toString("base64url");
+      const sig = createHmac("sha256", secret).update(`${headerB64}.${payloadB64}`).digest("base64url");
+      const embedToken = `${headerB64}.${payloadB64}.${sig}`;
+      return json(res, 200, { embedToken, embedUrl: `${embedUrlBase}?token=${encodeURIComponent(embedToken)}` });
+    }
     // Admin payments ops console (treasury dashboard, payment list/detail, advance/lookup/remediate).
     // Ported verbatim from bitPOS's routes/adminPayments.ts — single hook point, auth handled inside.
     if (u.pathname.startsWith("/api/admin/payments")) {
@@ -109,7 +137,8 @@ const server = createServer(async (req, res) => {
     // ---- Account settings (currency, rate, wallet prefs) ----
     if (req.method === "GET" && u.pathname === "/api/me") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
-      return json(res, 200, { account: { id: account.id, handle: account.handle } });
+      const [acctRow] = await db.select({ lightningAddress: accountsTable.lightningAddress }).from(accountsTable).where(eq(accountsTable.id, account.id));
+      return json(res, 200, { account: { id: account.id, handle: account.handle, lightningAddress: acctRow?.lightningAddress || `${account.handle}@openln.com` } });
     }
     if (req.method === "GET" && u.pathname === "/api/account/settings") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
@@ -229,7 +258,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && meta) {
       const handle = decodeURIComponent(meta[1]).toLowerCase();
       if (!(await accountForHandle(handle))) return json(res, 404, { status: "ERROR", reason: "User not found" });
-      return json(res, 200, { tag: "payRequest", callback: `/lnurlp/${handle}/callback`, minSendable: 1000, maxSendable: 100_000_000_000, metadata: JSON.stringify([["text/plain", `Send sats to ${handle}`]]) });
+      return json(res, 200, { tag: "payRequest", callback: `https://openln.com/lnurlp/${handle}/callback`, minSendable: 1000, maxSendable: 100_000_000_000, metadata: JSON.stringify([["text/plain", `Send sats to ${handle}`]]) });
     }
     const callback = u.pathname.match(/^\/lnurlp\/([^/]+)\/callback$/);
     if (req.method === "GET" && callback) {

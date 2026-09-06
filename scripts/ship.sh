@@ -59,7 +59,13 @@ case "${1:-}" in
     log "production ← main (fast-forward)"
     git push -q origin "$MAIN:refs/heads/production"
     log "deploy openln.com"
-    ssh "$PROD_HOST" '/opt/openln/scripts/deploy.sh prod'
+    # deploy.sh lives in the repo; on a target that predates it, bootstrap by piping it over ssh
+    if ssh "$PROD_HOST" 'test -x /opt/openln/scripts/deploy.sh'; then
+      ssh "$PROD_HOST" '/opt/openln/scripts/deploy.sh prod'
+    else
+      log "bootstrap: target has no deploy.sh yet — running the local copy over ssh"
+      ssh "$PROD_HOST" 'bash -s prod' < scripts/deploy.sh
+    fi
     if git remote get-url "$GITHUB_REMOTE" >/dev/null 2>&1; then
       log "mirror → GitHub (openlnhq/openln)"
       git push -q "$GITHUB_REMOTE" "$MAIN:refs/heads/main" || log "WARN: GitHub mirror push failed (non-fatal)"

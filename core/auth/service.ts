@@ -110,5 +110,33 @@ export class AuthService {
   async authenticate(token: string): Promise<Account | undefined> {
     try { const [raw, mac] = token.split("."); const expected = sign(raw); if (!raw || !mac || mac.length !== expected.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return await tryDeviceToken(token); const p = JSON.parse(Buffer.from(raw, "base64url").toString()); return p.exp >= Date.now() ? { id: p.id, handle: p.handle, createdAt: p.createdAt } : undefined; } catch { return await tryDeviceToken(token); }
   }
+  /**
+   * Cross-subdomain handoff, same pattern as bitpos.app -> maekob.com's
+   * proven /shop/embed-token + /auth/embed: a short-lived (8 min) signed
+   * token carrying only a handle + issuer + expiry, separate namespace from
+   * real session tokens (prefixed "embed:" before signing so a leaked embed
+   * token can never be replayed as a real session token, and vice versa).
+   * No shared secret needed here since both sides are the same process, but
+   * kept as a distinct, narrow-purpose token by design, not the raw session.
+   */
+  embedToken(account: Account): string {
+    const exp = Date.now() + 8 * 60 * 1000;
+    const raw = Buffer.from(JSON.stringify({ id: account.id, handle: account.handle, iss: "openln-embed", exp })).toString("base64url");
+    return `${raw}.${sign("embed:" + raw)}`;
+  }
+  async sessionForEmbedToken(embedToken: string): Promise<Session | undefined> {
+    try {
+      const [raw, mac] = embedToken.split(".");
+      const expected = sign("embed:" + raw);
+      if (!raw || !mac || mac.length !== expected.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return undefined;
+      const p = JSON.parse(Buffer.from(raw, "base64url").toString());
+      if (p.iss !== "openln-embed" || !p.exp || p.exp < Date.now()) return undefined;
+      const [row] = await db.select({ id: entitiesTable.id, handle: entitiesTable.handle, createdAt: entitiesTable.createdAt }).from(entitiesTable).where(eq(entitiesTable.handle, String(p.handle).toLowerCase()));
+      if (!row) return undefined;
+      const [account] = await db.select({ id: accountsTable.id }).from(accountsTable).where(eq(accountsTable.entityId, row.id));
+      if (!account || account.id !== p.id) return undefined;
+      return this.newSession({ id: account.id, handle: row.handle, createdAt: row.createdAt.toISOString() });
+    } catch { return undefined; }
+  }
   private newSession(account: Account): Session { const expiresAt = new Date(Date.now() + TTL_MS).toISOString(); const raw = Buffer.from(JSON.stringify({ id: account.id, handle: account.handle, createdAt: account.createdAt, exp: Date.parse(expiresAt) })).toString("base64url"); return { token: `${raw}.${sign(raw)}`, account, expiresAt }; }
 }

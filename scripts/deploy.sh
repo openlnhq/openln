@@ -51,7 +51,7 @@ pnpm build >/dev/null
 log "migrations"
 DBURL=$(grep -oE '^DATABASE_URL=.+' "$ENVF" | cut -d= -f2-)
 for f in migrations/*.sql; do
-  psql "$DBURL" -q -v ON_ERROR_STOP=1 -f "$f" >/dev/null
+  PGOPTIONS='-c client_min_messages=warning' psql "$DBURL" -q -v ON_ERROR_STOP=1 -f "$f" >/dev/null
 done
 TABLES=$(psql "$DBURL" -tAc "select count(*) from pg_tables where schemaname='public'")
 log "schema ok ($TABLES tables)"

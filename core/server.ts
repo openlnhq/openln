@@ -91,7 +91,7 @@ const server = createServer(async (req, res) => {
       const name = u.pathname.slice(7).replace(/[^a-zA-Z0-9._-]/g, "");
       try {
         const data = await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/media/" + name, import.meta.url));
-        const type = name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "application/octet-stream";
+        const type = name.endsWith(".mjs") ? "text/javascript; charset=utf-8" : name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "application/octet-stream";
         res.writeHead(200, { "content-type": type, "cache-control": "public, max-age=86400" });
         return res.end(data);
       } catch { return json(res, 404, { error: "Not found" }); }

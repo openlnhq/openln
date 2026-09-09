@@ -1093,7 +1093,7 @@ function ricFlashModal(){
         slot(2).innerHTML=`<div class="ricprogress"><div class="ricprogress-bar" id="ricBar" style="width:0%"></div></div><p class="dim" style="font-size:11.5px;margin-top:6px" id="ricPct">0% written</p>`;
         setStep(3,'active'); slot(3).innerHTML=`<span class="dim" style="font-size:12.5px">Preparing…</span>`;
         try{
-          const mod=await import('https://esm.sh/esptool-js@0.6.0');
+          const mod=await import('/media/esptool-0.6.0.mjs');
           const transport=new mod.Transport(port,true);
           const loader=new mod.ESPLoader({transport,baudrate:115200,terminal:{clean:()=>{},writeLine:()=>{},write:()=>{}},enableTracing:false});
           const manifest=await api('/api/posbox/firmware/manifest');

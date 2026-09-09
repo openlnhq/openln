@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>openLN — Wallet</title>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>openLN | Wallet</title>
 <style>
 /* openLN design system v3 — Linear-precision dark + openLN teal/gold identity
    Luminance hierarchy: #080a0a canvas → rgba white surfaces. One accent pair.
@@ -444,12 +444,15 @@ html.light{--text3:#586f69;--teal:#006b6b;--gold:#916f00}
 <script>
 const $=document.querySelector.bind(document),root=$('#root');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// Display prose only. Never rewrite invoices, keys, URLs, input values or stored records.
+const displayText=s=>String(s??'').replace(/\s*\u2014\s*/g,'. ');
+const prose=s=>esc(displayText(s));
 const tok=()=>localStorage.getItem('openln_token');
 const fmt=n=>Number(n||0).toLocaleString('en-US');
 const ago=t=>{const s=(Date.now()-new Date(t))/1e3;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'};
 const MARK=`<span class="lnmark"><svg width="17" height="17" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="#14b8a6"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round"/></svg></span>`;
-async function api(path,opts={}){opts.headers={'content-type':'application/json',...(opts.headers||{}),...(tok()?{Authorization:'Bearer '+tok()}:{})};const r=await fetch(path,opts);const d=await r.json().catch(()=>({}));if(!r.ok){const e=Error(d.error||('Request failed ('+r.status+')'));e.status=r.status;throw e}return d}
-function toast(m){document.querySelectorAll('.toast').forEach(t=>t.remove());const t=document.createElement('div');t.className='toast';t.style.pointerEvents='none';t.setAttribute('role','status');t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),3200)}
+async function api(path,opts={}){opts.headers={'content-type':'application/json',...(opts.headers||{}),...(tok()?{Authorization:'Bearer '+tok()}:{})};const r=await fetch(path,opts);const d=await r.json().catch(()=>({}));if(!r.ok){const e=Error(displayText(d.error||('Request failed ('+r.status+')')));e.status=r.status;throw e}return d}
+function toast(m){document.querySelectorAll('.toast').forEach(t=>t.remove());const t=document.createElement('div');t.className='toast';t.style.pointerEvents='none';t.setAttribute('role','status');t.textContent=displayText(m);document.body.append(t);setTimeout(()=>t.remove(),3200)}
 function modal(html){const w=document.createElement('div');w.className='modal';w.innerHTML=`<div class="modalbox">${html}</div>`;w.addEventListener('click',e=>{if(e.target===w)w.remove()});document.body.append(w);w.querySelector('.xbtn')?.addEventListener('click',()=>w.remove());return w}
 </script>
 <script>
@@ -541,7 +544,7 @@ function login(){
     $('#lerr').textContent='';
     let state;
     try{state=await api('/api/auth/access-state',{method:'POST',body:JSON.stringify({handle})})}
-    catch(x){$('#lerr').textContent=x.message;return}
+    catch(x){$('#lerr').textContent=displayText(x.message);return}
     if(!state.exists) return loginRegister(handle);
     if(state.legacyPin) return loginMigratePin(handle);
     return loginPassword(handle);
@@ -563,7 +566,7 @@ function loginPassword(handle){
   $('#lback').onclick=e=>{e.preventDefault();login()};
   $('#lf').onsubmit=async e=>{e.preventDefault();const password=new FormData(e.target).get('password');
     try{const s=await api('/api/auth/login',{method:'POST',body:JSON.stringify({handle,password})});localStorage.setItem('openln_token',s.token);render()}
-    catch(x){$('#lerr').textContent=x.message}};
+    catch(x){$('#lerr').textContent=displayText(x.message)}};
 }
 function loginRegister(handle){
   root.innerHTML=`<div class="login"><div class="loginbox">
@@ -581,7 +584,7 @@ function loginRegister(handle){
   $('#lback').onclick=e=>{e.preventDefault();login()};
   $('#lf').onsubmit=async e=>{e.preventDefault();const password=new FormData(e.target).get('password');
     try{const s=await api('/api/auth/register',{method:'POST',body:JSON.stringify({handle,password})});localStorage.setItem('openln_token',s.token);render()}
-    catch(x){$('#lerr').textContent=x.message}};
+    catch(x){$('#lerr').textContent=displayText(x.message)}};
 }
 function loginMigratePin(handle){
   root.innerHTML=`<div class="login"><div class="loginbox">
@@ -600,7 +603,7 @@ function loginMigratePin(handle){
   $('#lback').onclick=e=>{e.preventDefault();login()};
   $('#lf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{const s=await api('/api/auth/migrate-password',{method:'POST',body:JSON.stringify({handle,pin:b.pin,password:b.password})});localStorage.setItem('openln_token',s.token);render()}
-    catch(x){$('#lerr').textContent=x.message}};
+    catch(x){$('#lerr').textContent=displayText(x.message)}};
 }
 let renderVersion=0;
 async function render(){
@@ -615,7 +618,7 @@ async function render(){
     $('#menuBtn').onclick=openDrawer;
     $('#brandHome').onclick=e=>{e.preventDefault();navigate('wallet')};
     if(window.applyThemeToggle)window.applyThemeToggle();
-    document.title='openLN — '+({wallet:'Wallet',ric:'RIC',cards:'Cards',settings:'Settings',partner:'Partners',adminpayments:'Treasury'}[view]||'Wallet');
+    document.title='openLN | '+({wallet:'Wallet',ric:'RIC',cards:'Cards',settings:'Settings',partner:'Partners',adminpayments:'Treasury'}[view]||'Wallet');
     $('#view').innerHTML='<div class="view-loading" role="status"><span class="spin"></span><span>Loading '+esc(view==='ric'?'RIC':view)+'…</span></div>';
     if(view==='wallet'){
       const [st,bal]=await Promise.all([api('/api/wallet/status'),api('/api/wallet/balance').catch(()=>({balanceSats:null,connected:false,unavailable:true}))]);
@@ -628,7 +631,7 @@ async function render(){
     else if(view==='partner')await vPartner();
     else if(view==='adminpayments')await vAdminPayments();
     startLiveUpdates();
-  }catch(e){if(version!==renderVersion)return;if(e.status===401){localStorage.removeItem('openln_token');closeDrawer(false);login()}else{$('#view').innerHTML=`<div class="view-loading" role="alert">${esc(e.message)} <button class="btn ghost" id="retryView">Try again</button></div>`;$('#retryView').onclick=render}}
+  }catch(e){if(version!==renderVersion)return;if(e.status===401){localStorage.removeItem('openln_token');closeDrawer(false);login()}else{$('#view').innerHTML=`<div class="view-loading" role="alert">${prose(e.message)} <button class="btn ghost" id="retryView">Try again</button></div>`;$('#retryView').onclick=render}}
 }
 let liveSource;
 function startLiveUpdates(){
@@ -647,7 +650,7 @@ async function vWallet(st,bal,version=renderVersion){
   <div class="wos">
     <div class="wos-hero">
       <div class="conn"><span class="dot ${bal.connected?'':'off'}"></span>${bal.connected?'Your connected wallet':st.connected?'Wallet temporarily unavailable':'Connect your wallet'}</div>
-      <div class="wos-bal">${bal.connected?fmt(bal.balanceSats):'—'}<span class="cur">sats</span></div>
+      <div class="wos-bal">${bal.connected?fmt(bal.balanceSats):'-'}<span class="cur">sats</span></div>
       <div class="wos-fiat">${bal.connected?'Live balance · held in your wallet':st.connected?'Unable to read your balance. Your wallet still holds your funds.':'Your wallet funds your cards and RIC.'}</div>
       ${!st.connected?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">Coinos, Primal, Alby, or another NWC wallet</p>':''}
     </div>
@@ -677,7 +680,7 @@ function txRow(t){
   const inb=(t.direction??'in')==='in';
   return `<button class="rowtx" data-tx="${esc(t.id||t.payment_hash||t.paymentHash||'')}" style="width:100%;text-align:left;border-top:1px solid var(--line);border-radius:0">
     <div class="ico ${inb?'in':''}">${inb?'↓':'↑'}</div>
-    <div class="meta"><div class="t1">${esc(t.memo||t.type||'Payment')}</div><div class="t2">${ago(t.createdAt||t.created_at)} · <span class="mono" style="font-size:10.5px">${esc((t.paymentHash||t.payment_hash||'').slice(0,14))}</span>${t.feeSats||t.fee_sats?` · fee ${fmt(t.feeSats??t.fee_sats)}`:''}</div></div>
+    <div class="meta"><div class="t1">${prose(t.memo||t.type||'Payment')}</div><div class="t2">${ago(t.createdAt||t.created_at)} · <span class="mono" style="font-size:10.5px">${esc((t.paymentHash||t.payment_hash||'').slice(0,14))}</span>${t.feeSats||t.fee_sats?` · fee ${fmt(t.feeSats??t.fee_sats)}`:''}</div></div>
     <div class="amt ${inb?'in':''}">${inb?'+':'−'}${fmt(t.amountSats??t.amount_sats)}</div>
   </button>`;
 }
@@ -686,7 +689,7 @@ function txDetail(t){
   const kv=(k,v,mono)=>v?`<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)"><span class="dim" style="font-size:12px;flex-shrink:0">${k}</span><span class="${mono?'mono':''}" style="font-size:12px;text-align:right;word-break:break-all;overflow-wrap:anywhere;min-width:0">${esc(v)}</span></div>`:'';
   const amt=Number(t.amountSats??t.amount_sats??0), fee=Number(t.feeSats??t.fee_sats??0);
   const dt=t.createdAt||t.created_at?new Date(t.createdAt||t.created_at).toLocaleString():'';
-  modal(`<div class="modalhead"><h2>${esc(t.memo||t.type||'Payment')}</h2><button class="xbtn">✕</button></div>
+  modal(`<div class="modalhead"><h2>${prose(t.memo||t.type||'Payment')}</h2><button class="xbtn">✕</button></div>
   <div style="text-align:center;padding:8px 0 16px">
     <div class="mono" style="font-size:30px;font-weight:600;letter-spacing:-1px;color:${inb?'var(--ok)':'var(--text)'}">${inb?'+':'−'}${fmt(amt)}<span style="font-size:13px;color:var(--text2);letter-spacing:0"> sats</span></div>
     <span class="badge ${t.status==='completed'?'ok':'pend'}" style="margin-top:9px">${esc(t.status||'pending')}</span>
@@ -741,7 +744,7 @@ function receiveModal(){
         if(s.status==='paid'){clearInterval(iv);const el=m.querySelector('#rstat');el.className='invstatus paid';el.innerHTML=`<span class="pulse ok"></span>Payment received`;toast('Payment received ✓');}
         if(s.status==='expired'||s.status==='cancelled'){clearInterval(iv);const el=m.querySelector('#rstat');el.className='invstatus';el.textContent='Invoice expired';}
       }catch(e){}},3000);
-    }catch(x){m.querySelector('#rres').innerHTML=`<p style="color:var(--err);font-size:13px">${esc(x.message)}</p>`;m.querySelector('#rf').style.display=''}
+    }catch(x){m.querySelector('#rres').innerHTML=`<p style="color:var(--err);font-size:13px">${prose(x.message)}</p>`;m.querySelector('#rf').style.display=''}
   };
 }
 /* ---- SEND ---- */
@@ -759,7 +762,7 @@ function sendModal(){
       m.querySelector('#sf').style.display='none';
       if(r.status!=='completed'){
         m.querySelector('#sres').innerHTML='<div class="invstatus wait">Payment processing</div><p class="muted" style="font-size:13px;margin-top:12px">Do not pay again or retry. Check History for the final result.</p>';
-        toast('Payment processing — do not retry');return;
+        toast('Payment processing. Do not retry');return;
       }
       m.querySelector('#sres').innerHTML=`<div class="invstatus paid" style="margin-top:6px"><span class="pulse ok"></span>Payment sent</div>
       <p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">tx <span class="mono">${esc((r.paymentHash||'').slice(0,18))}…</span></p>`;
@@ -777,7 +780,7 @@ function walletModal(){
   </form><div id="wres"></div>`);
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();toast('Wallet connected');render()}
-    catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${esc(x.message)}</p>`}
+    catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${prose(x.message)}</p>`}
   };
 }
 async function loadAuthedImage(path, imgEl){
@@ -787,7 +790,7 @@ async function loadAuthedImage(path, imgEl){
     if(!r.ok)throw Error('QR unavailable');
     const blob=await r.blob();
     imgEl.src=URL.createObjectURL(blob);
-  }catch(e){ imgEl.replaceWith(Object.assign(document.createElement('div'),{className:'dim',style:'font-size:12px',textContent:'QR unavailable — use the provisioning URL below.'})); }
+  }catch(e){ imgEl.replaceWith(Object.assign(document.createElement('div'),{className:'dim',style:'font-size:12px',textContent:'QR unavailable. Use the provisioning URL below.'})); }
 }
 function showIssuedCard(out, keyText=''){
   const qr=out.provisionUrl||'';
@@ -797,7 +800,7 @@ function showIssuedCard(out, keyText=''){
       <div class="qrbox" id="provisionQr" role="img" aria-label="One-time card setup QR"></div>
       <p class="muted setup-copy">Scan with <a href="https://play.google.com/store/search?q=bolt%20card%20nfc%20creator&amp;c=apps" target="_blank" rel="noopener noreferrer">Bolt Card NFC Creator</a> on Android, then hold the blank card against your phone.</p>
       <button class="btn ghost" id="copyProvision" style="width:100%;justify-content:center;margin-top:12px">Copy setup link</button>
-      <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser—it reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
+      <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser. It reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
     </section>
     <section id="ricSetup" hidden><ol class="setup-steps"><li>Use the RIC linked to this account.</li><li>On its screen, open Settings → Issue Card.</li><li>Hold a blank NTAG424 card against the reader until the RIC confirms the write.</li></ol><p class="muted setup-copy">The RIC fetches your next unwritten card automatically. There is no QR to scan and no keys to type.</p><p id="ricQueue" class="hint"></p><div id="ricWriteState" role="status" class="hint">Waiting for the RIC to confirm…</div></section>
     <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">Standard browser NFC cannot change NTAG424 security keys. Use the Android creator app or the RIC for the physical write. This page handles issuance and setup.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
@@ -842,7 +845,7 @@ async function renderCardsList(){
     `;
     $('#issueCardTile').onclick=()=>vCardIssueForm();
     body.querySelectorAll('[data-card-id]').forEach(b=>b.onclick=()=>vCardDetail(cards.find(c=>c.id===b.dataset.cardId)));
-  }catch(e){ body.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p>`; }
+  }catch(e){ body.innerHTML=`<p style="color:var(--err);font-size:13px">${prose(e.message)}</p>`; }
 }
 function cardStatusLabel(c){ return c.status==='active'?(c.lastUsedAt?'Active':'Ready to write'):c.status==='frozen'?'Frozen':'Cancelled'; }
 function cardTile(c){
@@ -886,7 +889,7 @@ function vCardIssueForm(){
         toast(`Card issued: ${payload.name||'Card'}`); showIssuedCard(out, keyText);
         renderCardsList();
       }else{toast('Card issued');renderCardsList()}
-    }catch(x){$('#cardIssueErr').textContent=x.message;}
+    }catch(x){$('#cardIssueErr').textContent=displayText(x.message);}
   };
 }
 function vCardDetail(card){
@@ -908,8 +911,8 @@ function vCardDetail(card){
       </div>
       <div class="manage-section"><div class="dim label">Card</div>
         <div class="manage-line"><span>Name</span><b>${esc(card.name||'Unnamed card')}</b></div>
-        <div class="manage-line"><span>Tap note</span><b>${esc(card.note||'—')}</b></div>
-        <div class="manage-line"><span>Issued</span><b class="mono">${card.createdAt?new Date(card.createdAt).toLocaleDateString():'—'}</b></div>
+        <div class="manage-line"><span>Tap note</span><b>${prose(card.note||'Not set')}</b></div>
+        <div class="manage-line"><span>Issued</span><b class="mono">${card.createdAt?new Date(card.createdAt).toLocaleDateString():'Not available'}</b></div>
       </div>
       <div class="manage-section"><div class="dim label">Limits</div>
         <div class="manage-line"><span>Per payment</span><b class="mono">${fmt(card.perTapLimitSats)} sats</b></div>
@@ -957,14 +960,14 @@ function vCardWipe(card){
         <p class="setup-copy muted"><b>With your RIC:</b> Open Settings → Wipe Card on the linked device. Hold the card on the reader until it confirms.</p>
         <button class="btn ghost sm" id="copyWipeKeys" style="width:100%;justify-content:center;margin-top:12px">Copy reset data</button>
         <p class="hint">This page cannot erase the physical chip by itself. Keep the keys until your phone or RIC confirms the reset.</p>
-        <button class="btn danger" id="confirmWiped" style="width:100%;justify-content:center;margin-top:14px;padding:11px">My phone confirmed the wipe — cancel card</button>`;
+        <button class="btn danger" id="confirmWiped" style="width:100%;justify-content:center;margin-top:14px;padding:11px">My phone confirmed the wipe. Cancel card</button>`;
       const image=new Image();image.alt='Card reset QR';image.src=URL.createObjectURL(new Blob([out.wipeQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);box.querySelector('#wipeQr').append(image);
       box.querySelector('#copyWipeKeys').onclick=()=>navigator.clipboard.writeText(wipeJson).then(()=>toast('Reset data copied'));
       box.querySelector('#confirmWiped').onclick=async()=>{
         try{await api('/api/pos/mark-wiped/'+card.id,{method:'POST',body:JSON.stringify({})});m.remove();toast('Card wiped and cancelled');renderCardsList()}
         catch(e){toast(e.message)}
       };
-    }catch(e){box.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p>`}
+    }catch(e){box.innerHTML=`<p style="color:var(--err);font-size:13px">${prose(e.message)}</p>`}
   };
 }
 function vCardEditForm(card){
@@ -987,7 +990,7 @@ function vCardEditForm(card){
   $('#cardsBack').onclick=()=>vCardDetail(card);
   $('#editCardForm').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({name:b.name,note:b.note,dailyLimitSats:Number(b.dailyLimitSats),perTapLimitSats:Number(b.perTapLimitSats)})});toast('Card updated');renderCardsList()}
-    catch(x){$('#editCardErr').textContent=x.message}
+    catch(x){$('#editCardErr').textContent=displayText(x.message)}
   };
 }
 function vCardPinForm(card){
@@ -1006,7 +1009,7 @@ function vCardPinForm(card){
   $('#cardsBack').onclick=()=>vCardDetail(card);
   $('#pinForm').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:b.pin,newPin:b.newPin})});toast(changing?'PIN updated':'PIN enabled');renderCardsList()}
-    catch(x){$('#pinFormErr').textContent=x.message}
+    catch(x){$('#pinFormErr').textContent=displayText(x.message)}
   };
 }
 /* ---- RIC (flash + link + manage devices) ---- */
@@ -1056,7 +1059,7 @@ async function renderRicDevices(){
         <button class="btn ghost sm dangerText" data-release="${esc(d.id)}">Release</button>
       </div>`).join('');
     box.querySelectorAll('[data-release]').forEach(b=>b.onclick=()=>ricReleaseModal(devices.find(d=>d.id===b.dataset.release)));
-  }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p>`; }
+  }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${prose(e.message)}</p>`; }
 }
 
 function ricStepRow(n,label,state){ // state: 'pending'|'active'|'done'
@@ -1128,7 +1131,7 @@ function ricLinkModal(){
         ${ricStepRow(2,'WiFi credentials','pending')}
         ${ricStepRow(3,'Result','pending')}
       </div>
-    `:`<div class="warnbox">${isIOS?'Bluetooth device linking is not supported on iPhone or iPad — Apple blocks Web Bluetooth on all iOS browsers. Use a laptop or desktop running Chrome or Edge.':'Web Bluetooth is not available in this browser. Open this page in Chrome or Edge on a laptop or desktop.'}</div>`}`);
+    `:`<div class="warnbox">${isIOS?'Bluetooth device linking is not supported on iPhone or iPad. Apple blocks Web Bluetooth on all iOS browsers. Use a laptop or desktop running Chrome or Edge.':'Web Bluetooth is not available in this browser. Open this page in Chrome or Edge on a laptop or desktop.'}</div>`}`);
   if(!hasBluetooth)return;
   const slot=n=>m.querySelector('#ricStepSlot'+n);
   const setStep=(n,state)=>{ m.querySelectorAll('.ricstep')[n-1].className='ricstep '+state; if(state==='done')m.querySelectorAll('.ricstep')[n-1].querySelector('.ricstep-n').textContent='✓'; };
@@ -1171,7 +1174,7 @@ function ricLinkModal(){
           await new Promise((resolve,reject)=>{
             let settled=false;
             const settle=fn=>{ if(settled)return; settled=true; clearTimeout(timeout); device.removeEventListener('gattserverdisconnected',onDisconnect); fn(); };
-            const timeout=setTimeout(()=>settle(()=>{ tokenWritten?resolve():reject(Error('Timed out — credentials not written to device')); }),45000);
+            const timeout=setTimeout(()=>settle(()=>{ tokenWritten?resolve():reject(Error('Timed out. Credentials not written to device')); }),45000);
             const onDisconnect=()=>settle(()=>{ tokenWritten?resolve():reject(Error('Device disconnected before provisioning completed')); });
             device.addEventListener('gattserverdisconnected',onDisconnect);
             cStatus.addEventListener('characteristicvaluechanged',ev=>{
@@ -1218,7 +1221,7 @@ function ricReleaseModal(device){
   if(!device)return;
   const m=modal(`<div class="modalhead"><div><h2>Release device</h2><p class="dim" style="font-size:12px;margin-top:4px">${esc(device.label||'RIC')}</p></div><button class="xbtn">✕</button></div>
     <div id="ricRelBody">
-      <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:16px">This revokes the device token. The next time it connects to WiFi it will detect the change, wipe its configuration, and reboot into Bluetooth setup mode — ready to be linked to a new WiFi network or account.</p>
+      <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:16px">This revokes the device token. The next time it connects to WiFi it will detect the change, wipe its configuration, and reboot into Bluetooth setup mode, ready to be linked to a new WiFi network or account.</p>
       <div style="display:flex;gap:8px">
         <button class="btn danger" id="ricConfirmRelease" style="flex:1;justify-content:center;padding:11px">Release device</button>
         <button class="btn ghost" id="ricCancelRelease" style="flex:1;justify-content:center;padding:11px">Cancel</button>
@@ -1234,14 +1237,14 @@ function ricReleaseModal(device){
         <div class="warnbox ok" style="margin-bottom:14px">Device released</div>
         <p class="dim label" style="margin-bottom:8px">What to do next</p>
         <ol class="ricsteps-plain">
-          <li>Enable the WiFi network "${esc(device.label||'your old WiFi')}" that the device is configured for (even briefly — 30s is enough).</li>
+          <li>Enable the WiFi network "${esc(device.label||'your old WiFi')}" that the device is configured for (even briefly; 30s is enough).</li>
           <li>The device will connect, detect the revocation, wipe its config, and reboot into Bluetooth setup mode.</li>
           <li>Turn off that WiFi again.</li>
           <li>Tap "Link device" to pair it with the new WiFi and this account.</li>
         </ol>
         <button class="btn ghost" id="ricReleaseDone" style="width:100%;justify-content:center;margin-top:14px;padding:11px">Done</button>`;
       m.querySelector('#ricReleaseDone').onclick=()=>{m.remove();renderRicDevices();};
-    }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p><button class="btn ghost sm" id="ricRelRetry" style="margin-top:10px">Try again</button>`; m.querySelector('#ricRelRetry').onclick=()=>{m.remove();ricReleaseModal(device);}; }
+    }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${prose(e.message)}</p><button class="btn ghost sm" id="ricRelRetry" style="margin-top:10px">Try again</button>`; m.querySelector('#ricRelRetry').onclick=()=>{m.remove();ricReleaseModal(device);}; }
   };
 }
 /* ---- SETTINGS ---- */
@@ -1257,7 +1260,7 @@ async function vSettings(version=renderVersion){
   $('#view').innerHTML=`<div style="margin-top:30px">
     <div class="overline">Settings</div>
     <h1 class="page">Preferences</h1>
-    <p class="muted" style="margin:8px 0 22px;max-width:560px">Currency, exchange rate, wallet and security — all per-account, stored on your openLN account.</p>
+    <p class="muted" style="margin:8px 0 22px;max-width:560px">Currency, exchange rate, wallet and security, all stored on your openLN account.</p>
     <div class="setgrid">
 
       <div class="setcard">
@@ -1347,7 +1350,7 @@ async function vSettings(version=renderVersion){
         sendRateModifier:$('#setSendRateModifier').value.trim(),
       })});
       const saved=await api('/api/account/settings');if(saved.currency!==$('#setCurrency').value||saved.rateSource!==$('#setRateSource').value)throw Error('Settings did not persist');st.textContent='Saved · restart your RIC to refresh';updateRatePreview();
-    }catch(e){ st.textContent=e.message; }
+    }catch(e){ st.textContent=displayText(e.message); }
     b.disabled=false; b.textContent='Save preferences';
   };
 
@@ -1361,7 +1364,7 @@ async function vSettings(version=renderVersion){
       await api('/api/account/password',{method:'POST',body:JSON.stringify({currentPassword:cur,newPassword:nxt})});
       st.textContent='Password changed'; $('#setPwCurrent').value=''; $('#setPwNew').value='';
       setTimeout(()=>{st.textContent=''},2500);
-    }catch(e){ st.textContent=e.message; }
+    }catch(e){ st.textContent=displayText(e.message); }
     b.disabled=false; b.textContent='Change password';
   };
 
@@ -1387,7 +1390,7 @@ function partnerLogin(){
   </form><p id="perr" style="color:var(--err);font-size:13px;margin-top:10px"></p></div>`;
   $('#pf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{const s=await api('/api/partner/login',{method:'POST',body:JSON.stringify(b)});localStorage.setItem('openln_partner',s.partner.id);render()}
-    catch(x){$('#perr').textContent=x.message}};
+    catch(x){$('#perr').textContent=displayText(x.message)}};
 }
 async function renderPartner(rows,pid){
   let stats={totalSats:0,totalEarned:0,count:0};
@@ -1404,7 +1407,7 @@ async function renderPartner(rows,pid){
   </div>
   ${claim?`<div class="card" style="margin-top:14px"><h3>Device claim code <span class="side">rotate on issue</span></h3>
     <div class="copyrow" style="margin-top:12px"><input class="input mono" readonly value="${esc(claim.claimCode)}"><button class="btn ghost sm" id="pcopy">Copy</button></div>
-    <p class="dim" style="font-size:11.5px;margin-top:8px">Embed in POSBOX webflasher — binds device MAC to your partner account at flash time.</p></div>`:''}
+    <p class="dim" style="font-size:11.5px;margin-top:8px">Embed in the POSBOX webflasher to bind the device MAC to your partner account at flash time.</p></div>`:''}
   <div class="card" style="margin-top:14px"><h3>Earnings ledger <span class="side">append-only</span></h3>
     ${rows.length?`<table class="tb" style="margin-top:10px"><thead><tr><th>Payment</th><th>Amount</th><th>Your share</th><th>State</th><th>When</th></tr></thead>
     <tbody>${rows.slice().reverse().map(r=>`<tr><td class="mono" style="font-size:11px">${esc((r.paymentHash||'').slice(0,14))}…</td><td class="mono">${fmt(r.amountSats)}</td><td class="mono" style="color:var(--gold)">${fmt(r.feeShareSats)}</td><td><span class="badge ${r.payoutState==='accrued'?'pend':'ok'}">${esc(r.payoutState)}</span></td><td class="dim">${ago(r.createdAt)}</td></tr>`).join('')}</tbody></table>`
@@ -1424,13 +1427,13 @@ const ADM_STATUS_META={
 };
 function admPill(status,label){
   const meta=ADM_STATUS_META[status]||{label:status,color:'slate'};
-  return `<span class="admpill ${meta.color}">${esc(label||status||'—')}</span>`;
+  return `<span class="admpill ${meta.color}">${esc(label||status||'-')}</span>`;
 }
 function admTxPill(status){
   const color=status==='completed'?'green':status==='failed'?'red':'amber';
   return `<span class="admpill ${color}">${esc(status)}</span>`;
 }
-function admShort(h,n){ n=n||10; if(!h)return '—'; return h.length>n+3?h.slice(0,n)+'…':h; }
+function admShort(h,n){ n=n||10; if(!h)return '-'; return h.length>n+3?h.slice(0,n)+'…':h; }
 async function vAdminPayments(){
   if(ADM_ID) return vAdminDetail(ADM_ID);
   return vAdminList();
@@ -1495,18 +1498,18 @@ async function admRenderList(silent){
     $('#admSearchBtn').onclick=()=>{ADM_Q=$('#admSearch').value.trim();ADM_KIND=$('#admKind').value;ADM_STATUS=$('#admStatus').value;admRenderList()};
     $('#admSearch').onkeydown=e=>{if(e.key==='Enter')$('#admSearchBtn').click()};
     body.querySelectorAll('[data-adm-id]').forEach(b=>b.onclick=()=>{ADM_ID=b.dataset.admId;vAdminDetail(ADM_ID)});
-  }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${esc(e.message)}</p></div>`; }
+  }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
 }
 function admTreasuryBlock(T){
   return `<div class="admgrid">
-    <div class="admstat"><div class="lbl">Float balance</div><div class="val ${T.float.balanceSats==null?'r':(T.float.availableSats??0)<1000?'a':'g'}">${T.float.balanceSats==null?'ERR':fmt(T.float.balanceSats)}</div><div class="sub">${T.float.error?esc(T.float.error):`avail ${fmt(T.float.availableSats)} · obl ${fmt(T.float.obligationSats)}`}</div></div>
+    <div class="admstat"><div class="lbl">Float balance</div><div class="val ${T.float.balanceSats==null?'r':(T.float.availableSats??0)<1000?'a':'g'}">${T.float.balanceSats==null?'ERR':fmt(T.float.balanceSats)}</div><div class="sub">${T.float.error?prose(T.float.error):`avail ${fmt(T.float.availableSats)} · obl ${fmt(T.float.obligationSats)}`}</div></div>
     <div class="admstat"><div class="lbl">Fee revenue</div><div class="val g">${fmt(T.revenue.feeRevenueSats)}</div><div class="sub">${T.revenue.settledWraps} wraps · ${T.revenue.effectiveFeeBps} bps eff</div></div>
     <div class="admstat"><div class="lbl">Wrapped volume</div><div class="val">${fmt(T.revenue.wrappedVolumeSats)}</div><div class="sub">merchant got ${fmt(T.revenue.merchantPaidSats)}</div></div>
     <div class="admstat"><div class="lbl">Open wraps</div><div class="val ${T.wraps.stuck>0?'r':T.float.openWraps>0?'a':''}">${T.float.openWraps}/${T.float.openCap}</div><div class="sub">${fmt(T.wraps.openVolumeSats)} sats locked</div></div>
     <div class="admstat"><div class="lbl">Needs recon</div><div class="val ${T.wraps.stuck>0?'r':''}">${T.wraps.stuck}</div><div class="sub">${T.wraps.cancelled} cancelled · ${fmt(T.revenue.cancelledVolumeSats)} sats</div></div>
     <div class="admstat"><div class="lbl">24h</div><div class="val ${T.last24h.sendFails>0?'a':''}">${T.last24h.wrapsSettled} wraps</div><div class="sub">fee ${fmt(T.last24h.feeSats)} · send fail ${T.last24h.sendFails}</div></div>
   </div>
-  <p class="dim" style="font-size:11px;margin-top:8px;max-width:720px">${esc(T.mix.note)} Wrapped ${fmt(T.mix.wrappedInvoices)} · direct ${fmt(T.mix.directInvoices)}. Tx in ${fmt(T.transactions.volumeInSats)} · out ${fmt(T.transactions.volumeOutSats)} · fail ${T.transactions.failedOut}.</p>`;
+  <p class="dim" style="font-size:11px;margin-top:8px;max-width:720px">${prose(T.mix.note)} Wrapped ${fmt(T.mix.wrappedInvoices)} · direct ${fmt(T.mix.directInvoices)}. Tx in ${fmt(T.transactions.volumeInSats)} · out ${fmt(T.transactions.volumeOutSats)} · fail ${T.transactions.failedOut}.</p>`;
 }
 function admRowsHtml(data){
   const rows=[];
@@ -1521,8 +1524,8 @@ function admWrapRow(w){
   return `<button type="button" class="admrow" data-adm-id="${esc(w.id)}">
     <div class="k" style="color:var(--teal)">Hold wrap</div>
     <div>${admPill(w.wrapStatus,meta.label)}</div>
-    <div class="mono" style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">L1 ${admShort(w.paymentHash,8)} · L2 ${admShort(w.merchantPaymentHash,8)}${w.memo?' · '+esc(w.memo):''}</div>
-    <div class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${w.handle?'@'+esc(w.handle):'—'}${w.businessName?` <span class="dim">· ${esc(w.businessName)}</span>`:''}</div>
+    <div class="mono" style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">L1 ${admShort(w.paymentHash,8)} · L2 ${admShort(w.merchantPaymentHash,8)}${w.memo?' · '+prose(w.memo):''}</div>
+    <div class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${w.handle?'@'+esc(w.handle):'-'}${w.businessName?` <span class="dim">· ${esc(w.businessName)}</span>`:''}</div>
     <div style="text-align:right"><div style="font-weight:590">${fmt(w.amountSats)}</div>${(w.feeSats||0)>0?`<div class="mono" style="font-size:9.5px;color:var(--gold)">fee ${fmt(w.feeSats)}</div>`:''}</div>
     <div class="mono dim" style="font-size:9.5px">${ago(w.createdAt)}</div>
   </button>`;
@@ -1532,8 +1535,8 @@ function admTxRow(t){
   return `<button type="button" class="admrow" data-adm-id="${esc(t.id)}">
     <div class="k">${esc(t.direction)}·${esc(t.type)}</div>
     <div><span class="admpill ${pillColor}">${esc(t.status)}</span></div>
-    <div class="mono" style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${admShort(t.paymentHash,12)}${t.failureReason?' · '+esc(t.failureReason):''}${t.memo?' · '+esc(t.memo):''}</div>
-    <div class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.handle?'@'+esc(t.handle):'—'}${t.counterpartHandle?` <span class="dim">→ @${esc(t.counterpartHandle)}</span>`:''}</div>
+    <div class="mono" style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${admShort(t.paymentHash,12)}${t.failureReason?' · '+prose(t.failureReason):''}${t.memo?' · '+prose(t.memo):''}</div>
+    <div class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.handle?'@'+esc(t.handle):'-'}${t.counterpartHandle?` <span class="dim">→ @${esc(t.counterpartHandle)}</span>`:''}</div>
     <div style="text-align:right;font-weight:590">${fmt(t.amountSats)}</div>
     <div class="mono dim" style="font-size:9.5px">${ago(t.createdAt)}</div>
   </button>`;
@@ -1567,7 +1570,7 @@ async function admRenderDetail(id,silent){
             <div style="font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;margin-top:4px">${fmt(amt)} <span class="dim" style="font-size:12px;font-weight:450">sats</span></div>
             <div class="dim" style="font-size:11.5px;margin-top:2px">${d.handle?'@'+esc(d.handle):''} ${d.businessName?'· '+esc(d.businessName):''}</div>
           </div>
-          <span class="admpill ${statusColor}" style="font-size:11px;padding:4px 10px">${esc(d.invoice?.wrapStatus||d.transaction?.status||'')}${statusLabel?' — '+esc(statusLabel):''}</span>
+          <span class="admpill ${statusColor}" style="font-size:11px;padding:4px 10px">${esc(d.invoice?.wrapStatus||d.transaction?.status||'')}${statusLabel?' · '+esc(statusLabel):''}</span>
         </div>
         ${d.pipeline?admPipelineBlock(d):''}
         <div class="admkv">
@@ -1603,7 +1606,7 @@ async function admRenderDetail(id,silent){
       </div>`;
     body.querySelectorAll('[data-adm-id]').forEach(b=>b.onclick=()=>{ADM_ID=b.dataset.admId;admRenderDetail(ADM_ID)});
     const msgBox=$('#admActionMsg');
-    const showMsg=(txt)=>{msgBox.style.display='block';msgBox.textContent=txt};
+    const showMsg=(txt)=>{msgBox.style.display='block';msgBox.textContent=displayText(txt)};
     body.querySelectorAll('[data-adm-act]').forEach(b=>b.onclick=async()=>{
       const act=b.dataset.admAct;
       try{
@@ -1621,7 +1624,7 @@ async function admRenderDetail(id,silent){
       try{ await api('/api/admin/payments/events',{method:'POST',body:JSON.stringify({paymentId:id,message:note})}); $('#admNote').value=''; toast('Note added'); await admRenderDetail(id); }
       catch(e){ showMsg(e.message); }
     };
-  }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${esc(e.message)}</p></div>`; }
+  }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
 }
 function admKv(label,value){
   if(value===null||value===undefined||value==='') return '';
@@ -1641,12 +1644,12 @@ function admPipelineBlock(d){
       <div style="flex:1;min-width:180px;border:1px solid rgba(56,142,229,.3);background:rgba(56,142,229,.06);border-radius:8px;padding:8px 10px">
         <div class="mono" style="font-size:9px;letter-spacing:.08em;color:#7db8f0">1ST MILE · CUSTOMER → HOLD ${d.firstMile?.done?'✓':''}</div>
         <div style="font-weight:590;margin-top:3px">${fmt(d.firstMile?.amountSats)} sats</div>
-        <div class="mono dim" style="font-size:9.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.firstMile?.paymentHash||'—')}</div>
+        <div class="mono dim" style="font-size:9.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.firstMile?.paymentHash||'-')}</div>
       </div>
       <div style="flex:1;min-width:180px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.06);border-radius:8px;padding:8px 10px">
         <div class="mono" style="font-size:9px;letter-spacing:.08em;color:#c4b3fb">2ND MILE · FLOAT → MERCHANT ${d.lastMile?.done?'✓':''}</div>
         <div style="font-weight:590;margin-top:3px">${fmt(d.lastMile?.amountSats)} sats ${d.lastMile?.feeSats?`<span style="color:var(--gold);font-size:11px;font-weight:450">fee ${fmt(d.lastMile.feeSats)}</span>`:''}</div>
-        <div class="mono dim" style="font-size:9.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.lastMile?.paymentHash||'—')}</div>
+        <div class="mono dim" style="font-size:9.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.lastMile?.paymentHash||'-')}</div>
       </div>
     </div>
     <div style="margin-top:8px">${cells}</div>
@@ -1666,8 +1669,8 @@ function admTimelineItem(ev,isLast){
         ${ev.source==='event'?'<span style="color:var(--teal)">rec</span>':''}
         ${typeof ev.durationMs==='number'?`<span>${ev.durationMs}ms</span>`:''}
       </div>
-      <div class="admtl-msg">${esc(ev.message||'')}</div>
-      ${ev.errorMessage?`<div class="admtl-err">${ev.errorClass?'['+esc(ev.errorClass)+'] ':''}${esc(ev.errorMessage)}</div>`:''}
+      <div class="admtl-msg">${prose(ev.message||'')}</div>
+      ${ev.errorMessage?`<div class="admtl-err">${ev.errorClass?'['+esc(ev.errorClass)+'] ':''}${prose(ev.errorMessage)}</div>`:''}
     </div>
   </div>`;
 }

@@ -15,6 +15,7 @@ import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { reconcileAccountInvoicesBounded } from "./money/invoiceMonitor.js";
 import { onAccountEvent , emitAccountEvent } from "./events.js";
+import { handleCardsPreview } from "../plugins/cards-preview.js";
 import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handleExtensionsRoute } from "../plugins/extensions.js";
@@ -22,7 +23,7 @@ import { handlePosboxRoute } from "../plugins/posbox.js";
 import { handleShopRoute } from "../plugins/shop.js";
 import { handlePartnerRoute } from "../plugins/partner.js";
 import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
-const DOMAIN = process.env.DOMAIN ?? "openln.com";
+import { DOMAIN } from "./domain.js";
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
 const json = (r: ServerResponse, s: number, b: unknown) => { r.writeHead(s, { "content-type": "application/json" }); r.end(JSON.stringify(b)); };
@@ -46,22 +47,27 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/healthz") return json(res, 200, { status: "ok" });
     const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]);
     const currentAccount = cardToken ? await auth.authenticate(cardToken) : undefined;
+    if(await handleCardsPreview(req,res,u))return;
     // RIC/CYD device boot handshake — GET /pos/config (device fetches merchant currency + rate modifiers) and GET /price (BTC/fiat rate). Ported verbatim from bitPOS routes/pos.ts + routes/price.ts.
     if (req.method === "GET" && u.pathname === "/api/pos/config") {
       if (!currentAccount) return json(res, 401, { error: "Authentication required" });
-      const [account] = await db.select({ currency: accountsTable.currency, rateModifier: accountsTable.rateModifier, sendRateModifier: accountsTable.sendRateModifier }).from(accountsTable).where(eq(accountsTable.id, currentAccount.id));
+      const [account] = await db.select({ currency: accountsTable.currency, rateSource: accountsTable.rateSource, rateModifier: accountsTable.rateModifier, sendRateModifier: accountsTable.sendRateModifier }).from(accountsTable).where(eq(accountsTable.id, currentAccount.id));
       if (!account) return json(res, 404, { error: "Account not found" });
-      return json(res, 200, { currency: account.currency, rateModifier: account.rateModifier ?? "", sendRateModifier: account.sendRateModifier ?? "" });
+      return json(res, 200, { currency: account.currency, rateSource: account.rateSource ?? "coingecko", rateModifier: account.rateModifier ?? "", sendRateModifier: account.sendRateModifier ?? "" });
     }
     if (req.method === "GET" && u.pathname === "/api/price") {
       const { getBtcPrice, getBtcPriceFor, applyRateModifier } = await import("./money/price.js");
       const vs = u.searchParams.get("vs_currency");
-      const source = u.searchParams.get("source")?.toLowerCase() === "binance" ? "binance" : "coingecko";
+      const [priceSettings]=currentAccount ? await db.select({rateSource:accountsTable.rateSource}).from(accountsTable).where(eq(accountsTable.id,currentAccount.id)) : [];
+      const requestedSource=u.searchParams.get("source")?.toLowerCase();
+      if(requestedSource && !["binance","coingecko"].includes(requestedSource))return json(res,400,{error:"Invalid price source"});
+      const source=requestedSource || priceSettings?.rateSource || "coingecko";
       const modifier = u.searchParams.get("modifier") ?? undefined;
       if (vs && vs.trim()) {
         const currency = vs.trim().toLowerCase();
         let price = await getBtcPriceFor(currency, source as "coingecko" | "binance");
         if (modifier) price = applyRateModifier(price, modifier);
+        if (!Number.isFinite(price) || price <= 0) return json(res,503,{error:"Exchange rate unavailable; do not use a stale or zero conversion",currency,source});
         return json(res, 200, { currency, price, source, modified: !!modifier });
       }
       const price = await getBtcPrice();
@@ -149,10 +155,21 @@ const server = createServer(async (req, res) => {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req);
       const updates: Record<string, string | null> = {};
-      if (typeof v.currency === "string" && /^[a-z]{3}$/i.test(v.currency)) updates.currency = v.currency.toLowerCase();
-      if (typeof v.rateSource === "string" && ["coingecko", "binance"].includes(v.rateSource)) updates.rateSource = v.rateSource;
-      if (typeof v.rateModifier === "string") updates.rateModifier = v.rateModifier.trim() || null;
-      if (typeof v.sendRateModifier === "string") updates.sendRateModifier = v.sendRateModifier.trim() || null;
+      if (v.currency !== undefined) {
+        if(typeof v.currency !== "string" || !/^(?:[a-z]{3}|sats)$/i.test(v.currency)) return json(res,400,{error:"Choose a valid currency"});
+        updates.currency=v.currency.toLowerCase();
+      }
+      if(v.rateSource !== undefined) {
+        if(typeof v.rateSource !== "string" || !["coingecko","binance"].includes(v.rateSource)) return json(res,400,{error:"Choose a valid price source"});
+        updates.rateSource=v.rateSource;
+      }
+      for(const field of ["rateModifier","sendRateModifier"]) {
+        if(v[field] === undefined) continue;
+        if(typeof v[field] !== "string") return json(res,400,{error:"Rate adjustment must be text"});
+        const value=String(v[field]).replace(/\s/g,"");
+        if(value && (value.length>80 || !/^[a-z]{3,5}(?:\*\d+(?:\.\d+)?(?:[+-]\d+(?:\.\d+)?)*|[+-]\d+(?:\.\d+)?(?:[+-]\d+(?:\.\d+)?)*)$/i.test(value) || /\*0(?:\.0+)?(?:$|[+-])/.test(value))) return json(res,400,{error:"Use a positive rate adjustment such as ZAR*1.02, or leave blank for market rate"});
+        updates[field]=value || null;
+      }
       if (Object.keys(updates).length === 0) return json(res, 400, { error: "Nothing to update" });
       await db.update(accountsTable).set(updates).where(eq(accountsTable.id, account.id));
       return json(res, 200, { ok: true });
@@ -176,7 +193,14 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && u.pathname === "/api/wallet/connect") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const connection = String(v.connection ?? v.nwcUrl ?? "").trim();
-      if (!connection.startsWith("nostr+walletconnect://")) return json(res, 400, { error: "Invalid NWC connection string" });
+      try {
+        const parsed=new URL(connection);
+        if(parsed.protocol!=="nostr+walletconnect:" || !/^[0-9a-f]{64}$/i.test(parsed.hostname) || !/^[0-9a-f]{64}$/i.test(parsed.searchParams.get("secret")||"")) throw Error();
+        const relays=parsed.searchParams.getAll("relay");
+        if(!relays.length || relays.some(relay=>{const u=new URL(relay);return !["ws:","wss:"].includes(u.protocol)}))throw Error();
+      } catch { return json(res,400,{error:"Paste the complete NWC connection, including relay and secret"}); }
+      const {getBalance}=await import("./money/nwc.js");
+      try{await getBalance(connection)}catch{return json(res,422,{error:"Could not read this wallet. Check its NWC permissions and connection; your previous wallet is unchanged."});}
       await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection) }).where(eq(accountsTable.id, account.id));
       return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
     }
@@ -235,7 +259,7 @@ const server = createServer(async (req, res) => {
           amountSats,
           feeSats: wrap.feeSats,
         });
-        return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, expiresAt: wrap.expiresAt });
+        return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, feeSats:wrap.feeSats, merchantAmountSats:amountSats-wrap.feeSats, expiresAt: wrap.expiresAt });
       }
       const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);
       await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
@@ -243,9 +267,10 @@ const server = createServer(async (req, res) => {
     }
     const posStatus = u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/status$/);
     if (req.method === "GET" && posStatus) {
+      if(!currentAccount)return json(res,401,{error:"Authentication required"});
       const paymentHash = decodeURIComponent(posStatus[1]);
       const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
-      if (!invoice) return json(res, 404, { status: "unknown", paymentHash });
+      if (!invoice || invoice.accountId!==currentAccount.id) return json(res, 404, { status: "unknown", paymentHash });
       if (invoice.wrapStatus) {
         const status = await advanceWrap(invoice as unknown as WrapRow);
         if (status === "settled") emitAccountEvent(invoice.accountId, "payment", { paymentHash, status: "paid", amountSats: invoice.amountSats, feeSats: invoice.feeSats ?? 0 });

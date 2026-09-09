@@ -14,6 +14,7 @@ function isOnline(lastUsedAt: Date | null): boolean {
 }
 
 export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u:URL,account:{id:string}|undefined):Promise<boolean>{
+ if(u.pathname==="/api/posbox/firmware/manifest"&&req.method==="GET"){try{const manifest=JSON.parse(await readFile(join(process.cwd(),"firmware","manifest.json"),"utf8"));return json(res,200,manifest);}catch{return json(res,404,{error:"Firmware manifest unavailable"});}}
  if(u.pathname==="/api/posbox/firmware"&&req.method==="GET"){try{const data=await readFile(join(process.cwd(),"firmware","posbox-latest.bin"));res.writeHead(200,{"content-type":"application/octet-stream","content-length":data.length,"content-disposition":"attachment; filename=ric-latest.bin"});res.end(data);}catch{return json(res,404,{error:"Firmware unavailable"});}return true;}
 
  // RIC device tokens: account-scoped auth tokens issued when a user links a RIC to their account (verbatim from bitPOS device_tokens)

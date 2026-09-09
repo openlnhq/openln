@@ -57,7 +57,28 @@ nav.tabs button{padding:7px 13px;border-radius:var(--r-sm);font-size:13.5px;font
 .drawer-link:hover,.drawer-link.on{background:var(--surface2);color:var(--text)}
 .drawer-link .arrow{color:var(--text3);font-size:16px}
 .drawer-divider{height:1px;background:var(--line);margin:14px 0}
-@keyframes drawerIn{from{transform:translateX(18px);opacity:.5}to{transform:none;opacity:1}}
+.header-actions{display:flex;align-items:center;gap:8px}
+.menu-btn,.themetoggle,.xbtn{min-width:44px;min-height:44px;touch-action:manipulation}
+.brand{font-size:19px;letter-spacing:-.55px;gap:9px}
+.brand .lnmark{width:30px;height:30px;border-radius:0;background:none;box-shadow:none}
+.brand .lnmark svg{width:30px;height:30px}
+.brand span{font-size:inherit}
+.drawer-backdrop{background:#050a09;z-index:1000}
+.drawer{display:flex;flex-direction:column;width:min(360px,calc(100vw - 32px));padding:20px 18px calc(24px + env(safe-area-inset-bottom));background:var(--bg2);overflow-y:auto;overscroll-behavior:contain;animation:drawerIn .16s ease-out}
+.drawer-head{margin-bottom:28px}
+.drawer-link{gap:14px;min-height:62px;padding:13px 14px;font-size:16px;font-weight:510;border:1px solid transparent;touch-action:manipulation}
+.drawer-link>svg{flex-shrink:0;color:var(--text2)}
+.drawer-label{flex:1}.drawer-label small{display:block;font-size:12px;color:var(--text2);font-weight:400;margin-top:2px}
+.drawer-link.on{background:var(--teal-dim);border-color:var(--teal-line);color:var(--text)}
+.drawer-link.on>svg{color:var(--teal)}
+.drawer-foot{margin-top:auto;padding:30px 14px 0;display:grid;gap:10px}
+.drawer-foot>a,.drawer-foot>button{min-height:44px;display:flex;align-items:center;justify-content:space-between;text-align:left;color:var(--text2);font-size:13px}
+.drawer-foot>small{margin-top:12px;font-size:11px;line-height:1.6;color:var(--text3)}
+.drawer-divider{margin:16px 14px}.view-loading{display:flex;align-items:center;justify-content:center;gap:12px;padding:90px 20px;color:var(--text2);font-size:14px;flex-wrap:wrap}
+button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--teal);outline-offset:4px}
+html.light .drawer-backdrop{background:#dde6e3}html.light .drawer{background:#f7faf9}
+@keyframes drawerIn{from{transform:translateX(14px)}to{transform:none}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 nav.tabs button:hover,nav.tabs a{padding:7px 13px;border-radius:var(--r-sm);font-size:13.5px;font-weight:510;color:var(--text2);transition:.15s}
 nav.tabs button:hover,nav.tabs a:hover{color:var(--text);background:var(--surface2)}
 nav.tabs button.on{color:var(--text);background:var(--surface3);box-shadow:inset 0 0 0 1px var(--line)}
@@ -121,7 +142,7 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
   .rowtx .t2{font-size:10.5px}
   .copyrow{flex-direction:column}
   .copyrow .btn{width:100%;justify-content:center}
-  .brand span{font-size:14px}
+  .brand span{font-size:19px}
   .uavatar{width:26px;height:26px;font-size:11px}
 }
 
@@ -381,6 +402,41 @@ table.tb tr:last-child td{border-bottom:0}
 .admkv{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:12px}
 .admkv .k{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
 .admkv .v{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text);margin-top:2px;overflow-wrap:anywhere}
+/* Merchant-facing layout: same wallet hierarchy, legible controls. */
+:root{--text3:#82938f;--teal:#0E8388;--teal-dim:rgba(14,131,136,.13);--teal-line:rgba(37,175,176,.34)}
+html.light{--text3:#586f69;--teal:#006b6b;--gold:#916f00}
+[hidden]{display:none!important}
+.shell{max-width:1080px;padding-bottom:24px}.topin{height:64px}header.top{background:var(--bg);backdrop-filter:none}
+#view{outline:none}.wos{max-width:580px;margin:auto;min-height:calc(100dvh - 88px)}
+.wos-hero{padding-top:70px}.wos-hist{min-height:46px}.connect-home{min-height:48px;margin-top:26px;padding-inline:28px}
+.wos-actions{padding-inline:0}.wos-actions .btn{min-height:54px}
+.page-utility{font-size:13px;color:var(--teal);margin-bottom:24px}.page-utility a{display:inline-flex;min-height:44px;align-items:center}
+#cardsRoot,#ricRoot,.setgrid{max-width:760px;margin-inline:auto}
+.cardsgrid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));max-width:760px}
+.cardtile{min-width:0}.cardtile-meta{color:var(--text2);line-height:1.7}.cardtile.new{min-height:214px}
+.cardform .input{min-height:48px;font-size:15px}.cardform .field>span{font-size:13px}.cardform .btn{min-height:48px}
+.manage-actions .btn{min-height:44px}.manage-line{gap:18px;font-size:13px;padding-block:8px}.manage-line>b{min-width:0;text-align:right;overflow-wrap:anywhere}
+.cardface-network{text-transform:none;letter-spacing:-.3px;font-size:15px;color:#dcece9}
+.modalbox{max-height:calc(100dvh - 32px);overflow:auto}.modalhead h2{font-size:21px;letter-spacing:-.5px}.modalhead .xbtn{flex-shrink:0}
+.setup-tabs{display:flex;gap:6px;padding:4px;background:var(--surface2);border-radius:12px;margin:18px 0}
+.setup-tabs>button{flex:1;min-height:46px;border-radius:9px;font-size:13px;color:var(--text2)}
+.setup-tabs>button.on{background:var(--bg2);color:var(--text);box-shadow:0 0 0 1px var(--line2)}
+.qrbox{background:#fff;max-width:264px;margin:18px auto;min-height:248px;padding:10px}.qrbox img{width:240px;height:240px;max-width:100%;object-fit:contain}
+.setup-copy{font-size:13px;line-height:1.65}.setup-copy a{color:var(--teal);text-decoration:underline}
+.setup-steps{padding:8px 0 8px 22px;display:grid;gap:15px;font-size:14px;color:var(--text2)}
+.setup-steps li{padding-left:6px}.setup-advanced{margin-top:20px;border-top:1px solid var(--line);padding-top:14px}.setup-advanced summary{font-size:12px;color:var(--text2);cursor:pointer;min-height:40px}
+.hint{font-size:12px;line-height:1.65;color:var(--text2)}
+.setgrid{max-width:760px}.setcard{padding:24px}.setcard h3{font-size:16px}.setcard .sub{font-size:13px;line-height:1.55;color:var(--text2)}
+.setrow label{font-size:14px}.setrow label small{font-size:12px;color:var(--text2)}
+.setrow select,.setrow input{max-width:55%;width:260px;min-height:46px;min-width:0;font-size:14px;background:var(--bg2)}
+.setrow option{background:var(--bg2);color:var(--text)}.set-actions .btn{min-height:46px}
+.rate-preview{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;font-size:12px;color:var(--text2)}
+.rate-preview>div{padding:12px;border:1px solid var(--line);border-radius:8px}.rate-preview span{display:block;margin-bottom:5px}.rate-preview b{display:block;font-size:12px;font-weight:500;color:var(--text)}
+.ricgrid{max-width:760px;grid-template-columns:1fr 1fr}.rictile{min-height:142px}.rictile-sub{font-size:12px;color:var(--text2);line-height:1.6}.ricrow{max-width:760px}
+.ricrates{max-width:760px;margin-top:24px;padding:18px;border:1px solid var(--line);border-radius:12px;font-size:13px;color:var(--text2)}
+@media(max-width:600px){.shell{padding:0 18px 16px}header.top{margin:0 -18px;padding:0 18px}.topin{height:62px}.wos-hero{padding:48px 6px 24px}.wos-latest{margin-inline:0}.wos-actions{padding-bottom:calc(14px + env(safe-area-inset-bottom))}.setcard{padding:20px 16px}.setrow{flex-direction:column;align-items:stretch;gap:8px;padding:14px 0}.setrow select,.setrow input{max-width:100%;width:100%}.setrow label small{display:inline;margin-left:6px}.rate-preview{grid-template-columns:1fr}.set-actions{align-items:flex-start;flex-direction:column}.cardface{max-width:340px}.modalbox{width:100%;padding:22px 18px}.ricgrid{gap:10px}.rictile{padding:16px}.cardsgrid{grid-template-columns:1fr 1fr;gap:12px}.cardtile{padding:12px}.cardtile.new{min-height:180px}.cardtile-meta{font-size:11px}.cardtile-name{font-size:13px}}
+@media(max-width:350px){.cardsgrid,.ricgrid{grid-template-columns:1fr}}
+
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;510;590;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -392,56 +448,74 @@ const tok=()=>localStorage.getItem('openln_token');
 const fmt=n=>Number(n||0).toLocaleString('en-US');
 const ago=t=>{const s=(Date.now()-new Date(t))/1e3;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'};
 const MARK=`<span class="lnmark"><svg width="17" height="17" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="#14b8a6"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round"/></svg></span>`;
-async function api(path,opts={}){opts.headers={'content-type':'application/json',...(opts.headers||{}),...(tok()?{Authorization:'Bearer '+tok()}:{})};const r=await fetch(path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||r.status);return d}
-function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),3200)}
+async function api(path,opts={}){opts.headers={'content-type':'application/json',...(opts.headers||{}),...(tok()?{Authorization:'Bearer '+tok()}:{})};const r=await fetch(path,opts);const d=await r.json().catch(()=>({}));if(!r.ok){const e=Error(d.error||('Request failed ('+r.status+')'));e.status=r.status;throw e}return d}
+function toast(m){document.querySelectorAll('.toast').forEach(t=>t.remove());const t=document.createElement('div');t.className='toast';t.style.pointerEvents='none';t.setAttribute('role','status');t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),3200)}
 function modal(html){const w=document.createElement('div');w.className='modal';w.innerHTML=`<div class="modalbox">${html}</div>`;w.addEventListener('click',e=>{if(e.target===w)w.remove()});document.body.append(w);w.querySelector('.xbtn')?.addEventListener('click',()=>w.remove());return w}
 </script>
 <script>
 /* ============ APP ============ */
-let VIEW='wallet';
+let VIEW=['wallet','ric','cards','settings','partner','adminpayments'].includes(location.hash.slice(1))?location.hash.slice(1):(location.pathname.startsWith('/partner')?'partner':'wallet');
 let IS_ADMIN=false;
 async function probeAdmin(){
   try{ await api('/api/admin/payments/treasury'); IS_ADMIN=true; }
   catch(e){ IS_ADMIN=false; }
 }
+const NAV_ICONS={wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 8h18m-5 5h5m-5 0v3h5"/>',ric:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 6h6M9 10h6m-6 5h1m4 0h1m-6 3h1m4 0h1"/>',cards:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20m-16 5h4"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>'};
+const navIcon=name=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[name]||NAV_ICONS.wallet}</svg>`;
+let activeDrawer=null;
+function closeDrawer(restoreFocus=true){if(activeDrawer)activeDrawer(restoreFocus)}
+function navigate(view){
+  closeDrawer(false);document.querySelectorAll('.toast').forEach(t=>t.remove());
+  VIEW=['wallet','ric','cards','settings','partner','adminpayments'].includes(view)?view:'wallet';
+  history.replaceState(null,'','#'+VIEW);
+  window.scrollTo(0,0);
+  return render();
+}
+async function openCardShop(){
+  closeDrawer(false);
+  try{const r=await api('/api/auth/embed-token',{method:'POST'});if(r?.embedUrl){location.href=r.embedUrl;return}}catch(e){}
+  location.href='https://cards.openln.com';
+}
 function openDrawer(){
-  const host=document.body;
-  const existing = document.querySelector('.drawer-backdrop');
-  if(existing) existing.remove();
-  const el = document.createElement('div');
-  el.id = 'drawerHost';
-  document.body.appendChild(el);
-  const host2 = el;
-  host2.innerHTML=`<div class="drawer-backdrop" id="drawerBackdrop">
-    <aside class="drawer" role="dialog" aria-label="Wallet menu">
-      <div class="drawer-head"><span class="drawer-title">openLN</span><button class="xbtn" id="closeDrawer" aria-label="Close menu">✕</button></div>
-      <nav class="drawer-nav">
-        <button class="drawer-link ${VIEW==='wallet'?'on':''}" data-drawer-view="wallet">Wallet <span class="arrow">›</span></button>
-        <button class="drawer-link ${VIEW==='cards'?'on':''}" data-drawer-view="cards">Cards <span class="arrow">›</span></button>
-        <a class="drawer-link" id="cardShopLink" href="https://cards.openln.com">Card shop <span class="arrow">↗</span></a>
-        <button class="drawer-link ${VIEW==='ric'?'on':''}" data-drawer-view="ric">RIC <span class="arrow">›</span></button>
-        <button class="drawer-link ${VIEW==='extensions'?'on':''}" data-drawer-view="extensions">Extensions <span class="arrow">›</span></button>
-        <button class="drawer-link ${VIEW==='partner'?'on':''}" data-drawer-view="partner">Partner <span class="arrow">›</span></button>
-        ${IS_ADMIN?`<button class="drawer-link ${VIEW==='adminpayments'?'on':''}" data-drawer-view="adminpayments">Treasury <span class="arrow">›</span></button>`:''}
-        <div class="drawer-divider"></div>
-        <button class="drawer-link" id="drawerSettings">Settings <span class="arrow">›</span></button>
-        <button class="drawer-link" id="drawerLogout">Log out <span class="arrow">→</span></button>
-      </nav>
-    </aside></div>`;
-  const close=()=>{const h=document.getElementById('drawerHost');if(h)h.remove();$('#menuBtn')?.setAttribute('aria-expanded','false')};
-  $('#menuBtn').setAttribute('aria-expanded','true');
-  $('#closeDrawer').onclick=close;$('#drawerBackdrop').onclick=e=>{if(e.target.id==='drawerBackdrop')close()};
-  host.querySelectorAll('[data-drawer-view]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.drawerView;close();render()});
-  $('#drawerSettings').onclick=async()=>{close();VIEW='settings';try{await render()}catch(e){console.error('settings render error',e);toast(e.message)}};
-  $('#drawerLogout').onclick=()=>{close();localStorage.removeItem('openln_token');if(liveSource)liveSource.close();login()};
-  $('#cardShopLink').onclick=async(e)=>{
-    e.preventDefault();
-    try{
-      const r=await api('/api/auth/embed-token',{method:'POST'});
-      if(r&&r.embedUrl){window.location.href=r.embedUrl;return}
-    }catch(err){}
-    window.location.href='https://cards.openln.com';
+  if(activeDrawer){closeDrawer();return}
+  const opener=$('#menuBtn'), previousOverflow=document.body.style.overflow;
+  const el=document.createElement('div');
+  el.className='drawer-backdrop'; el.id='drawerBackdrop';
+  el.innerHTML=`<aside class="drawer" role="dialog" aria-modal="true" aria-label="openLN menu">
+    <div class="drawer-head"><a class="brand" href="#wallet" id="drawerHome">${MARK}<span>open<em>LN</em></span></a><button class="xbtn" id="closeDrawer" aria-label="Close menu">✕</button></div>
+    <nav class="drawer-nav" aria-label="Your account">
+      ${[['wallet','Wallet','Your connected balance'],['ric','RIC','Your counter devices'],['cards','Cards','Your tap-to-pay cards']].map(([v,label,hint])=>`<button class="drawer-link ${VIEW===v?'on':''}" data-drawer-view="${v}" ${VIEW===v?'aria-current="page"':''}>${navIcon(v)}<span class="drawer-label">${label}<small>${hint}</small></span><span class="arrow">›</span></button>`).join('')}
+      <div class="drawer-divider"></div>
+      <button class="drawer-link ${VIEW==='settings'?'on':''}" id="drawerSettings">${navIcon('settings')}<span class="drawer-label">Settings</span><span class="arrow">›</span></button>
+      ${IS_ADMIN?'<button class="drawer-link" data-drawer-view="adminpayments"><span class="drawer-label">Treasury</span><span class="arrow">›</span></button>':''}
+    </nav>
+    <div class="drawer-foot"><a id="cardShopLink" href="https://cards.openln.com">Get cards &amp; hardware <span aria-hidden="true">↗</span></a><button id="drawerLogout">Log out</button><small>Connected to your wallet.<br>No balance held at openLN.</small></div>
+  </aside>`;
+  const dismiss=restore=>{
+    el.remove();document.removeEventListener('keydown',onKey);
+    document.body.style.overflow=previousOverflow;root.inert=false;
+    $('#menuBtn')?.setAttribute('aria-expanded','false');activeDrawer=null;
+    if(restore && opener?.isConnected)opener.focus();
   };
+  const onKey=e=>{
+    if(e.key==='Escape'){e.preventDefault();dismiss(true);return}
+    if(e.key==='Tab'){
+      const controls=[...el.querySelectorAll('a[href],button:not([disabled])')];
+      const first=controls[0],last=controls[controls.length-1];
+      if(e.shiftKey && document.activeElement===first){e.preventDefault();last.focus()}
+      else if(!e.shiftKey && document.activeElement===last){e.preventDefault();first.focus()}
+    }
+  };
+  activeDrawer=dismiss;document.body.append(el);document.body.style.overflow='hidden';root.inert=true;
+  opener?.setAttribute('aria-expanded','true');document.addEventListener('keydown',onKey);
+  el.querySelector('#closeDrawer').onclick=()=>dismiss(true);
+  el.onclick=e=>{if(e.target===el)dismiss(true)};
+  el.querySelectorAll('[data-drawer-view]').forEach(b=>b.onclick=()=>navigate(b.dataset.drawerView));
+  el.querySelector('#drawerSettings').onclick=()=>navigate('settings');
+  el.querySelector('#drawerHome').onclick=e=>{e.preventDefault();navigate('wallet')};
+  el.querySelector('#drawerLogout').onclick=()=>{dismiss(false);localStorage.removeItem('openln_token');if(liveSource)liveSource.close();login()};
+  el.querySelector('#cardShopLink').onclick=e=>{e.preventDefault();openCardShop()};
+  el.querySelector('#closeDrawer').focus();
 }
 async function boot(){
   if(!tok())return login();
@@ -452,15 +526,15 @@ async function boot(){
 function login(){
   root.innerHTML=`<div class="login"><div class="loginbox">
     <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
-    <div class="overline">Wallet core</div>
-    <h1 style="margin-top:8px">Your wallet.<br>Your keys.</h1>
+    <div class="overline">Wallet · RIC · Cards</div>
+    <h1 style="margin-top:8px">Your wallet.<br>Your choice.</h1>
     <p class="sub">Connect your own Nostr Wallet Connect wallet. openLN never takes custody of your sats.</p>
     <form id="lf">
       <label class="field"><span>Handle</span><input class="input" name="handle" placeholder="satoshi" required autofocus></label>
       <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Continue</button>
     </form>
     <p class="hint" id="lerr" style="color:var(--err)"></p>
-    <p class="hint">New here? Enter a handle to create your wallet.</p>
+    <p class="hint">New here? Choose a handle to create your account.</p>
   </div></div>`;
   $('#lf').onsubmit=async e=>{e.preventDefault();
     const handle=new FormData(e.target).get('handle');
@@ -476,9 +550,9 @@ function login(){
 function loginPassword(handle){
   root.innerHTML=`<div class="login"><div class="loginbox">
     <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
-    <div class="overline">Wallet core</div>
+    <div class="overline">Wallet · RIC · Cards</div>
     <h1 style="margin-top:8px">Welcome back.</h1>
-    <p class="sub">Signing in as <b>${handle}</b>.</p>
+    <p class="sub">Signing in as <b>${esc(handle)}</b>.</p>
     <form id="lf">
       <label class="field"><span>Password</span><input class="input" name="password" type="password" placeholder="••••••••" required autofocus></label>
       <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Enter wallet</button>
@@ -494,12 +568,12 @@ function loginPassword(handle){
 function loginRegister(handle){
   root.innerHTML=`<div class="login"><div class="loginbox">
     <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
-    <div class="overline">Wallet core</div>
-    <h1 style="margin-top:8px">Create your wallet.</h1>
-    <p class="sub">Handle <b>${handle}</b> is available. Choose a password.</p>
+    <div class="overline">Wallet · RIC · Cards</div>
+    <h1 style="margin-top:8px">Create your account.</h1>
+    <p class="sub">Handle <b>${esc(handle)}</b> is available. Choose a password.</p>
     <form id="lf">
       <label class="field"><span>Password</span><input class="input" name="password" type="password" placeholder="At least 12 characters" required autofocus minlength="12"></label>
-      <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Create wallet</button>
+      <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Create account</button>
     </form>
     <p class="hint" id="lerr" style="color:var(--err)"></p>
     <p class="hint"><a href="#" id="lback">← use a different handle</a></p>
@@ -514,7 +588,7 @@ function loginMigratePin(handle){
     <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
     <div class="overline">Legacy bitPOS account</div>
     <h1 style="margin-top:8px">Set a password.</h1>
-    <p class="sub"><b>${handle}</b> was migrated from bitPOS and still uses a PIN. Enter your bitPOS PIN once to prove it's you, then choose a password for openLN.com going forward. Your PIN keeps working for sensitive in-app actions.</p>
+    <p class="sub"><b>${esc(handle)}</b> was migrated from bitPOS and still uses a PIN. Enter your bitPOS PIN once to prove it's you, then choose a password for openLN.com going forward. Your PIN keeps working for sensitive in-app actions.</p>
     <form id="lf">
       <label class="field"><span>bitPOS PIN</span><input class="input" name="pin" type="password" inputmode="numeric" placeholder="••••" required autofocus></label>
       <label class="field"><span>New password</span><input class="input" name="password" type="password" placeholder="At least 12 characters" required minlength="12"></label>
@@ -528,63 +602,66 @@ function loginMigratePin(handle){
     try{const s=await api('/api/auth/migrate-password',{method:'POST',body:JSON.stringify({handle,pin:b.pin,password:b.password})});localStorage.setItem('openln_token',s.token);render()}
     catch(x){$('#lerr').textContent=x.message}};
 }
+let renderVersion=0;
 async function render(){
   admStopPoll();
+  const version=++renderVersion,view=VIEW;
   try{
-    const [st,pl]=await Promise.all([api('/api/wallet/status'),api('/api/plugins')]);
-    let bal={balanceSats:0,connected:false};try{bal=await api('/api/wallet/balance')}catch(e){}
-    const plugins=(pl||[]).filter(p=>(p.uiSlots||[]).includes('dashboard'));
-    root.innerHTML=`<div class="shell">
-    <header class="top"><div class="topin">
-      <div class="brand">${MARK}<span>open<em>LN</em></span></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="themetoggle" id="themeToggle" aria-label="Toggle theme">☀</button>
-        <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
-      </div>
-    </div><div id="drawerHost"></div></header>
-    <div id="view"></div></div>`;
-    document.querySelectorAll('nav.tabs button').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render()});
-    if(VIEW==='wallet')await vWallet(st,bal);
-    if(VIEW==='cards')await vCards();
-    if(VIEW==='ric')await vRic();
-    if(VIEW==='extensions')await vExt(plugins);
-    if(VIEW==='partner')await vPartner();
-    if(VIEW==='adminpayments')await vAdminPayments();
-    if(VIEW==='settings')await vSettings();
-    if(window.applyThemeToggle)window.applyThemeToggle();
+    if(!$('#view'))root.innerHTML=`<div class="shell">
+      <header class="top"><div class="topin">
+        <a class="brand" href="#wallet" id="brandHome">${MARK}<span>open<em>LN</em></span></a>
+        <div class="header-actions"><button class="themetoggle" id="themeToggle" aria-label="Toggle theme">☀</button><button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="drawerBackdrop"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button></div>
+      </div></header><main id="view" tabindex="-1"></main></div>`;
     $('#menuBtn').onclick=openDrawer;
+    $('#brandHome').onclick=e=>{e.preventDefault();navigate('wallet')};
+    if(window.applyThemeToggle)window.applyThemeToggle();
+    document.title='openLN — '+({wallet:'Wallet',ric:'RIC',cards:'Cards',settings:'Settings',partner:'Partners',adminpayments:'Treasury'}[view]||'Wallet');
+    $('#view').innerHTML='<div class="view-loading" role="status"><span class="spin"></span><span>Loading '+esc(view==='ric'?'RIC':view)+'…</span></div>';
+    if(view==='wallet'){
+      const [st,bal]=await Promise.all([api('/api/wallet/status'),api('/api/wallet/balance').catch(()=>({balanceSats:null,connected:false,unavailable:true}))]);
+      if(version!==renderVersion)return;
+      await vWallet(st,bal,version);
+    }
+    else if(view==='cards')await vCards();
+    else if(view==='ric')await vRic();
+    else if(view==='settings')await vSettings(version);
+    else if(view==='partner')await vPartner();
+    else if(view==='adminpayments')await vAdminPayments();
     startLiveUpdates();
-  }catch(e){if(String(e.message).includes('401')){localStorage.removeItem('openln_token');login()}else toast(e.message)}
+  }catch(e){if(version!==renderVersion)return;if(e.status===401){localStorage.removeItem('openln_token');closeDrawer(false);login()}else{$('#view').innerHTML=`<div class="view-loading" role="alert">${esc(e.message)} <button class="btn ghost" id="retryView">Try again</button></div>`;$('#retryView').onclick=render}}
 }
 let liveSource;
 function startLiveUpdates(){
-  if(liveSource) liveSource.close();
+  if(liveSource && liveSource.readyState!==EventSource.CLOSED)return;
   liveSource = new EventSource('/api/events?token=' + encodeURIComponent(tok()));
   liveSource.addEventListener('payment', () => { if (VIEW === 'wallet') render(); });
   liveSource.onerror = () => { liveSource.close(); setTimeout(() => { if (tok()) startLiveUpdates(); }, 5000); };
 }
 /* ---- WALLET VIEW ---- */
-async function vWallet(st,bal){
+async function vWallet(st,bal,version=renderVersion){
   let txs=[];try{txs=await api('/api/reports/transactions?limit=500')}catch(e){}
   const rows=(Array.isArray(txs)?txs:txs.transactions||[]);
   const latest=rows[0];
+  if(version!==renderVersion || VIEW!=='wallet')return;
   $('#view').innerHTML=`
   <div class="wos">
     <div class="wos-hero">
-      <div class="conn"><span class="dot ${bal.connected?'':'off'}"></span>${bal.connected?'NWC connected':'wallet not connected'}</div>
-      <div class="wos-bal">${fmt(bal.balanceSats)}<span class="cur">sats</span></div>
-      <div class="wos-fiat">your keys · your node · live balance</div>
+      <div class="conn"><span class="dot ${bal.connected?'':'off'}"></span>${bal.connected?'Your connected wallet':st.connected?'Wallet temporarily unavailable':'Connect your wallet'}</div>
+      <div class="wos-bal">${bal.connected?fmt(bal.balanceSats):'—'}<span class="cur">sats</span></div>
+      <div class="wos-fiat">${bal.connected?'Live balance · held in your wallet':st.connected?'Unable to read your balance. Your wallet still holds your funds.':'Your wallet funds your cards and RIC.'}</div>
+      ${!st.connected?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">Coinos, Primal, Alby, or another NWC wallet</p>':''}
     </div>
     <div class="wos-latest" id="txlist">${latest?txRow(latest):emptyTx()}</div>
-    <div class="wos-hist" id="bhist">▾ History</div>
+    <button class="wos-hist" id="bhist" aria-expanded="false">▾ History</button>
     <div class="wos-spacer"></div>
     <div class="wos-actions">
       <button class="btn receive" id="brecv">Receive</button>
       <button class="btn send" id="bsend">Send</button>
     </div>
   </div>`;
-  $('#brecv').onclick=receiveModal;
-  $('#bsend').onclick=sendModal;
+  $('#connectWalletHome')?.addEventListener('click',walletModal);
+  $('#brecv').onclick=st.connected?receiveModal:walletModal;
+  $('#bsend').onclick=st.connected?sendModal:walletModal;
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
   $('#bhist').onclick=async()=>{
     const list=$('#txlist');
@@ -657,7 +734,7 @@ function receiveModal(){
       m.querySelector('#rres').innerHTML=`
         <div class="qrwrap"><img src="/api/payments/${inv.paymentHash}/qr" alt="invoice QR" width="240" height="240"></div>
         <div class="invstatus wait" id="rstat"><span class="pulse"></span>Waiting for payment…</div>
-        ${fee?`<p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">wrapped hold invoice · 1% fee (${fmt(fee)} sats) · you receive ${fmt(Number(b.amountSats)-fee)}</p>`:''}
+        ${fee?`<p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">Service fee · ${fmt(fee)} sats · your wallet receives ${fmt(Number(b.amountSats)-fee)} sats</p>`:''}
         <div class="copyrow"><input class="input mono" id="rinv" readonly value="${esc(inv.bolt11)}"><button class="btn ghost sm" id="rcopy">Copy</button></div>`;
       m.querySelector('#rcopy').onclick=()=>{navigator.clipboard.writeText(inv.bolt11);toast('Invoice copied')};
       const iv=setInterval(async()=>{try{const s=await api(`/api/payments/${inv.paymentHash}/status`);
@@ -675,59 +752,33 @@ function sendModal(){
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Pay invoice</button>
   </form><div id="sres"></div>`);
   m.querySelector('#sf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
+    const payButton=m.querySelector('#sf').querySelector('button[type=submit],button');if(payButton.disabled)return;payButton.disabled=true;
     m.querySelector('#sres').innerHTML=`<div style="text-align:center;padding:18px"><span class="spin"></span></div>`;
     try{
       const r=await api('/api/wallet/pay',{method:'POST',body:JSON.stringify({bolt11:b.bolt11})});
       m.querySelector('#sf').style.display='none';
+      if(r.status!=='completed'){
+        m.querySelector('#sres').innerHTML='<div class="invstatus wait">Payment processing</div><p class="muted" style="font-size:13px;margin-top:12px">Do not pay again or retry. Check History for the final result.</p>';
+        toast('Payment processing — do not retry');return;
+      }
       m.querySelector('#sres').innerHTML=`<div class="invstatus paid" style="margin-top:6px"><span class="pulse ok"></span>Payment sent</div>
       <p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">tx <span class="mono">${esc((r.paymentHash||'').slice(0,18))}…</span></p>`;
       toast('Payment sent ✓');setTimeout(render,800);
-    }catch(x){m.querySelector('#sres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${esc(x.message)}</p>`;m.querySelector('#sf').style.display=''}
+    }catch(x){m.querySelector('#sres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${esc(x.status?x.message:'Connection interrupted. The payment may still be processing. Do not pay again; check History.')}</p>`;if(x.status){m.querySelector('#sf').style.display='';payButton.disabled=false}else m.querySelector('#sf').style.display='none'}
   };
 }
 /* ---- WALLET CONNECT ---- */
 function walletModal(){
   const m=modal(`<div class="modalhead"><h2>Connect wallet</h2><button class="xbtn">✕</button></div>
-  <p class="muted" style="font-size:13px;margin-bottom:16px">Paste a Nostr Wallet Connect string. It's encrypted at rest and openLN never takes custody.</p>
+  <p class="muted" style="font-size:13px;margin-bottom:16px">Connect your existing wallet. In Coinos, Primal, Alby, or another compatible wallet, create a Nostr Wallet Connect connection and paste it here. Funds stay with the wallet you choose.</p>
   <form id="wf">
-    <label class="field"><span>NWC connection string</span><input class="input mono" name="connection" placeholder="nostr+walletconnect://…" required style="font-size:11px"></label>
+    <label class="field"><span>NWC connection string</span><input class="input mono" type="password" autocomplete="off" name="connection" placeholder="nostr+walletconnect://…" required style="font-size:11px"></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Connect</button>
   </form><div id="wres"></div>`);
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();toast('Wallet connected');render()}
     catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${esc(x.message)}</p>`}
   };
-}
-/* ---- EXTENSIONS (marketplace) ---- */
-async function vExt(){
-  let cat=[];try{cat=(await api('/api/extensions')).catalog}catch(e){$('#view').innerHTML='<div class="card">Failed to load catalog</div>';return}
-  const installed=cat.filter(c=>c.installed);
-  $('#view').innerHTML=`<div style="margin-top:30px">
-    <div class="overline">Extensions</div>
-    <h1 class="page">Marketplace</h1>
-    <p class="muted" style="margin:10px 0 22px;max-width:560px">Everything extends the wallet — installed extensions get their own shortcut on your dashboard and never custody your keys.</p>
-    <div id="mlist">${cat.map(c=>mRow(c)).join('')}</div></div>`;
-  document.querySelectorAll('[data-mi]').forEach(b=>b.onclick=()=>mAction(b.dataset.mi,b.dataset.act,b));
-}
-function mRow(c){
-  return `<div class="mrow ${c.installed&&c.enabled?'on':''}" data-mrow="${c.id}">
-    <div class="mico">${extGlyph(c.id)}</div>
-    <div class="mmeta"><div class="mt1">${esc(c.name||c.id)}<span class="mcat">${esc(c.category||'')}</span></div><div class="mt2">${esc(c.blurb||'')}</div></div>
-    ${c.installed&&(c.configKeys?.length||c.id==='cards')?`<button class="btn ghost sm" data-mi="${c.id}" data-act="cfg">Configure</button>`:''}
-    ${c.installed?`<button class="btn ghost sm" data-mi="${c.id}" data-act="${c.enabled?'off':'on'}">${c.enabled?'Disable':'Enable'}</button>
-      <button class="btn ghost sm" data-mi="${c.id}" data-act="rm" style="color:var(--err)">Remove</button>`
-    :`<button class="btn teal sm" data-mi="${c.id}" data-act="in">Install</button>`}
-  </div>`;
-}
-async function mAction(id,act,btn){
-  try{
-    if(act==='in'){await api(`/api/extensions/${id}/install`,{method:'POST'});toast('Installed — now on your dashboard')}
-    if(act==='on'){await api(`/api/extensions/${id}/toggle`,{method:'POST',body:JSON.stringify({enabled:true})});toast('Enabled')}
-    if(act==='off'){await api(`/api/extensions/${id}/toggle`,{method:'POST',body:JSON.stringify({enabled:false})});toast('Disabled')}
-    if(act==='rm'){await api(`/api/extensions/${id}`,{method:'DELETE'});toast('Removed')}
-    if(act==='cfg'){if(id==='cards')return cardsConfigModal();const c=(await api('/api/extensions')).catalog.find(x=>x.id===id);return extConfigModal(c)}
-    vExt();
-  }catch(e){toast(e.message)}
 }
 async function loadAuthedImage(path, imgEl){
   try{
@@ -738,18 +789,27 @@ async function loadAuthedImage(path, imgEl){
     imgEl.src=URL.createObjectURL(blob);
   }catch(e){ imgEl.replaceWith(Object.assign(document.createElement('div'),{className:'dim',style:'font-size:12px',textContent:'QR unavailable — use the provisioning URL below.'})); }
 }
-function showIssuedCard(out, keyText){
+function showIssuedCard(out, keyText=''){
   const qr=out.provisionUrl||'';
-  const m=modal(`<div class="modalhead"><div><h2>Card ready to write</h2><p class="dim" style="font-size:12px;margin-top:4px">Use Bolt Card NFC Creator or a RIC</p></div><button class="xbtn">✕</button></div>
-    <div class="qrbox"><img id="provisionQr" alt="Card provisioning QR code"></div>
-    <p class="dim" style="font-size:11.5px;margin-bottom:6px">Scan this QR with the card creator app, or use the provisioning URL in your RIC.</p>
-    <div class="codebox mono" style="font-size:11px;overflow-wrap:anywhere">${esc(qr)}</div>
-    <button class="btn ghost sm" id="copyProvision" style="width:100%;justify-content:center;margin-top:8px">Copy provisioning URL</button>
-    <details style="margin-top:14px"><summary class="dim" style="font-size:12px;cursor:pointer">Show Bolt Card keys</summary><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px">${esc(keyText)}\nlnurlwTemplate: ${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys" style="width:100%;justify-content:center;margin-top:8px">Copy keys</button></details>
-    <p class="dim" style="font-size:11px;line-height:1.4;margin-top:12px">Save these values securely. The provisioning URL is single-use.</p>`);
-  loadAuthedImage('/api/cards/'+encodeURIComponent(out.cardId)+'/provision-qr', m.querySelector('#provisionQr'));
-  m.querySelector('#copyProvision').onclick=()=>navigator.clipboard.writeText(qr).then(()=>toast('Provisioning URL copied'));
-  m.querySelector('#copyKeys').onclick=()=>navigator.clipboard.writeText(keyText+'\nlnurlwTemplate: '+(out.lnurlwTemplate||'')).then(()=>toast('Keys copied'));
+  const m=modal(`<div class="modalhead"><div><h2>Set up your card</h2><p class="muted" style="font-size:13px;margin-top:5px">Keys issued. Now write a blank NTAG424 card.</p></div><button class="xbtn" aria-label="Close card setup">✕</button></div>
+    <div class="setup-tabs" role="tablist" aria-label="Card writer"><button class="on" id="creatorTab" role="tab" aria-selected="true">With your phone</button><button id="ricTab" role="tab" aria-selected="false">With your RIC</button></div>
+    <section id="creatorSetup">
+      <div class="qrbox" id="provisionQr" role="img" aria-label="One-time card setup QR"></div>
+      <p class="muted setup-copy">Scan with <a href="https://play.google.com/store/search?q=bolt%20card%20nfc%20creator&amp;c=apps" target="_blank" rel="noopener noreferrer">Bolt Card NFC Creator</a> on Android, then hold the blank card against your phone.</p>
+      <button class="btn ghost" id="copyProvision" style="width:100%;justify-content:center;margin-top:12px">Copy setup link</button>
+      <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser—it reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
+    </section>
+    <section id="ricSetup" hidden><ol class="setup-steps"><li>Use the RIC linked to this account.</li><li>On its screen, open Settings → Issue Card.</li><li>Hold a blank NTAG424 card against the reader until the RIC confirms the write.</li></ol><p class="muted setup-copy">The RIC fetches your next unwritten card automatically. There is no QR to scan and no keys to type.</p><p id="ricQueue" class="hint"></p><div id="ricWriteState" role="status" class="hint">Waiting for the RIC to confirm…</div></section>
+    <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">Standard browser NFC cannot change NTAG424 security keys. Use the Android creator app or the RIC for the physical write. This page handles issuance and setup.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
+  const qrBox=m.querySelector('#provisionQr');
+  if(out.provisionQr){const image=new Image();image.alt='One-time card setup QR';image.src=URL.createObjectURL(new Blob([out.provisionQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);qrBox.append(image)}
+  else qrBox.textContent='Setup QR unavailable. Close this and generate a new setup link.';
+  m.querySelector('#copyProvision').disabled=!qr;
+  m.querySelector('#copyProvision').onclick=()=>navigator.clipboard.writeText(qr).then(()=>toast('Setup link copied'));
+  m.querySelector('#copyKeys').onclick=async()=>{try{if(!keyText){const keys=await api('/api/cards/'+out.cardId+'/keys',{method:'POST',body:'{}'});keyText=Object.entries(keys).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>k+': '+v).join('\n');m.querySelector('#rawCardKeys').textContent=keyText+'\n'+out.lnurlwTemplate}await navigator.clipboard.writeText(keyText+'\n'+out.lnurlwTemplate);toast('Keys copied')}catch(e){toast(e.message)}};
+  for(const [tab,other,panel,hide] of [['creatorTab','ricTab','creatorSetup','ricSetup'],['ricTab','creatorTab','ricSetup','creatorSetup']])m.querySelector('#'+tab).onclick=()=>{m.querySelector('#'+panel).hidden=false;m.querySelector('#'+hide).hidden=true;m.querySelector('#'+tab).classList.add('on');m.querySelector('#'+other).classList.remove('on');m.querySelector('#'+tab).setAttribute('aria-selected','true');m.querySelector('#'+other).setAttribute('aria-selected','false')};
+  api('/api/pos/next-provision').then(next=>{if(next.cardId!==out.cardId)m.querySelector('#ricQueue').textContent='Another card is first in the RIC queue: '+(next.name||'unnamed card')+'. Finish or cancel that setup first.'}).catch(()=>{});
+  const watch=setInterval(async()=>{if(!m.isConnected){clearInterval(watch);return}try{const cards=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards');const card=cards.find(c=>c.id===out.cardId);if(card?.lastUsedAt){clearInterval(watch);m.querySelector('#ricWriteState').textContent='Card written and linked to your wallet.';renderCardsList()}}catch(e){}},2500);
 }
 function cardsConfigModal(){ VIEW='cards'; render(); }
 /* ---- CARDS (full management view) ---- */
@@ -758,9 +818,10 @@ async function vCards(){
   $('#view').innerHTML=`<div style="margin-top:30px" id="cardsRoot">
     <div class="overline">Cards</div>
     <h1 class="page">Bolt Cards</h1>
-    <p class="muted" style="margin:8px 0 22px;max-width:560px">Issue and manage NTAG424 cards for this account. Each card pays from your own connected wallet, gated by a per-card PIN and spend limits.</p>
+    <p class="muted" style="margin:8px 0 18px;max-width:560px">Tap to pay from your connected wallet. Set a PIN and spending limits for each card.</p><p class="page-utility"><a id="cardsShop" href="https://cards.openln.com">Get a physical card ↗</a></p>
     <div id="cardsBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
   </div>`;
+  $('#cardsShop').onclick=e=>{e.preventDefault();openCardShop()};
   await renderCardsList();
 }
 async function renderCardsList(){
@@ -768,6 +829,7 @@ async function renderCardsList(){
   try{
     const me=await api('/api/me'); CARD_ACCOUNT_ID=me.account.id;
     const cards=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards');
+    if(!body.isConnected)return;
     body.innerHTML=`
       <div class="cardsgrid">
         <button class="cardtile new" id="issueCardTile">
@@ -782,7 +844,7 @@ async function renderCardsList(){
     body.querySelectorAll('[data-card-id]').forEach(b=>b.onclick=()=>vCardDetail(cards.find(c=>c.id===b.dataset.cardId)));
   }catch(e){ body.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p>`; }
 }
-function cardStatusLabel(c){ return c.status==='active'?'Active':c.status==='frozen'?'Frozen':'Cancelled'; }
+function cardStatusLabel(c){ return c.status==='active'?(c.lastUsedAt?'Active':'Ready to write'):c.status==='frozen'?'Frozen':'Cancelled'; }
 function cardTile(c){
   const st=c.status||'active';
   return `<button type="button" class="cardtile ${st}" data-card-id="${esc(c.id)}">
@@ -807,7 +869,7 @@ function vCardIssueForm(){
           <label class="field"><span>Daily limit (sats)</span><input class="input mono" name="dailyLimitSats" type="number" min="0" placeholder="Default"></label>
           <label class="field"><span>Per-payment limit (sats)</span><input class="input mono" name="perTapLimitSats" type="number" min="0" placeholder="Default"></label>
         </div>
-        <label class="field"><span>Payment PIN <small class="dim">4 digits · LUD-21</small></span><input class="input mono" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required></label>
+        <label class="field"><span>Payment PIN <small class="dim">4 digits</small></span><input class="input mono" type="password" autocomplete="off" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required></label>
         <label class="field"><span>Tap note</span><input class="input" name="note" maxlength="120" placeholder="Payment via openLN card"></label>
         <p class="dim" style="font-size:11.5px;line-height:1.45">The PIN authorizes card payments. It is separate from your account password. You can issue as many cards as you need.</p>
         <button class="btn teal" style="width:100%;justify-content:center;padding:11px">Issue card</button>
@@ -820,7 +882,6 @@ function vCardIssueForm(){
       const payload={name:b.name,pin:String(b.pin),note:b.note||undefined,dailyLimitSats:b.dailyLimitSats?Number(b.dailyLimitSats):undefined,perTapLimitSats:b.perTapLimitSats?Number(b.perTapLimitSats):undefined};
       const out=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards',{method:'POST',body:JSON.stringify(payload)});
       if(out.cardId){
-        await api('/api/cards/'+out.cardId,{method:'PATCH',body:JSON.stringify({name:payload.name,note:payload.note,perTapLimitSats:payload.perTapLimitSats,dailyLimitSats:payload.dailyLimitSats})});
         const keyText=Object.entries(out.keys||{}).map(([k,v])=>`${k}: ${v}`).join('\n');
         toast(`Card issued: ${payload.name||'Card'}`); showIssuedCard(out, keyText);
         renderCardsList();
@@ -842,8 +903,8 @@ function vCardDetail(card){
       </div>
       <div class="manage-actions" style="margin-top:16px">
         <button class="btn ghost sm" id="editCard">Edit details</button>
-        <button class="btn ghost sm" id="toggleFreeze">${st==='frozen'?'Enable card':'Freeze card'}</button>
-        <button class="btn ghost sm dangerText" id="disableCard" ${st==='cancelled'?'disabled':''}>Disable card</button>
+        <button class="btn ghost sm" id="toggleFreeze" ${st==='cancelled'?'disabled':''}>${st==='frozen'?'Enable card':'Freeze card'}</button>
+        <button class="btn ghost sm dangerText" id="disableCard" ${st==='cancelled'?'disabled':''}>Cancel card</button>
       </div>
       <div class="manage-section"><div class="dim label">Card</div>
         <div class="manage-line"><span>Name</span><b>${esc(card.name||'Unnamed card')}</b></div>
@@ -865,16 +926,18 @@ function vCardDetail(card){
       <div class="manage-section"><div class="dim label">Card writing</div>
         <p class="dim" style="font-size:11.5px;line-height:1.4">Reveal the provisioning QR, URL and Bolt Card keys to write this card with a creator app or RIC.</p>
         <div class="manage-actions" style="margin-top:8px">
-          <button class="btn teal sm" id="viewCardKeys">Show keys and QR</button>
+          ${!card.lastUsedAt && st==='active'?'<button class="btn teal" id="setupCard">Set up card</button>':''}
+          <button class="btn ghost sm" id="viewCardKeys">View keys</button>
           <button class="btn ghost sm dangerText" id="wipeCard">Wipe card</button>
         </div>
       </div>
     </div>`;
   $('#cardsBack').onclick=renderCardsList;
   $('#editCard').onclick=()=>vCardEditForm(card);
-  $('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:JSON.stringify({})});out.cardId=card.id;out.provisionUrl=location.origin+'/api/provision/'+(out.provisionToken||'');showIssuedCard(out,Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>`${k}: ${v}`).join('\n'));}catch(e){toast(e.message)}};
+  $('#setupCard')?.addEventListener('click',async()=>{try{const out=await api('/api/cards/'+card.id+'/provision',{method:'POST',body:'{}'});showIssuedCard(out)}catch(e){toast(e.message)}});
+  $('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:'{}'});const text=Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>k+': '+v).join('\n')+'\n'+out.lnurlwTemplate;const m=modal(`<div class="modalhead"><h2>Card keys</h2><button class="xbtn" aria-label="Close keys">✕</button></div><p class="muted setup-copy">These keys control this card. Keep them private.</p><pre class="codebox mono" style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(text)}</pre><button class="btn ghost" id="copyCardSecrets">Copy keys</button>`);m.querySelector('#copyCardSecrets').onclick=()=>navigator.clipboard.writeText(text).then(()=>toast('Keys copied'))}catch(e){toast(e.message)}};
   $('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:st==='frozen'?'active':'frozen'})});toast(st==='frozen'?'Card enabled':'Card frozen');renderCardsList()}catch(e){toast(e.message)}};
-  $('#disableCard').onclick=async()=>{if(!confirm('Disable this card? This cannot be undone.'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});toast('Card disabled');renderCardsList()}catch(e){toast(e.message)}};
+  $('#disableCard').onclick=async()=>{if(!confirm('Cancel this card? Future payments will be blocked. This does not erase the physical card.'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});toast('Card cancelled');renderCardsList()}catch(e){toast(e.message)}};
   $('#togglePin').onclick=()=>vCardPinForm(card);
   $('#removePin')?.addEventListener('click',async()=>{const p=prompt('Enter current 4-digit PIN to remove it');if(!p)return;try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:p,newPin:null})});toast('PIN removed');renderCardsList()}catch(e){toast(e.message)}});
   $('#unlockPin')?.addEventListener('click',async()=>{try{await api('/api/cards/'+card.id+'/pin/unlock',{method:'POST',body:JSON.stringify({})});toast('PIN unlocked');vCardDetail({...card,pinLocked:null})}catch(e){toast(e.message)}});
@@ -888,12 +951,15 @@ function vCardWipe(card){
     const box=m.querySelector('#wipeBody');
     box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spin"></span></div>`;
     try{
-      const out=await api('/api/pos/wipe-keys/'+card.id,{method:'GET'});
-      const keyText=Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>`${k}: ${v}`).join('\n');
-      box.innerHTML=`<pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(keyText)}\nfactorySettings: ${esc(out.factorySettings||'')}</pre>
-        <button class="btn ghost sm" id="copyWipeKeys" style="width:100%;justify-content:center;margin-top:8px">Copy keys</button>
-        <button class="btn danger" id="confirmWiped" style="width:100%;justify-content:center;margin-top:14px;padding:11px">Card physically wiped — mark cancelled</button>`;
-      box.querySelector('#copyWipeKeys').onclick=()=>navigator.clipboard.writeText(keyText+'\nfactorySettings: '+(out.factorySettings||'')).then(()=>toast('Keys copied'));
+      const out=await api('/api/cards/'+card.id+'/wipe',{method:'POST',body:'{}'});
+      const wipeJson=JSON.stringify(out.wipeKeys);
+      box.innerHTML=`<p class="setup-copy muted"><b>With your phone:</b> In Bolt Card NFC Creator, choose Reset → hold the card against the phone → Scan QR Code.</p><div class="qrbox" id="wipeQr"></div>
+        <p class="setup-copy muted"><b>With your RIC:</b> Open Settings → Wipe Card on the linked device. Hold the card on the reader until it confirms.</p>
+        <button class="btn ghost sm" id="copyWipeKeys" style="width:100%;justify-content:center;margin-top:12px">Copy reset data</button>
+        <p class="hint">This page cannot erase the physical chip by itself. Keep the keys until your phone or RIC confirms the reset.</p>
+        <button class="btn danger" id="confirmWiped" style="width:100%;justify-content:center;margin-top:14px;padding:11px">My phone confirmed the wipe — cancel card</button>`;
+      const image=new Image();image.alt='Card reset QR';image.src=URL.createObjectURL(new Blob([out.wipeQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);box.querySelector('#wipeQr').append(image);
+      box.querySelector('#copyWipeKeys').onclick=()=>navigator.clipboard.writeText(wipeJson).then(()=>toast('Reset data copied'));
       box.querySelector('#confirmWiped').onclick=async()=>{
         try{await api('/api/pos/mark-wiped/'+card.id,{method:'POST',body:JSON.stringify({})});m.remove();toast('Card wiped and cancelled');renderCardsList()}
         catch(e){toast(e.message)}
@@ -931,8 +997,8 @@ function vCardPinForm(card){
     <div class="card" style="max-width:460px;margin-top:14px">
       <h3 style="margin-bottom:16px">${changing?'Change':'Enable'} card PIN</h3>
       <form id="pinForm" class="cardform">
-        ${changing?'<label class="field"><span>Current PIN</span><input class="input mono" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required autofocus></label>':''}
-        <label class="field"><span>New PIN <small class="dim">4 digits</small></span><input class="input mono" name="newPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required ${changing?'':'autofocus'}></label>
+        ${changing?'<label class="field"><span>Current PIN</span><input class="input mono" type="password" autocomplete="off" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required autofocus></label>':''}
+        <label class="field"><span>New PIN <small class="dim">4 digits</small></span><input class="input mono" type="password" autocomplete="off" name="newPin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required ${changing?'':'autofocus'}></label>
         <button class="btn teal" style="width:100%;justify-content:center;padding:11px">${changing?'Update PIN':'Enable PIN'}</button>
         <p id="pinFormErr" style="font-size:12px;color:var(--err)"></p>
       </form>
@@ -960,16 +1026,18 @@ async function vRic(){
   $('#view').innerHTML=`<div style="margin-top:30px" id="ricRoot">
     <div class="overline">Hardware</div>
     <h1 class="page">RIC</h1>
-    <p class="muted" style="margin:8px 0 22px;max-width:560px">Rapid Invoice Channel — a standalone Lightning terminal. Flash a device over USB, then link it to this account over Bluetooth to give it WiFi and a wallet.</p>
+    <p class="muted" style="margin:8px 0 22px;max-width:560px">Rapid Invoice Channel. Enter an amount; your customer scans the QR or taps a Boltcard. Payments reach your connected wallet.</p>
     <div class="ricgrid">
-      <button class="rictile" id="ricFlashTile"><div class="rictile-ico">⚡</div><div class="rictile-label">Flash device</div><div class="rictile-sub">Install firmware over USB</div></button>
-      <button class="rictile" id="ricLinkTile"><div class="rictile-ico">◉</div><div class="rictile-label">Link device</div><div class="rictile-sub">Pair via Bluetooth</div></button>
+      <button class="rictile" id="ricLinkTile"><div class="rictile-ico">${navIcon('ric')}</div><div class="rictile-label">Link your RIC</div><div class="rictile-sub">Already flashed? Pair over Bluetooth and connect it to WiFi.</div></button>
+      <button class="rictile" id="ricFlashTile"><div class="rictile-ico">${navIcon('settings')}</div><div class="rictile-label">Install firmware</div><div class="rictile-sub">For a new, unflashed device. USB · classic ESP32 display board.</div></button>
     </div>
+    <div class="ricrates" id="ricRateSummary">Loading your counter settings…</div>
     <div class="overline" style="margin-top:28px;margin-bottom:10px">Linked devices</div>
     <div id="ricDevices"><div style="padding:24px 0;text-align:center"><span class="spin"></span></div></div>
   </div>`;
   $('#ricFlashTile').onclick=()=>ricFlashModal();
   $('#ricLinkTile').onclick=()=>ricLinkModal();
+  api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(s.rateModifier||'Market rate')}</b><br>Sell / Send: <b>${esc(s.sendRateModifier||'Market rate')}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>navigate('settings')}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
   await renderRicDevices();
 }
 async function renderRicDevices(){
@@ -977,6 +1045,7 @@ async function renderRicDevices(){
   try{
     const me=await api('/api/me'); RIC_ACCOUNT_ID=me.account.id;
     const devices=await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens');
+    if(!box.isConnected)return;
     if(!devices.length){ box.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px"><div style="font-size:24px;margin-bottom:8px">▣</div><p class="dim" style="font-size:13px">No devices linked yet</p><p class="dim" style="font-size:11.5px;margin-top:4px">Flash and link your first RIC to get started</p></div>`; return; }
     box.innerHTML=devices.map(d=>`
       <div class="card ricrow" data-token-id="${esc(d.id)}">
@@ -997,7 +1066,7 @@ function ricStepRow(n,label,state){ // state: 'pending'|'active'|'done'
 function ricFlashModal(){
   const hasSerial = !!navigator.serial;
   let phase='idle'; let port=null;
-  const m=modal(`<div class="modalhead"><div><h2>Flash device</h2><p class="dim" style="font-size:12px;margin-top:4px">Install RIC firmware over USB</p></div><button class="xbtn">✕</button></div>
+  const m=modal(`<div class="modalhead"><div><h2>Flash device</h2><p class="dim" style="font-size:12px;margin-top:4px">ESP32-2432S028R only · not ESP32-S3 / ES3C28P</p></div><button class="xbtn">✕</button></div>
     ${hasSerial?`
       <div class="ricsteps">
         ${ricStepRow(1,'Connect','active')}
@@ -1024,11 +1093,16 @@ function ricFlashModal(){
           const mod=await import('https://esm.sh/esptool-js@0.6.0');
           const transport=new mod.Transport(port,true);
           const loader=new mod.ESPLoader({transport,baudrate:115200,terminal:{clean:()=>{},writeLine:()=>{},write:()=>{}},enableTracing:false});
-          const chip=await loader.main();
-          const fwRes=await fetch('/api/posbox/firmware');
+          const manifest=await api('/api/posbox/firmware/manifest');
+          await loader.main();
+          const chip=loader.chip?.CHIP_NAME||'';
+          if(chip!==manifest.chip)throw Error('This image is for '+manifest.chip+'. Detected '+(chip||'unknown chip')+'. Nothing was written.');
+          const fwRes=await fetch(manifest.url);
           if(!fwRes.ok)throw Error('Failed to download firmware');
           const data=new Uint8Array(await fwRes.arrayBuffer());
-          await loader.writeFlash({fileArray:[{data,address:0x0}],flashSize:'keep',flashMode:'keep',flashFreq:'keep',eraseAll:false,compress:true,
+          const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',data))].map(b=>b.toString(16).padStart(2,'0')).join('');
+          if(digest!==manifest.sha256 || data.length!==manifest.bytes)throw Error('Firmware verification failed. Nothing was written.');
+          await loader.writeFlash({fileArray:[{data,address:manifest.address}],flashSize:'keep',flashMode:'keep',flashFreq:'keep',eraseAll:false,compress:true,
             reportProgress:(_i,written,total)=>{ const pct=total>0?Math.round(written/total*100):0; const bar=m.querySelector('#ricBar'); if(bar)bar.style.width=pct+'%'; const p=m.querySelector('#ricPct'); if(p)p.textContent=pct+'% written'; }});
           await loader.softReset(false);
           setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">Written successfully${chip?' · '+esc(chip)+' detected':''}</span>`;
@@ -1080,7 +1154,7 @@ function ricLinkModal(){
         setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">Credentials ready</span>`;
         setStep(3,'active'); slot(3).innerHTML=`<span class="dim" style="font-size:12.5px" id="ricProvStatus">Sending credentials…</span>`;
         const statusEl=()=>m.querySelector('#ricProvStatus');
-        let issuedTokenId=null, tokenWritten=false;
+        let issuedTokenId=null, tokenWritten=false, deviceConfirmed=false;
         try{
           const service=await gatt.getPrimaryService(RIC_BLE_SERVICE_UUID);
           const [cSsid,cPass,cToken,cUrl,cCurrency,cStatus]=await Promise.all([
@@ -1105,7 +1179,7 @@ function ricLinkModal(){
               const raw=new TextDecoder('utf-8',{fatal:false}).decode(dv);
               const val=raw.replace(/\0.*$/,'').replace(/[^\x20-\x7E]/g,'').trim();
               if(val && statusEl())statusEl().textContent=val;
-              if(val==='connected'){ settle(()=>resolve()); }
+              if(val==='connected'){ deviceConfirmed=true;settle(()=>resolve()); }
               else if(val.startsWith('error:')){ settle(()=>reject(Error(val.slice(6)||'Device reported an error'))); }
             });
             (async()=>{
@@ -1121,7 +1195,10 @@ function ricLinkModal(){
               }catch(e){ settle(()=>reject(e)); }
             })();
           });
-          setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Device is ready to accept payments</p><p class="dim" style="font-size:11.5px;margin-top:4px">Your RIC is connected and linked to this account.</p>`;
+          const seen=await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens');
+          const reachedServer=seen.some(d=>d.id===issuedTokenId && d.lastUsedAt);
+          const confirmed=deviceConfirmed && reachedServer;
+          setStep(3,confirmed?'done':'active');slot(3).innerHTML=confirmed?`<p style="color:var(--ok);font-size:13px;font-weight:590">RIC connected</p><p class="hint">The device confirmed WiFi and authenticated with openLN.</p>`:`<p class="muted" style="font-size:13px;font-weight:590">Credentials saved · waiting for RIC</p><p class="hint">Bluetooth disconnects when the device restarts. Check its screen and the linked-device status before taking a payment. The saved token has been kept.</p>`;
           renderRicDevices();
         }catch(e){
           if(issuedTokenId && !tokenWritten){ api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens/'+issuedTokenId,{method:'DELETE'}).catch(()=>{}); }
@@ -1167,23 +1244,16 @@ function ricReleaseModal(device){
     }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${esc(e.message)}</p><button class="btn ghost sm" id="ricRelRetry" style="margin-top:10px">Try again</button>`; m.querySelector('#ricRelRetry').onclick=()=>{m.remove();ricReleaseModal(device);}; }
   };
 }
-function extConfigModal(c){
-  const m=modal(`<div class="modalhead"><h2>${esc(c.name||c.id)} settings</h2><button class="xbtn">✕</button></div>
-  <form id="cf">${(c.configKeys||[]).map(k=>`<label class="field"><span>${esc(k.label)}</span><input class="input mono" name="${esc(k.key)}" type="password" placeholder="${k.secret?'••••••••':''}" ${k.secret?'':'required'}></label>`).join('')}
-  <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Save${c.hasConfig?' (replace)':''}</button></form>
-  ${c.hasConfig?'<p class="dim" style="font-size:11.5px;margin-top:10px">Configured — saving replaces the stored credentials.</p>':''}`);
-  m.querySelector('#cf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{await api(`/api/extensions/${c.id}/config`,{method:'POST',body:JSON.stringify(b)});m.remove();toast('Settings saved')}
-    catch(x){toast(x.message)}};
-}
 /* ---- SETTINGS ---- */
-const CURRENCIES = ["usd","eur","thb","gbp","jpy","btc"];
+const CURRENCIES = ["zar","usd","eur","thb","gbp","jpy","btc","sats"];
+const CURRENCY_NAMES={zar:'South African rand',usd:'US dollar',eur:'Euro',thb:'Thai baht',gbp:'British pound',jpy:'Japanese yen',btc:'Bitcoin',sats:'Satoshis'};
 const RATE_SOURCES = ["coingecko","binance"];
-async function vSettings(){
+async function vSettings(version=renderVersion){
   const [settings, status] = await Promise.all([
     api('/api/account/settings').catch(()=>({currency:'usd',rateSource:'coingecko'})),
     api('/api/wallet/status').catch(()=>({connected:false,walletMode:'unset'})),
   ]);
+  if(version!==renderVersion || VIEW!=='settings')return;
   $('#view').innerHTML=`<div style="margin-top:30px">
     <div class="overline">Settings</div>
     <h1 class="page">Preferences</h1>
@@ -1191,26 +1261,27 @@ async function vSettings(){
     <div class="setgrid">
 
       <div class="setcard">
-        <h3>Display currency</h3>
-        <div class="sub">Fiat amounts shown across the app, and used for POS rate conversion.</div>
+        <h3>Currency &amp; RIC rates</h3>
+        <div class="sub">Your RIC reads these settings. Restart it after saving to fetch the latest values.</div>
         <div class="setrow">
-          <label>Currency<small>Default fiat unit</small></label>
-          <select id="setCurrency">${CURRENCIES.map(c=>`<option value="${c}" ${settings.currency===c?'selected':''}>${c.toUpperCase()}</option>`).join('')}</select>
+          <label for="setCurrency">Currency<small>Amount entered at the counter</small></label>
+          <select id="setCurrency">${CURRENCIES.map(c=>`<option value="${c}" ${settings.currency===c?'selected':''}>${c.toUpperCase()} · ${CURRENCY_NAMES[c]||c}</option>`).join('')}</select>
         </div>
         <div class="setrow">
           <label>Price source<small>Exchange rate provider</small></label>
           <select id="setRateSource">${RATE_SOURCES.map(s=>`<option value="${s}" ${settings.rateSource===s?'selected':''}>${s}</option>`).join('')}</select>
         </div>
         <div class="setrow">
-          <label>Buy rate modifier<small>Multiply the buy/receive rate — e.g. THB*1.01</small></label>
-          <input class="mono" id="setRateModifier" placeholder="THB*1.01" value="${esc(settings.rateModifier||'')}">
+          <label for="setRateModifier">Buy · Receive<small>You receive sats</small></label>
+          <input class="mono" id="setRateModifier" placeholder="Market rate" value="${esc(settings.rateModifier||'')}">
         </div>
         <div class="setrow">
-          <label>Sell rate modifier<small>Multiply the sell/send rate — e.g. THB*0.99</small></label>
-          <input class="mono" id="setSendRateModifier" placeholder="THB*0.99" value="${esc(settings.sendRateModifier||'')}">
+          <label for="setSendRateModifier">Sell · Send<small>You send sats</small></label>
+          <input class="mono" id="setSendRateModifier" placeholder="Market rate" value="${esc(settings.sendRateModifier||'')}">
         </div>
+        <p class="hint">Leave blank for the market rate. To adjust, use a multiplier such as ZAR*1.02 or ZAR*0.98. These are exchange-rate settings, separate from the service fee.</p><div id="ratePreview" class="rate-preview" aria-live="polite"></div>
         <div class="set-actions">
-          <button class="btn teal sm" id="savePrefs">Save preferences</button>
+          <button class="btn teal" id="savePrefs">Save preferences</button>
           <span class="dim" style="font-size:12px;align-self:center" id="prefsStatus"></span>
         </div>
       </div>
@@ -1248,6 +1319,22 @@ async function vSettings(){
     </div>
   </div>`;
 
+  let ratePreviewVersion=0;
+  const updateRatePreview=async()=>{
+    const n=++ratePreviewVersion,box=$('#ratePreview');if(!box)return;
+    const currency=$('#setCurrency').value,source=$('#setRateSource').value;
+    box.textContent='Fetching current rates…';
+    try{
+      const base='/api/price?vs_currency='+encodeURIComponent(currency)+'&source='+source;
+      const [buy,sell]=await Promise.all([api(base+'&modifier='+encodeURIComponent($('#setRateModifier').value)),api(base+'&modifier='+encodeURIComponent($('#setSendRateModifier').value))]);
+      if(n!==ratePreviewVersion || !box.isConnected)return;
+      if(!(buy.price>0&&sell.price>0))throw Error('Rate temporarily unavailable');
+      const units=p=>currency==='sats'?'1 sat':(100000000/p).toLocaleString(undefined,{maximumFractionDigits:2})+' sats / '+currency.toUpperCase();
+      box.innerHTML=`<div><span>Buy · Receive</span><b class="mono">${esc(units(buy.price))}</b></div><div><span>Sell · Send</span><b class="mono">${esc(units(sell.price))}</b></div>`;
+    }catch(e){if(n===ratePreviewVersion && box.isConnected)box.textContent='Rate preview unavailable. No estimated rate is substituted.'}
+  };
+  for(const id of ['setCurrency','setRateSource','setRateModifier','setSendRateModifier'])$('#'+id).addEventListener('change',updateRatePreview);
+  updateRatePreview();
   // save preferences
   $('#savePrefs').onclick=async()=>{
     const b=$('#savePrefs'), st=$('#prefsStatus');
@@ -1259,7 +1346,7 @@ async function vSettings(){
         rateModifier:$('#setRateModifier').value.trim(),
         sendRateModifier:$('#setSendRateModifier').value.trim(),
       })});
-      st.textContent='Saved'; setTimeout(()=>{st.textContent=''},2500);
+      const saved=await api('/api/account/settings');if(saved.currency!==$('#setCurrency').value||saved.rateSource!==$('#setRateSource').value)throw Error('Settings did not persist');st.textContent='Saved · restart your RIC to refresh';updateRatePreview();
     }catch(e){ st.textContent=e.message; }
     b.disabled=false; b.textContent='Save preferences';
   };

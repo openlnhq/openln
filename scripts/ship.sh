@@ -36,7 +36,9 @@ case "${1:-}" in
     log "push main → Gitea"
     git push -q origin main
     log "deploy dev.openln.com"
-    ssh "$DEV_HOST" 'bash -lc "~/openln/scripts/deploy.sh dev"'
+    # Pipe the current deploy program: a running Bash script keeps its old
+    # contents even after git replaces the on-disk file during deployment.
+    ssh "$DEV_HOST" 'bash -s dev' < scripts/deploy.sh
     log "dev.openln.com is on $(git rev-parse --short HEAD)"
     ;;
 
@@ -62,12 +64,7 @@ case "${1:-}" in
     git push -q -f origin "$MAIN:refs/heads/production-candidate"
     log "deploy openln.com"
     # deploy.sh lives in the repo; on a target that predates it, bootstrap by piping it over ssh
-    if ssh "$PROD_HOST" 'test -x /opt/openln/scripts/deploy.sh'; then
-      ssh "$PROD_HOST" 'OPENLN_BRANCH=production-candidate /opt/openln/scripts/deploy.sh prod'
-    else
-      log "bootstrap: target has no deploy.sh yet — running the local copy over ssh"
-      ssh "$PROD_HOST" 'OPENLN_BRANCH=production-candidate bash -s prod' < scripts/deploy.sh
-    fi
+    ssh "$PROD_HOST" 'OPENLN_BRANCH=production-candidate bash -s prod' < scripts/deploy.sh
     log "production ← main (fast-forward, deploy verified)"
     git push -q origin "$MAIN:refs/heads/production"
     ssh "$PROD_HOST" 'cd /opt/openln && git fetch -q origin production && git branch -q -u origin/production production'

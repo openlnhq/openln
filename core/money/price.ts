@@ -58,6 +58,7 @@ async function getBtcPriceBinanceUsd(): Promise<number | null> {
 export async function getBtcPriceFor(currency: string, source: RateSource = "coingecko"): Promise<number> {
   const key = currency.toLowerCase();
   if (key === "sats") return 100_000_000;
+  if (key === "btc") return 1;
   const now = Date.now();
   const cached = currencyCache.get(`${source}:${key}`);
   if (cached && now - cached.fetchedAt < CACHE_TTL_MS) return cached.price;
@@ -68,13 +69,13 @@ export async function getBtcPriceFor(currency: string, source: RateSource = "coi
     if (key === "usd" || key === "usdt") { currencyCache.set(`${source}:${key}`, { price: btcUsdt, fetchedAt: now }); return btcUsdt; }
     const usdtPrice = await getBtcPriceFor(key === "usd" ? "usd" : key, "coingecko").catch(() => 0);
     const usdPrice = key === "usd" ? btcUsdt : (await getBtcPriceFor("usd", "coingecko").catch(() => 0));
-    if (usdPrice > 0) {
+    if (usdPrice > 0 && usdtPrice > 0) {
       const ratio = usdtPrice / usdPrice;
       const price = btcUsdt * ratio;
       currencyCache.set(`${source}:${key}`, { price, fetchedAt: now });
       return price;
     }
-    return btcUsdt;
+    return 0; // Missing FX is unavailable, never a USD quote mislabeled as fiat.
   }
 
   try {
@@ -153,7 +154,7 @@ export async function getSupportedCurrencies(source: RateSource = "coingecko"): 
   } catch (err) {
     logger.error({ err }, "Failed to fetch supported currencies from CoinGecko");
     if (cached) return cached.list;
-    const fallback = ["usd", "eur", "gbp", "xau", "jpy", "aud", "cad", "chf"];
+    const fallback = ["zar", "thb", "usd", "eur", "gbp", "xau", "jpy", "aud", "cad", "chf"];
     const base = source === "binance" ? fallback.filter((c) => BINANCE_FIAT_QUOTES.has(c)) : fallback;
     return ["sats", "btc", ...base];
   }

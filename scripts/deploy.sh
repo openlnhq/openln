@@ -59,6 +59,9 @@ done
 TABLES=$(psql "$DBURL" -tAc "select count(*) from pg_tables where schemaname='public'")
 log "schema ok ($TABLES tables)"
 
+log "install pinned Cards frontend"
+python3 scripts/install-cards-shop.py "$TARGET"
+
 log "restart"
 $RESTART
 for i in $(seq 1 15); do

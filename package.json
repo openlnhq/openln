@@ -7,7 +7,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "test": "DATABASE_URL=postgresql://127.0.0.1/openln_test node --test dist/core/money/money-path.test.js",
+    "test": "DATABASE_URL=postgresql://127.0.0.1/openln_test node --test dist/core/money/money-path.test.js tests/*.test.mjs",
+    "test:integration": "node --test tests/*.integration.mjs",
     "start": "node dist/core/server.js",
     "e2e:wallet-ready": "node scripts/e2e-wallet-readiness.mjs"
   },

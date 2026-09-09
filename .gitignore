@@ -7,3 +7,4 @@ dist/
 .DS_Store
 e2e-*.mjs
 .deployed
+artifacts/cards-shop/

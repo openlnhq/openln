@@ -1,0 +1,4 @@
+import test,{after} from 'node:test';import assert from 'node:assert/strict';import {once} from 'node:events';
+if(!new URL(process.env.DATABASE_URL).pathname.startsWith('/openln_qa_'))throw Error('Scratch only');process.env.PORT='0';const {default:server}=await import('../dist/core/server.js');const {pool}=await import('../dist/core/db/index.js');if(!server.listening)await once(server,'listening');const base='http://127.0.0.1:'+server.address().port;
+after(async()=>{server.closeAllConnections();await new Promise(r=>server.close(r));await pool.end()});
+test('RIC token-validation probe rejects missing or revoked credentials',async()=>{for(const token of ['', 'a'.repeat(64)]){const r=await fetch(base+'/api/pos/invoice/__probe__/status',{headers:token?{Authorization:'Bearer '+token}:{}});assert.equal(r.status,401,'Firmware needs 401 to detect a released device')}});

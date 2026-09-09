@@ -1,0 +1,11 @@
+{
+  "name": "RIC \u00b7 ESP32-2432S028R",
+  "board": "esp32-2432s028r",
+  "chip": "ESP32",
+  "kind": "factory",
+  "address": 0,
+  "bytes": 1390016,
+  "sha256": "fa37c4ec3b687d0227ec95f4aacfc087f5ec13eafd7792ac0319eab702d7d445",
+  "url": "/api/posbox/firmware",
+  "note": "Classic ESP32 display board only. Not for ESP32-S3 / ES3C28P."
+}

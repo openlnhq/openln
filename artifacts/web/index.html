@@ -589,11 +589,11 @@ function loginRegister(handle){
 function loginMigratePin(handle){
   root.innerHTML=`<div class="login"><div class="loginbox">
     <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
-    <div class="overline">Legacy bitPOS account</div>
+    <div class="overline">Legacy account</div>
     <h1 style="margin-top:8px">Set a password.</h1>
-    <p class="sub"><b>${esc(handle)}</b> was migrated from bitPOS and still uses a PIN. Enter your bitPOS PIN once to prove it's you, then choose a password for openLN.com going forward. Your PIN keeps working for sensitive in-app actions.</p>
+    <p class="sub"><b>${esc(handle)}</b> was migrated from our legacy platform and still uses a PIN. Enter your old PIN once to prove it's you, then choose a password for openLN.com going forward. Your PIN keeps working for sensitive in-app actions.</p>
     <form id="lf">
-      <label class="field"><span>bitPOS PIN</span><input class="input" name="pin" type="password" inputmode="numeric" placeholder="••••" required autofocus></label>
+      <label class="field"><span>Existing PIN</span><input class="input" name="pin" type="password" inputmode="numeric" placeholder="••••" required autofocus></label>
       <label class="field"><span>New password</span><input class="input" name="password" type="password" placeholder="At least 12 characters" required minlength="12"></label>
       <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Set password &amp; enter wallet</button>
     </form>
@@ -1139,7 +1139,7 @@ function ricLinkModal(){
   m.querySelector('#ricScan').onclick=async()=>{
     slot(1).innerHTML=`<span class="dim" style="font-size:12.5px">Scanning…</span>`;
     try{
-      device=await navigator.bluetooth.requestDevice({filters:[{name:'posBOX'},{name:'RIC'}],optionalServices:[RIC_BLE_SERVICE_UUID]});
+      device=await navigator.bluetooth.requestDevice({filters:[{name:'posBOX'},{name:'RIC'}],optionalServices:[RIC_BLE_SERVICE_UUID]});// posBOX kept for old firmware; new firmware advertises RIC
       if(!device.gatt)throw Error('Device has no GATT server');
       gatt=await device.gatt.connect();
       deviceName=device.name||'RIC';
@@ -1446,11 +1446,11 @@ async function renderPartner(rows,pid){
   </div>
   ${claim?`<div class="card" style="margin-top:14px"><h3>Device claim code <span class="side">rotate on issue</span></h3>
     <div class="copyrow" style="margin-top:12px"><input class="input mono" readonly value="${esc(claim.claimCode)}"><button class="btn ghost sm" id="pcopy">Copy</button></div>
-    <p class="dim" style="font-size:11.5px;margin-top:8px">Embed in the POSBOX webflasher to bind the device MAC to your partner account at flash time.</p></div>`:''}
+    <p class="dim" style="font-size:11.5px;margin-top:8px">Embed in the RIC webflasher to bind the device MAC to your partner account at flash time.</p></div>`:''}
   <div class="card" style="margin-top:14px"><h3>Earnings ledger <span class="side">append-only</span></h3>
     ${rows.length?`<table class="tb" style="margin-top:10px"><thead><tr><th>Payment</th><th>Amount</th><th>Your share</th><th>State</th><th>When</th></tr></thead>
     <tbody>${rows.slice().reverse().map(r=>`<tr><td class="mono" style="font-size:11px">${esc((r.paymentHash||'').slice(0,14))}…</td><td class="mono">${fmt(r.amountSats)}</td><td class="mono" style="color:var(--gold)">${fmt(r.feeShareSats)}</td><td><span class="badge ${r.payoutState==='accrued'?'pend':'ok'}">${esc(r.payoutState)}</span></td><td class="dim">${ago(r.createdAt)}</td></tr>`).join('')}</tbody></table>`
-    :`<div style="padding:26px 0;text-align:center"><span class="dim" style="font-size:13px">No attributed payments yet. Flash a POSBOX with your claim code to begin.</span></div>`}</div></div>`;
+    :`<div style="padding:26px 0;text-align:center"><span class="dim" style="font-size:13px">No attributed payments yet. Flash a RIC with your claim code to begin.</span></div>`}</div></div>`;
   if(claim)$('#pcopy').onclick=()=>{navigator.clipboard.writeText(claim.claimCode);toast('Claim code copied')};
 }
 /* ---- ADMIN PAYMENTS (treasury ops console) ---- */

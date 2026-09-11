@@ -12,7 +12,7 @@ export const EXTENSION_CATALOG: Record<string, { name: string; blurb: string; ca
   cards: { name: "Cards", blurb: "Issue, freeze and wipe NTAG424 Lightning cards", category: "wallet" },
   pos: { name: "POS", blurb: "Point-of-sale terminal and device invoices", category: "commerce" },
   reports: { name: "Reports", blurb: "Payment summaries and transaction history", category: "wallet" },
-  posbox: { name: "POSBOX", blurb: "Device registry, webflasher and firmware", category: "hardware" },
+  posbox: { name: "RIC", blurb: "Device registry, webflasher and firmware", category: "hardware" },
   shop: { name: "Shop", blurb: "Partner hardware listings", category: "commerce" },
   stripe: { name: "Stripe", blurb: "Accept Visa, Mastercard and PromptPay card payments", category: "fiat", configKeys: [{ key: "apiKey", label: "Stripe API key", secret: true }] },
   satora: { name: "Satora", blurb: "Accept on-chain and altcoin payments via satora.io", category: "crypto", configKeys: [{ key: "apiKey", label: "Satora API key", secret: true }] },

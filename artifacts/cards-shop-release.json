@@ -1,10 +1,10 @@
 {
   "sourceRepo": "kongzi/maekob",
-  "sourceCommit": "a8c0547c5970a06cacc0e944f1dd33576d267679",
+  "sourceCommit": "1a3e8bc796d0eef5eca546cd34b0e3efc07f4549",
   "branch": "prod-live",
-  "sha256": "f742ca37d137d542191bb6bf55cb70552f97907fa56aa9f6e7c173ca90de7c98",
+  "sha256": "c4c3790f575447bd72d6d0cb04e801ae16576ee36c123ae0dce99b1be16e1c5d",
   "archive": "cards-shop-release.tar.gz",
-  "publicFiles": 45,
-  "previewFiles": 26,
+  "publicFiles": 33,
+  "previewFiles": 33,
   "builtFromCleanSource": true
 }

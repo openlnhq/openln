@@ -6,7 +6,7 @@
 
 // ── Firmware version ────────────────────────────────────────────────────────
 // Checked against the server on boot for OTA updates.
-#define FIRMWARE_VERSION "1.0.2"
+#define FIRMWARE_VERSION "1.0.3"
 #include <XPT2046_Touchscreen.h>
 
 #include "config/Config.h"

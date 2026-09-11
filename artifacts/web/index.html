@@ -1069,7 +1069,7 @@ function ricStepRow(n,label,state){ // state: 'pending'|'active'|'done'
 function ricFlashModal(){
   const hasSerial = !!navigator.serial;
   let phase='idle'; let port=null;
-  const m=modal(`<div class="modalhead"><div><h2>Flash device</h2><p class="dim" style="font-size:12px;margin-top:4px">ESP32-2432S028R only · not ESP32-S3 / ES3C28P</p></div><button class="xbtn">✕</button></div>
+  const m=modal(`<div class="modalhead"><div><h2>Flash device</h2><p class="dim" style="font-size:12px;margin-top:4px" id="ricFlashVer">ESP32-2432S028R only · not ESP32-S3 / ES3C28P</p></div><button class="xbtn">✕</button></div>
     ${hasSerial?`
       <div class="ricsteps">
         ${ricStepRow(1,'Connect','active')}
@@ -1078,6 +1078,7 @@ function ricFlashModal(){
       </div>
       <p class="dim" style="font-size:11.5px;text-align:center;margin-top:14px">Requires Chrome or Edge on desktop (USB access)</p>
     `:`<div class="warnbox">WebSerial is not available in this page context. Open this page in Chrome or Edge on desktop, then reconnect the USB device.</div>`}`);
+  api('/api/posbox/firmware/manifest').then(fw=>{const el=m.querySelector('#ricFlashVer');if(el&&fw.version)el.innerHTML=`Firmware <b>v${esc(fw.version)}</b> · ${(fw.bytes/1024/1024).toFixed(1)} MB · ${esc(fw.note||'')}`;}).catch(()=>{});
   if(!hasSerial)return;
   const slot=n=>m.querySelector('#ricStepSlot'+n);
   const setStep=(n,state)=>{ m.querySelectorAll('.ricstep')[n-1].className='ricstep '+state; if(state==='done')m.querySelectorAll('.ricstep')[n-1].querySelector('.ricstep-n').textContent='✓'; };
@@ -1108,8 +1109,8 @@ function ricFlashModal(){
           await loader.writeFlash({fileArray:[{data,address:manifest.address}],flashSize:'keep',flashMode:'keep',flashFreq:'keep',eraseAll:false,compress:true,
             reportProgress:(_i,written,total)=>{ const pct=total>0?Math.round(written/total*100):0; const bar=m.querySelector('#ricBar'); if(bar)bar.style.width=pct+'%'; const p=m.querySelector('#ricPct'); if(p)p.textContent=pct+'% written'; }});
           try{await loader.softReset(false);}catch{/* esptool-js cannot soft-reset ESP32; device boots on power cycle */}
-          setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">Written successfully${chip?' · '+esc(chip)+' detected':''}</span>`;
-          setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Firmware installed</p><p class="dim" style="font-size:11.5px;margin-top:4px">Power-cycle the device (unplug/replug USB), then use "Link device" to connect it to your account over Bluetooth.</p>`;
+          setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">v${esc(manifest.version||'?')} written${chip?' · '+esc(chip)+' detected':''}</span>`;
+          setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Firmware v${esc(manifest.version||'')} installed</p><p class="dim" style="font-size:11.5px;margin-top:4px">Power-cycle the device (unplug/replug USB), then use "Link device" to connect it to your account over Bluetooth.</p>`;
         }catch(e){ setStep(3,'error'); slot(3).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Flash failed')}</p><button class="btn ghost sm" id="ricRetryFlash" style="margin-top:8px">Try again</button>`; m.querySelector('#ricRetryFlash').onclick=()=>{m.remove();ricFlashModal();}; }
       };
     }catch(e){

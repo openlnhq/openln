@@ -154,7 +154,7 @@ void AmountScreen::updateHeader(TFT_eSPI& tft) {
     String rs = rateString();
     if (rs != _lastRateStr) {
         // Clear the center area only — leave currency badge intact
-        int clearStart = _sendMode ? 112 : 76;  // start AFTER the dot
+        int clearStart = _sendMode ? 112 : 86;  // start AFTER the dot (dot @74, r=3)
         int clearEnd = SCREEN_W - 40;
         tft.fillRect(clearStart, 2, clearEnd - clearStart, 16, COL_BG2);
         tft.setTextFont(FONT_SMALL);
@@ -165,10 +165,12 @@ void AmountScreen::updateHeader(TFT_eSPI& tft) {
         _lastRateStr = rs;
     }
 
-    // Status dot — drawn AFTER clearing so it's never overwritten
+    // Status dot — drawn AFTER clearing so it's never overwritten. X=74 keeps a
+    // clear gap after the "openLN" wordmark (ends ~x70 in FONT_SMALL); the old
+    // 68 sat under the final N.
     uint16_t dc = dotColor();
     if (dc != _lastDotColor) {
-        int dotX = _sendMode ? 112 : 68;
+        int dotX = _sendMode ? 112 : 74;
         tft.fillCircle(dotX, 10, 3, dc);
         _lastDotColor = dc;
     }

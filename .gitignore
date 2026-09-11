@@ -8,3 +8,5 @@ dist/
 e2e-*.mjs
 .deployed
 artifacts/cards-shop/
+
+firmware/esp32-pos/.pio/

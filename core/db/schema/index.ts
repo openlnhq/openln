@@ -7,6 +7,7 @@ export * from './cards.js';
 
 export * from './posboxDevices.js';
 export * from './deviceTokens.js';
+export * from './ricDeviceTelemetry.js';
 
 export * from './partner.js';
 export * from "./extensions.js";

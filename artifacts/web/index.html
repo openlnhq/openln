@@ -1107,9 +1107,9 @@ function ricFlashModal(){
           if(digest!==manifest.sha256 || data.length!==manifest.bytes)throw Error('Firmware verification failed. Nothing was written.');
           await loader.writeFlash({fileArray:[{data,address:manifest.address}],flashSize:'keep',flashMode:'keep',flashFreq:'keep',eraseAll:false,compress:true,
             reportProgress:(_i,written,total)=>{ const pct=total>0?Math.round(written/total*100):0; const bar=m.querySelector('#ricBar'); if(bar)bar.style.width=pct+'%'; const p=m.querySelector('#ricPct'); if(p)p.textContent=pct+'% written'; }});
-          await loader.softReset(false);
+          try{await loader.softReset(false);}catch{/* esptool-js cannot soft-reset ESP32; device boots on power cycle */}
           setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">Written successfully${chip?' · '+esc(chip)+' detected':''}</span>`;
-          setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Firmware installed</p><p class="dim" style="font-size:11.5px;margin-top:4px">The device will now boot and start Bluetooth provisioning. Use "Link device" to connect it to your account.</p>`;
+          setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Firmware installed</p><p class="dim" style="font-size:11.5px;margin-top:4px">Power-cycle the device (unplug/replug USB), then use "Link device" to connect it to your account over Bluetooth.</p>`;
         }catch(e){ setStep(3,'error'); slot(3).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Flash failed')}</p><button class="btn ghost sm" id="ricRetryFlash" style="margin-top:8px">Try again</button>`; m.querySelector('#ricRetryFlash').onclick=()=>{m.remove();ricFlashModal();}; }
       };
     }catch(e){

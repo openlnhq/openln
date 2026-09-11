@@ -1,5 +1,9 @@
 #include "../ui/Theme.h"
 #include "BitposClient.h"
+#include "../core/ServerTrust.h"
+#include "../core/RicPolicy.h"
+#include "../core/Version.h"
+#include <time.h>
 
 String          BitposClient::_serverUrl;
 String          BitposClient::_token;
@@ -10,21 +14,9 @@ WiFiClientSecure BitposClient::_authClient;
 HTTPClient      BitposClient::_pubHttp;
 WiFiClientSecure BitposClient::_pubClient;
 
-// NOTE: TLS cert-pinning via setCACert(ISRG_ROOT_X1) was removed.
-//
-// Root cause: bitpos.app's Let's Encrypt cert chain uses the E7 intermediate
-// (ECDSA P-384, signed with SHA-384). The ESP32 Arduino 2.x mbedTLS build
-// fails to PARSE the E7 cert during the TLS handshake, producing:
-//   (-15202) PK - The pubkey tag or value is invalid (only RSA and EC are
-//   supported) : ASN1 - ASN1 tag was of an unexpected type
-// This happens even with setInsecure() because mbedTLS parses the full cert
-// chain before applying the verify-mode skip.
-//
-// Mitigation: the device always connects to the autoscale server URL (not the
-// custom domain) — set VITE_DEVICE_SERVER_URL in the web app's build env so
-// the BLE-provisioned serverUrl points to an autoscale subdomain which serves
-// a P-256 / SHA-256 cert the ESP32 can parse. setInsecure() is then safe
-// because the Bearer token provides application-layer authentication anyway.
+// Server connections verify the ISRG CA chain and hostname after time sync.
+// Bearer tokens authenticate the device; they cannot authenticate a server.
+// Third-party card callbacks remain separate from this managed server channel.
 
 // ─── URL scratch buffer ───────────────────────────────────────────────────────
 // All URL construction uses snprintf into this buffer — no String temporaries,
@@ -55,11 +47,13 @@ void BitposClient::init(const String& serverUrl, const String& token) {
     // calls reuse the same heap block — zero fragmentation from response bodies.
     _respBuf.reserve(1536);
 
-    // Auth client — always insecure (no cert pinning).
-    // See the comment block at the top of this file for the full explanation.
-    // Application-layer security is provided by the Bearer token.
+    // Authenticate the server before sending the device credential.
     _authClient.stop();
-    _authClient.setInsecure();
+    _authClient.setCACert(RIC_ROOT_CA);
+    _authClient.setHandshakeTimeout(10);
+    _authHttp.setConnectTimeout(10000);
+    _authHttp.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    _authHttp.setUserAgent(String("openLN-RIC/")+FIRMWARE_VERSION);
     // Keep the TLS session alive across sequential calls to the same server.
     // This eliminates the 1-3 s RSA handshake on every poll/price/invoice call.
     _authHttp.setReuse(true);
@@ -69,7 +63,14 @@ void BitposClient::init(const String& serverUrl, const String& token) {
     _pubClient.setInsecure();
 }
 
+void BitposClient::releaseConnections() {
+    _authHttp.end(); _authClient.stop();
+    _pubHttp.end(); _pubClient.stop();
+}
+
 bool BitposClient::beginAuthRequest(const char* url) {
+    if (!RicPolicy::validBase(_serverUrl.c_str()) || time(nullptr)<1700000000) return false;
+    _pubHttp.end(); _pubClient.stop();
     // Release the previous HTTP transaction but keep the TLS socket alive so the
     // next GET/POST reuses the session without a new RSA handshake.
     _authHttp.end();
@@ -78,6 +79,7 @@ bool BitposClient::beginAuthRequest(const char* url) {
 }
 
 bool BitposClient::beginPubRequest(const char* url) {
+    _authHttp.end(); _authClient.stop();
     // Third-party hosts change per transaction — always start clean.
     _pubHttp.end();
     _pubClient.stop();
@@ -92,20 +94,6 @@ bool BitposClient::healthCheck() {
     _authHttp.end();
     if (code <= 0) _authClient.stop();
     return (code == 200);
-}
-
-bool BitposClient::validateToken() {
-    // Call an auth-gated endpoint with an intentionally invalid hash.
-    // HTTP 401 = device token rejected; anything else (e.g. 400) = accepted.
-    // Also warms up the TLS session for subsequent polls.
-    snprintf(_urlBuf, sizeof(_urlBuf), "%s/pos/invoice/__probe__/status",
-             _serverUrl.c_str());
-    if (!beginAuthRequest(_urlBuf)) return false;
-    _authHttp.addHeader("Authorization", _authHeader);
-    int code = _authHttp.GET();
-    _authHttp.end();
-    if (code <= 0) _authClient.stop();
-    return (code != 401 && code != 0);
 }
 
 String BitposClient::fetchCurrency(String& outRateModifier, String& outSendRateModifier) {

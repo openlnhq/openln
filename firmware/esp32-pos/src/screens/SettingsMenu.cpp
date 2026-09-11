@@ -3,7 +3,7 @@
 #include "../ui/Icons.h"
 
 static const char* MENU_LABELS[] = {
-    "Back", "WiFi Network", "Issue Card", "Wipe Card", "Read Card"
+    "Back", "WiFi Network", "Issue Card", "Wipe Card", "Read Card", "Firmware & Updates"
 };
 
 void SettingsMenu::draw(TFT_eSPI& tft) {
@@ -40,6 +40,7 @@ void SettingsMenu::draw(TFT_eSPI& tft) {
                 tft.drawLine(ix + 8, iy - 6, ix - 8, iy + 6, COL_ERROR);
                 break;
             case 4: iconColor = COL_TEXT;    Icons::nfc(tft, ix, iy, 12, iconColor); break;
+            case 5: Icons::gear(tft,ix,iy,7,COL_ACCENT); break;
         }
 
         // Label

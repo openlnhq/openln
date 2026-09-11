@@ -7,6 +7,7 @@ public:
     static void draw(TFT_eSPI& tft);
     static bool handleTouch(TFT_eSPI& tft, int tx, int ty);
     static long getAmountSats();
+    static bool hasInput();
     static void setPrice(float satsPerUnit, const String& currencyCode);
     static void setStatus(bool online, bool stale);
     static void updateAmountDisplay(TFT_eSPI& tft);
@@ -65,7 +66,6 @@ private:
     static String groupDigits(long v);
     static String amountString();
     static double currentValue();
-    static bool   hasInput();
     static uint16_t dotColor();
     static String rateString();
     static int    currencyDecimals(const String& code);

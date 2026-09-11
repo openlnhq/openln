@@ -1047,7 +1047,8 @@ async function renderRicDevices(){
   const box=$('#ricDevices'); if(!box)return;
   try{
     const me=await api('/api/me'); RIC_ACCOUNT_ID=me.account.id;
-    const devices=await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens');
+    const [devices,inventory]=await Promise.all([api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens'),api('/api/ric/devices').catch(()=>({devices:[]}))]);
+    const observations=new Map(inventory.devices.map(d=>[d.deviceId,d]));
     if(!box.isConnected)return;
     if(!devices.length){ box.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px"><div style="font-size:24px;margin-bottom:8px">▣</div><p class="dim" style="font-size:13px">No devices linked yet</p><p class="dim" style="font-size:11.5px;margin-top:4px">Flash and link your first RIC to get started</p></div>`; return; }
     box.innerHTML=devices.map(d=>`
@@ -1055,6 +1056,8 @@ async function renderRicDevices(){
         <div class="ricrow-meta">
           <div class="ricrow-top"><b>${esc(d.label||'RIC')}</b>${ricIsOnline(d.lastUsedAt)?'<span class="ricdot on"></span><span class="ricstatus on">online</span>':'<span class="ricdot"></span><span class="ricstatus">offline</span>'}</div>
           <div class="dim" style="font-size:11.5px;margin-top:3px">Linked ${ricFmtDate(d.createdAt)} · Last used ${ricFmtDate(d.lastUsedAt)}</div>
+          <div style="font-size:12px;margin-top:8px">${observations.get(d.id)?.firmwareVersion?'Installed v'+esc(observations.get(d.id).firmwareVersion):'Installed version not reported'}</div>
+          <div class="dim" style="font-size:11.5px;margin-top:3px;overflow-wrap:anywhere">${observations.get(d.id)?.ota?'Update: '+esc(observations.get(d.id).ota.state)+(observations.get(d.id).ota.code?' · '+esc(observations.get(d.id).ota.code):''):'No update report yet'}</div>
         </div>
         <button class="btn ghost sm dangerText" data-release="${esc(d.id)}">Release</button>
       </div>`).join('');

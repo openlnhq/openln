@@ -6,7 +6,7 @@
 
 // ── Firmware version ────────────────────────────────────────────────────────
 // Checked against the server on boot for OTA updates.
-#define FIRMWARE_VERSION "1.0.3"
+#include "core/Version.h"
 #include <XPT2046_Touchscreen.h>
 
 #include "config/Config.h"
@@ -97,9 +97,14 @@ enum AppState {
     STATE_CARD_WRITE,
     STATE_CARD_WIPE,
     STATE_CARD_READ,
+    STATE_UPDATES,
 };
 
 static AppState state = STATE_PROVISIONING;
+static uint32_t serverRetryAt=0, serverRetryMs=2000, lastHelloAt=0, nextOtaCheck=0;
+static bool serverAuthenticated=false;
+static void drawUpdateScreen();
+static void handleUpdateScreen();
 
 // Payment context preserved across NFC → PIN → settle flow
 static Invoice  currentInvoice;
@@ -259,28 +264,22 @@ static void handleConnectingWifi() {
         lnurlCallback.reserve(384);              // LNURL callback URL
         lnurlK1.reserve(64);
 
-        // Step 1 — connectivity: unauthenticated health probe.
-        // On failure: reboot and retry — do NOT wipe config. A transient server
-        // outage (maintenance, DNS blip) would otherwise factory-reset a deployed
-        // device and force the merchant to re-provision it in the field.
-        if (!BitposClient::healthCheck()) {
-            ProvisionService::setStatus("error:server_unreachable");
-            DBG_PRINTLN("healthCheck failed — rebooting to retry (config preserved)");
-            delay(4000);
-            ESP.restart();
+        // A real authenticated handshake, not a deliberately missing invoice.
+        // Offline, 5xx, TLS errors and rejection are distinct. Never erase NVS
+        // or reboot-loop because a server is unavailable or returns 401.
+        if (serverRetryAt && static_cast<int32_t>(millis()-serverRetryAt)<0) return;
+        auto authState=DeviceLink::hello();
+        if (authState!=RicPolicy::AuthState::Accepted) {
+            serverAuthenticated=false;
+            const bool rejected=authState==RicPolicy::AuthState::Rejected;
+            ProvisionService::setStatus(rejected?"error:token_invalid":"error:server_unreachable");
+            OTAManager::display(tft,rejected?"Device link rejected":"Reconnecting to openLN",
+                               rejected?"Check this device in your account":"Saved settings kept. Retrying.");
+            serverRetryMs=rejected?60000:std::min(serverRetryMs*2,60000U);
+            serverRetryAt=millis()+serverRetryMs+(esp_random()%1000);
             return;
         }
-
-        // Step 2 — authentication: confirm the device token is accepted.
-        // HTTP 401 = token explicitly rejected by the server. This IS permanent
-        // (wrong/revoked token), so wiping config to force re-provisioning is correct.
-        if (!BitposClient::validateToken()) {
-            ProvisionService::setStatus("error:token_invalid");
-            delay(4000);
-            Config::clear();
-            ESP.restart();
-            return;
-        }
+        serverAuthenticated=true;lastHelloAt=millis();serverRetryAt=0;serverRetryMs=2000;
 
         // Override currency from the server (merchant's account setting) so the
         // device always follows the web app — not the value baked into NVS at
@@ -319,7 +318,9 @@ static void handleConnectingWifi() {
         AmountScreen::setPrice(effectiveSatsPerUnit(), Config::currency);
         
         // OTA check — compare firmware version with server, update if available
+        OTAManager::bootConfirmed();
         OTAManager::checkAndUpdate(tft);
+        nextOtaCheck=millis()+900000+(esp_random()%60000);
         
         enterIdleAmount();
 
@@ -363,8 +364,9 @@ static void handleConnectingWifi() {
             // Don't clear config on timeout — wrong credentials need a factory
             // reset, but slow/temporary failures should survive a reboot.
             ProvisionService::setStatus("error:wifi_timeout");
-            delay(4000);
-            ESP.restart();
+            wifiConnectStart=millis()+(esp_random()%2000);
+            DeviceLink::release();
+            WiFi.reconnect();
         }
     }
 }
@@ -954,6 +956,26 @@ static bool isBackButtonTapped(int tx, int ty) {
     return (tx >= SCREEN_W - 60 && tx < SCREEN_W - 8 && ty >= 2 && ty < 26);
 }
 
+static void drawUpdateScreen() {
+    ledcWrite(0,255);tft.fillScreen(COL_BG);drawBackButton();
+    tft.setTextDatum(TL_DATUM);tft.setTextFont(FONT_SMALL);tft.setTextColor(COL_TEXT,COL_BG);
+    tft.drawString("Firmware & Updates",12,8);
+    tft.drawString(String("Installed: v")+FIRMWARE_VERSION,16,50);
+    tft.setTextColor(COL_MUTED,COL_BG);
+    tft.drawString(Config::serverUrl.indexOf("dev.openln.com")>=0?"Server: dev.openln.com":"Server: openln.com",16,78);
+    tft.drawString(OTAManager::lastStatus(),16,106);
+    tft.drawString(OTAManager::lastCode(),16,130);
+    tft.fillRoundRect(16,170,SCREEN_W-32,46,8,COL_ACCENT);tft.setTextColor(COL_ON_ACCENT,COL_ACCENT);tft.setTextDatum(MC_DATUM);
+    tft.drawString("Check for updates",SCREEN_W/2,193);
+}
+static void handleUpdateScreen() {
+    int tx,ty;if(!readTouch(tx,ty))return;
+    if(isBackButtonTapped(tx,ty)){state=STATE_SETTINGS_MENU;SettingsMenu::draw(tft);return;}
+    if(tx>=16 && tx<SCREEN_W-16 && ty>=170 && ty<216){
+        OTAManager::checkAndUpdate(tft,true);drawUpdateScreen();
+    }
+}
+
 // Card write callback — updates the screen with each step
 static void cardWriteStep(const char* label, bool done) {
     tft.fillScreen(COL_BG);
@@ -982,6 +1004,8 @@ static void handleSettingsMenu() {
     if (sel < 0) return;
 
     switch (sel) {
+        case SETTINGS_UPDATES:
+            state=STATE_UPDATES;drawUpdateScreen();break;
         case 0: // Back
             enterIdleAmount();
             break;
@@ -1322,7 +1346,7 @@ void setup() {
     touchSpi.begin(25, 39, 32, 33);
     touch.begin(touchSpi);
 
-    DBG_PRINTLN("RIC booting...");
+    Serial.printf("RIC boot: version=%s board=%s reset=%d\n",FIRMWARE_VERSION,RIC_BOARD,esp_reset_reason());
 
     // NFC init (non-fatal — device works without NFC)
     NfcReader::begin();
@@ -1375,7 +1399,7 @@ void loop() {
     // If the connection drops in any operational state, give the ESP32's
     // auto-reconnect 5 s to recover on its own, then force a full reconnect.
     if (state != STATE_PROVISIONING && state != STATE_CONNECTING_WIFI &&
-        state != STATE_WIFI_SETUP && state != STATE_SEND_WAITING &&
+        state != STATE_WIFI_SETUP && state != STATE_UPDATES && state != STATE_SEND_WAITING &&
         state != STATE_CARD_WRITE && state != STATE_CARD_WIPE &&
         state != STATE_CARD_READ && state != STATE_SETTINGS_MENU) {
         if (WiFi.status() != WL_CONNECTED) {
@@ -1414,6 +1438,19 @@ void loop() {
     //     self-heals quickly without hammering the server.
     //   - price > 0 (known): refresh every 5 min (PRICE_TTL_MS).
     if (state == STATE_IDLE_AMOUNT) {
+        // Management only when idle with no entered amount. Never during payments
+        // or NFC write/wipe, and use jitter to avoid a fleet reconnect storm.
+        if(!AmountScreen::hasInput() && WiFi.status()==WL_CONNECTED){
+            if(millis()-lastHelloAt>300000){
+                auto result=DeviceLink::hello();lastHelloAt=millis();
+                serverAuthenticated=result==RicPolicy::AuthState::Accepted;
+                if(!serverAuthenticated){enterConnectingWifi();return;}
+            }
+            if(nextOtaCheck && static_cast<int32_t>(millis()-nextOtaCheck)>=0){
+                OTAManager::checkAndUpdate(tft);nextOtaCheck=millis()+900000+(esp_random()%60000);
+                enterIdleAmount();return;
+            }
+        }
         bool priceUnknown = (satsPerUnit <= 0);
         uint32_t interval = priceUnknown ? PRICE_RETRY_MS : PRICE_TTL_MS;
         if (millis() - priceLastFetched > interval) {
@@ -1439,7 +1476,7 @@ void loop() {
         static uint32_t lastStatusTick = 0;
         if (millis() - lastStatusTick > 2000) {
             lastStatusTick = millis();
-            bool online = (WiFi.status() == WL_CONNECTED);
+            bool online = (WiFi.status() == WL_CONNECTED) && serverAuthenticated;
             bool stale  = (priceLastFetched == 0) ||
                           (millis() - priceLastFetched > PRICE_TTL_MS);
             AmountScreen::setStatus(online, stale);
@@ -1462,6 +1499,9 @@ void loop() {
     }
 
     switch (state) {
+        case STATE_UPDATES:
+            handleUpdateScreen();
+            break;
         case STATE_PROVISIONING:
             ProvisionScreen::update(tft);
             if (ProvisionService::isComplete()) {

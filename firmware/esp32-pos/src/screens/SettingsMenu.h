@@ -13,6 +13,7 @@ enum SettingsOption {
     SETTINGS_ISSUE_CARD = 2,
     SETTINGS_WIPE_CARD = 3,
     SETTINGS_READ_CARD = 4,
+    SETTINGS_UPDATES = 5,
 };
 
 class SettingsMenu {
@@ -21,8 +22,8 @@ public:
     static int handleTouch(int tx, int ty);
 
 private:
-    static const int ITEM_COUNT = 5;  // back + 4 options
+    static const int ITEM_COUNT = 6;  // back + 4 options
     static const int HEADER_H   = 20;
-    static const int ITEM_H      = 44;
+    static const int ITEM_H      = 36;
     static const int LIST_Y      = HEADER_H;  // items start right below header
 };

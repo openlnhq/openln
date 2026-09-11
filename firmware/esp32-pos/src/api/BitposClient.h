@@ -29,12 +29,12 @@ public:
     // GET /api/pos/config — returns the merchant's display currency + send rate modifier.
     static String fetchCurrency(String& outRateModifier, String& outSendRateModifier);
 
-    // GET /api/pos/invoice/probe/status — returns true if device token is valid
-    // (non-401 = authenticated OK; 401 = token invalid/revoked)
-    static bool validateToken();
 
     // GET /api/healthz — returns true on 200 (no auth, just connectivity)
     static bool healthCheck();
+
+    // Release sockets before OTA, avoiding multiple resident TLS contexts.
+    static void releaseConnections();
 
     // Generic LNURL-withdraw: GET url, parse JSON
     // Returns "" on success, error message on failure

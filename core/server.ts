@@ -47,6 +47,13 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/healthz") return json(res, 200, { status: "ok" });
     const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]);
     const currentAccount = cardToken ? await auth.authenticate(cardToken) : undefined;
+    // A RIC token is not a browser session. Limit it to the firmware protocol;
+    // otherwise it can overwrite the merchant Send PIN or call wallet/pay.
+    if(currentAccount && /^[0-9a-f]{64}$/.test(cardToken ?? "")) {
+      const deviceAllowed = (req.method === "GET" && (/^\/api\/pos\/(config|invoice\/[^/]+\/status|withdraw\/[^/]+\/status|next-provision|wipe-keys\/[^/]+)$/.test(u.pathname) || u.pathname === "/api/price" || /^\/api\/firmware\//.test(u.pathname))) ||
+        (req.method === "POST" && (/^\/api\/pos\/(invoice|withdraw|send-to-card|mark-written\/[^/]+|mark-wiped\/[^/]+)$/.test(u.pathname) || ["/api/ric/hello","/api/ric/status"].includes(u.pathname)));
+      if(!deviceAllowed)return json(res,403,{error:"Device credential cannot access account settings or browser wallet operations"});
+    }
     if(await handleCardsPreview(req,res,u))return;
     // RIC/CYD device boot handshake — GET /pos/config (device fetches merchant currency + rate modifiers) and GET /price (BTC/fiat rate). Ported verbatim from bitPOS routes/pos.ts + routes/price.ts.
     if (req.method === "GET" && u.pathname === "/api/pos/config") {

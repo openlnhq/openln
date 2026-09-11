@@ -190,6 +190,39 @@ const server = createServer(async (req, res) => {
       await db.update(entitiesTable).set({ passwordHash: digest(newPassword, randomBytes(16)) }).where(eq(entitiesTable.id, entity.id));
       return json(res, 200, { ok: true });
     }
+    // Merchant SEND PIN (6 digits): authorizes sats leaving via the RIC device
+    // (POST /api/pos/withdraw, /api/pos/send-to-card). NOT the 4-digit Bolt
+    // Card spending PIN (cards.pin_hash, core/auth/card-pin.ts) — different
+    // secret, different table, different holder. Stored bcrypt in
+    // entities.pin_hash, verified bitPOS-verbatim on the device send path.
+    // register() seeds the literal "password-login" placeholder: no PIN set.
+    const entityForAccount = async (accountId: string) => {
+      const [acc] = await db.select({ entityId: accountsTable.entityId }).from(accountsTable).where(eq(accountsTable.id, accountId));
+      if (!acc) return null;
+      const [entity] = await db.select({ id: entitiesTable.id, pinHash: entitiesTable.pinHash }).from(entitiesTable).where(eq(entitiesTable.id, acc.entityId));
+      return entity ?? null;
+    };
+    if (req.method === "GET" && u.pathname === "/api/account/send-pin") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const entity = await entityForAccount(account.id); if (!entity) return json(res, 404, { error: "Account not found" });
+      return json(res, 200, { set: !!entity.pinHash && entity.pinHash !== "password-login" });
+    }
+    if (req.method === "POST" && u.pathname === "/api/account/send-pin") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req);
+      const newPin = String(v.newPin ?? "");
+      const { validSendPinFormat, verifySendPin, hashSendPin, SEND_PIN_UNSET } = await import("./auth/send-pin.js");
+      if (!validSendPinFormat(newPin)) return json(res, 400, { error: "Send PIN must be exactly 6 digits" });
+      const entity = await entityForAccount(account.id); if (!entity) return json(res, 404, { error: "Account not found" });
+      const alreadySet = !!entity.pinHash && entity.pinHash !== SEND_PIN_UNSET;
+      if (alreadySet) {
+        const currentPin = String(v.currentPin ?? "");
+        if (!currentPin) return json(res, 400, { error: "Current send PIN is required" });
+        if (!await verifySendPin(currentPin, entity.pinHash)) return json(res, 401, { error: "Current send PIN is incorrect" });
+      }
+      await db.update(entitiesTable).set({ pinHash: await hashSendPin(newPin) }).where(eq(entitiesTable.id, entity.id));
+      return json(res, 200, { ok: true });
+    }
     if (req.method === "POST" && u.pathname === "/api/wallet/connect") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const connection = String(v.connection ?? v.nwcUrl ?? "").trim();

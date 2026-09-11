@@ -267,7 +267,7 @@ static void handleConnectingWifi() {
         // A real authenticated handshake, not a deliberately missing invoice.
         // Offline, 5xx, TLS errors and rejection are distinct. Never erase NVS
         // or reboot-loop because a server is unavailable or returns 401.
-        if (serverRetryAt && static_cast<int32_t>(millis()-serverRetryAt)<0) return;
+        if (serverRetryAt && !RicPolicy::due(millis(),serverRetryAt)) return;
         auto authState=DeviceLink::hello();
         if (authState!=RicPolicy::AuthState::Accepted) {
             serverAuthenticated=false;
@@ -360,11 +360,10 @@ static void handleConnectingWifi() {
                 else     tft.drawCircle(x, dotY + yOff, dotR, COL_MUTED);
             }
         }
-        if (millis() - wifiConnectStart > 40000) {
-            // Don't clear config on timeout — wrong credentials need a factory
-            // reset, but slow/temporary failures should survive a reboot.
+        if (RicPolicy::elapsed(millis(),wifiConnectStart,40000)) {
+            // Keep configuration and retry without rebooting or erasing NVS.
             ProvisionService::setStatus("error:wifi_timeout");
-            wifiConnectStart=millis()+(esp_random()%2000);
+            wifiConnectStart=millis();
             DeviceLink::release();
             WiFi.reconnect();
         }
@@ -1440,13 +1439,13 @@ void loop() {
     if (state == STATE_IDLE_AMOUNT) {
         // Management only when idle with no entered amount. Never during payments
         // or NFC write/wipe, and use jitter to avoid a fleet reconnect storm.
-        if(!AmountScreen::hasInput() && WiFi.status()==WL_CONNECTED){
+        if(RicPolicy::managementAllowed(true,AmountScreen::hasInput(),paymentInFlightAtTimeout || paymentInterruptedByWifi) && WiFi.status()==WL_CONNECTED){
             if(millis()-lastHelloAt>300000){
                 auto result=DeviceLink::hello();lastHelloAt=millis();
                 serverAuthenticated=result==RicPolicy::AuthState::Accepted;
                 if(!serverAuthenticated){enterConnectingWifi();return;}
             }
-            if(nextOtaCheck && static_cast<int32_t>(millis()-nextOtaCheck)>=0){
+            if(nextOtaCheck && RicPolicy::due(millis(),nextOtaCheck)){
                 OTAManager::checkAndUpdate(tft);nextOtaCheck=millis()+900000+(esp_random()%60000);
                 enterIdleAmount();return;
             }

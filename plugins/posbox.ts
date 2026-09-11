@@ -12,6 +12,7 @@ import { resolveWalletSource } from "../core/money/walletSource.js";
 import { getAccountNwcUrl, makeInvoice } from "../core/money/nwc.js";
 import { processExternalPayment } from "../core/money/feeEngine.js";
 import { logger } from "../core/money/logger.js";
+import { handleRicManagementRoute, type RicAccount } from "./ric-management.js";
 const json=(r:ServerResponse,s:number,b:unknown)=>{r.writeHead(s,{"content-type":"application/json"});r.end(JSON.stringify(b));return true;};
 async function body(req:IncomingMessage){let x="";for await(const c of req)x+=c;return JSON.parse(x||"{}");}
 
@@ -21,25 +22,10 @@ function isOnline(lastUsedAt: Date | null): boolean {
   return Date.now() - new Date(lastUsedAt).getTime() < 10 * 60 * 1000;
 }
 
-export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u:URL,account:{id:string}|undefined):Promise<boolean>{
+export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u:URL,account:RicAccount|undefined):Promise<boolean>{
+ if(await handleRicManagementRoute(req,res,u,account))return true;
  if(u.pathname==="/api/posbox/firmware/manifest"&&req.method==="GET"){try{const manifest=JSON.parse(await readFile(join(process.cwd(),"firmware","manifest.json"),"utf8"));return json(res,200,manifest);}catch{return json(res,404,{error:"Firmware manifest unavailable"});}}
  if(u.pathname==="/api/posbox/firmware"&&req.method==="GET"){try{const data=await readFile(join(process.cwd(),"firmware","posbox-latest.bin"));res.writeHead(200,{"content-type":"application/octet-stream","content-length":data.length,"content-disposition":"attachment; filename=ric-latest.bin"});res.end(data);}catch{return json(res,404,{error:"Firmware unavailable"});}return true;}
-
- // RIC OTA endpoints (device firmware src/api/OTAManager.h, wired verbatim to
- // bitPOS's /api/firmware/posbox-version contract): authenticated version probe
- // + public app-slot image download. Device compares its FIRMWARE_VERSION with
- // the returned version and updates on any mismatch.
- if(u.pathname==="/api/firmware/posbox-version"&&req.method==="GET"){
-  if(!account)return json(res,401,{error:"Authentication required"});
-  try{
-   const meta=JSON.parse(await readFile(join(process.cwd(),"firmware","ric-version.json"),"utf8"));
-   return json(res,200,{version:String(meta.version),url:`https://${DOMAIN}/api/firmware/posbox-ota.bin`});
-  }catch{return json(res,404,{error:"Firmware metadata unavailable"});}
- }
- if(u.pathname==="/api/firmware/posbox-ota.bin"&&req.method==="GET"){
-  // Download has no auth header in OTAManager; the image itself is public like the factory binary.
-  try{const data=await readFile(join(process.cwd(),"firmware","ric-ota.bin"));res.writeHead(200,{"content-type":"application/octet-stream","content-length":data.length,"content-disposition":"attachment; filename=ric-ota.bin"});res.end(data);}catch{return json(res,404,{error:"Firmware unavailable"});}return true;
- }
 
  // RIC device tokens: account-scoped auth tokens issued when a user links a RIC to their account (verbatim from bitPOS device_tokens)
  const dtAccountPath=u.pathname.match(/^\/api\/accounts\/([^/]+)\/device-tokens$/);

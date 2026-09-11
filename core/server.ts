@@ -74,7 +74,7 @@ const server = createServer(async (req, res) => {
       return json(res, 200, price);
     }
     if (await handlePartnerRoute(req,res,u)) return;
-    if (await handlePosboxRoute(req,res,u,currentAccount)) return;
+    if (await handlePosboxRoute(req,res,u,currentAccount ? {...currentAccount,authType:/^[0-9a-f]{64}$/.test(cardToken ?? "") ? "device" : "session"} : undefined)) return;
     if (handleShopRoute(req,res,u)) return;
     if (await handleExtensionsRoute(req,res,u,currentAccount)) return;
     if (await handleReportsRoute(req,res,u,currentAccount)) return;

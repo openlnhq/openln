@@ -118,7 +118,7 @@ const server = createServer(async (req, res) => {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const secret = process.env.MAEKOB_SHARED_SECRET;
       if (!secret) return json(res, 503, { error: "Card shop is not configured (missing MAEKOB_SHARED_SECRET)" });
-      const embedUrlBase = process.env.MAEKOB_EMBED_URL ?? "https://maekob.com/embed";
+      const embedUrlBase = process.env.MAEKOB_EMBED_URL ?? "https://cards.openln.com/embed";
       // Prefer the account's real linked lightning address (set for legacy
       // bitpos/maekob migrated users) so maekob's lookup-by-lightningAddress
       // resolves to the SAME pre-existing account instead of auto-creating a

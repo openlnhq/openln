@@ -699,7 +699,7 @@ export async function probeNwcWallet(nwcUrl: string): Promise<WalletProbe> {
 
     if (has("make_invoice")) {
       try {
-        await client.makeInvoice({ amount: 1000, description: "bitPOS NWC probe", expiry: 60 });
+        await client.makeInvoice({ amount: 1000, description: "openLN NWC probe", expiry: 60 });
         canMakeInvoice = true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -726,7 +726,7 @@ export async function probeNwcWallet(nwcUrl: string): Promise<WalletProbe> {
         canGetBalance = true;
       } catch { /* */ }
       try {
-        await client.makeInvoice({ amount: 1000, description: "bitPOS NWC probe", expiry: 60 });
+        await client.makeInvoice({ amount: 1000, description: "openLN NWC probe", expiry: 60 });
         canMakeInvoice = true;
       } catch { /* */ }
       // assume pay if we could talk at all

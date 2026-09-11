@@ -3,6 +3,9 @@
 #include <cstring>
 namespace RicPolicy {
 enum class AuthState { Accepted, Rejected, Retry };
+inline bool elapsed(uint32_t now,uint32_t since,uint32_t period){return uint32_t(now-since)>=period;}
+inline bool due(uint32_t now,uint32_t deadline){return int32_t(now-deadline)>=0;}
+inline bool managementAllowed(bool idle,bool input,bool paymentPending){return idle && !input && !paymentPending;}
 inline AuthState classifyHello(int code,bool validBody){
  if(code==200 && validBody)return AuthState::Accepted;
  if(code==401 || code==403)return AuthState::Rejected;

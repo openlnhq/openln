@@ -13,6 +13,7 @@ test('RIC factory image is explicitly identified and the flasher rejects a diffe
 test('OTA app image and version metadata agree with the manifest line',()=>{
   const ota=fs.readFileSync('firmware/ric-ota.bin');assert.equal(ota[0],0xe9);assert.equal(ota.readUInt16LE(12),0,'OTA image is classic ESP32');
   const meta=JSON.parse(fs.readFileSync('firmware/ric-version.json','utf8'));assert.match(meta.version,/^\d+\.\d+\.\d+$/);
+  assert.equal(JSON.parse(fs.readFileSync('firmware/manifest.json','utf8')).version,meta.version,'webflasher manifest and OTA endpoint must advertise the same version');
   const factory=fs.readFileSync('firmware/posbox-latest.bin');assert.ok(factory.includes(Buffer.from('RIC')),'factory image carries the RIC name (BLE advertise string, kept by the compiler even when Serial debug is stripped)');
   assert.ok(factory.includes(Buffer.from('openLN')),'factory image carries the openLN branding');
   assert.ok(!factory.includes(Buffer.from('posBOX'))&&!factory.includes(Buffer.from('bitPOS')),'factory image carries no legacy brand strings');

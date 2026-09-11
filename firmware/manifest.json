@@ -7,7 +7,7 @@
   "bytes": 1483120,
   "sha256": "f07143521018aabe47c137da3f06817a51d92b9f14307f1bf05a5fc759bc9585",
   "url": "/api/posbox/firmware",
-  "note": "Classic ESP32 display board only. Not for ESP32-S3 / ES3C28P.",
+  "note": "ESP32-2432S028R Only.",
   "version": "1.0.6",
   "partitionLayout": "ric-ab-v1",
   "ota": {

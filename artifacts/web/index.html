@@ -1040,7 +1040,7 @@ async function vRic(){
   </div>`;
   $('#ricFlashTile').onclick=()=>ricFlashModal();
   $('#ricLinkTile').onclick=()=>ricLinkModal();
-  api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(s.rateModifier||'Market rate')}</b><br>Sell / Send: <b>${esc(s.sendRateModifier||'Market rate')}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>navigate('settings')}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
+  api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(s.rateModifier||'Market rate')}</b><br>Sell / Send: <b>${esc(s.sendRateModifier||'Market rate')}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><p class="hint">Sending sats from the RIC (QR or card tap) requires your 6-digit send PIN. Set it under Security in Settings.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>navigate('settings')}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
   await renderRicDevices();
 }
 async function renderRicDevices(){
@@ -1252,10 +1252,12 @@ const CURRENCIES = ["zar","usd","eur","thb","gbp","jpy","btc","sats"];
 const CURRENCY_NAMES={zar:'South African rand',usd:'US dollar',eur:'Euro',thb:'Thai baht',gbp:'British pound',jpy:'Japanese yen',btc:'Bitcoin',sats:'Satoshis'};
 const RATE_SOURCES = ["coingecko","binance"];
 async function vSettings(version=renderVersion){
-  const [settings, status] = await Promise.all([
+  const [settings, status, sendPin] = await Promise.all([
     api('/api/account/settings').catch(()=>({currency:'usd',rateSource:'coingecko'})),
     api('/api/wallet/status').catch(()=>({connected:false,walletMode:'unset'})),
+    api('/api/account/send-pin').catch(()=>({set:false})),
   ]);
+  const pinSet = !!sendPin.set;
   if(version!==renderVersion || VIEW!=='settings')return;
   $('#view').innerHTML=`<div style="margin-top:30px">
     <div class="overline">Settings</div>
@@ -1304,7 +1306,7 @@ async function vSettings(version=renderVersion){
 
       <div class="setcard">
         <h3>Security</h3>
-        <div class="sub">Change your account password.</div>
+        <div class="sub">Account password and the send PIN the RIC requires.</div>
         <div class="setrow">
           <label>Current password<small>Required to confirm changes</small></label>
           <input type="password" id="setPwCurrent" autocomplete="current-password" placeholder="••••••••">
@@ -1316,6 +1318,26 @@ async function vSettings(version=renderVersion){
         <div class="set-actions">
           <button class="btn teal sm" id="savePw">Change password</button>
           <span class="dim" style="font-size:12px;align-self:center" id="pwStatus"></span>
+        </div>
+        <div style="border-top:1px solid var(--line);margin-top:18px;padding-top:16px">
+          <h3 style="margin-bottom:2px">Send PIN</h3>
+          <div class="sub">${pinSet?'Six digits. Required on the RIC before sats leave your wallet.':'Six digits. The RIC requires it before any send: LNURL-w QR or tapping a card. Until it is set, the device cannot send.'}</div>
+          ${pinSet?`<div class="setrow">
+            <label>Current send PIN</label>
+            <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="setPinCurrent" autocomplete="off" placeholder="••••••">
+          </div>`:''}
+          <div class="setrow">
+            <label>New send PIN<small>Exactly 6 digits</small></label>
+            <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="setPinNew" autocomplete="new-password" placeholder="••••••">
+          </div>
+          <div class="setrow">
+            <label>Confirm send PIN</label>
+            <input type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="setPinConfirm" autocomplete="new-password" placeholder="••••••">
+          </div>
+          <div class="set-actions">
+            <button class="btn teal sm" id="savePin">${pinSet?'Change send PIN':'Set send PIN'}</button>
+            <span class="dim" style="font-size:12px;align-self:center" id="pinStatus"></span>
+          </div>
         </div>
       </div>
 
@@ -1366,6 +1388,23 @@ async function vSettings(version=renderVersion){
       setTimeout(()=>{st.textContent=''},2500);
     }catch(e){ st.textContent=displayText(e.message); }
     b.disabled=false; b.textContent='Change password';
+  };
+
+  // send PIN (merchant 6-digit code authorizing RIC sends; not the 4-digit card spending PIN)
+  $('#savePin').onclick=async()=>{
+    const b=$('#savePin'), st=$('#pinStatus');
+    const curEl=$('#setPinCurrent'), nxt=$('#setPinNew').value, cf=$('#setPinConfirm').value;
+    if(!/^\d{6}$/.test(nxt)){ st.textContent='Send PIN must be exactly 6 digits'; return; }
+    if(nxt!==cf){ st.textContent='The two entries do not match'; return; }
+    if(pinSet && !curEl.value){ st.textContent='Enter your current send PIN'; return; }
+    b.disabled=true; b.textContent='Saving…'; st.textContent='';
+    try{
+      await api('/api/account/send-pin',{method:'POST',body:JSON.stringify({newPin:nxt,...(pinSet?{currentPin:curEl.value}:{})})});
+      st.textContent='Send PIN saved';
+      $('#setPinNew').value=''; $('#setPinConfirm').value=''; if(curEl)curEl.value='';
+      setTimeout(()=>{navigate('settings')},1400);
+    }catch(e){ st.textContent=displayText(e.message); }
+    b.disabled=false; b.textContent=pinSet?'Change send PIN':'Set send PIN';
   };
 
   // wallet connect/replace

@@ -4,8 +4,8 @@
   "chip": "ESP32",
   "kind": "factory",
   "address": 0,
-  "bytes": 1353920,
-  "sha256": "b7792f3429c36f1d1bf9c0c24bdf6e7cfe950e433b98923f1936ac82799a74dd",
+  "bytes": 1455936,
+  "sha256": "e7c92d17e44b6be2322308885eb65fd8e0a887659ff5390b9ee788b31b0fec26",
   "url": "/api/posbox/firmware",
   "note": "Classic ESP32 display board only. Not for ESP32-S3 / ES3C28P."
 }

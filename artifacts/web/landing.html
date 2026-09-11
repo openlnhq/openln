@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>openLN | Bitcoin on the counter. Open-source Lightning point of sale.</title>
+<title>openLN | Bitcoin Point of Sale.</title>
 <meta name="description" content="The RIC is an always-on Lightning terminal for the counter: staff type the amount, the customer taps a card or scans, sats settle in the merchant's own wallet. Open hardware, open source, non-custodial. Tap-to-pay cards printed to order.">
-<meta property="og:title" content="openLN | Bitcoin on the counter.">
-<meta property="og:description" content="Open-source Lightning point of sale and tap-to-pay cards. Non-custodial. Built by local partners.">
+<meta property="og:title" content="openLN | Bitcoin Point of Sale.">
+<meta property="og:description" content="Open-source Lightning point of sale and tap-to-pay cards.">
 <meta property="og:image" content="https://openln.com/media/ric-poster.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,300..900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -299,7 +299,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 
 <header class="top" id="top"><div class="wrap topin">
   <a class="brand" href="/" aria-label="openLN home"><svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="40" fill="#0e8388"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/></svg>open<em>LN</em></a>
-  <nav class="navl" aria-label="Sections"><a href="#ric">The RIC</a><a href="#cards">Cards</a><a href="#money">Where the money goes</a><a href="#verify">Verify</a><a href="#partners">Partners</a></nav>
+  <nav class="navl" aria-label="Sections"><a href="#ric">The RIC</a><a href="#cards">Cards</a><a href="#money">Cashflow</a><a href="#verify">Verify</a><a href="#partners">Partners</a></nav>
   <div class="navr"><a class="btn btn-ghost" href="/app">Enter <span class="ar">→</span></a></div>
 </div></header>
 
@@ -308,9 +308,9 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   <div class="media" aria-hidden="true"><video src="/media/ric-hero.mp4" poster="/media/ric-poster.jpg" autoplay muted loop playsinline></video></div>
   <div class="wrap heroin">
     <div>
-      <span class="lbl teal"><i></i>Open-source Lightning point of sale</span>
-      <h1 style="max-width:min(11ch,46vw)">Bitcoin is the way out.<span class="l2">Put it on the counter.</span></h1>
-      <p class="sub">The RIC is an always-on Lightning terminal. Staff type the amount, the customer taps a card or scans, and the sats settle in the merchant's own wallet.</p>
+      <span class="lbl teal"><i></i>Open-source point of sale</span>
+      <h1 style="max-width:min(11ch,46vw)">Plug & Play<span class="l2">Bitcoin POS.</span></h1>
+      <p class="sub">OpenLN gives merchants the tools to join the circular economy with simple, self-custodial payments.</p>
     </div>
     <div class="bar">
       <div class="spec"><span><b>RIC</b> · Rapid Invoice Channel</span><span class="p">$49</span><span>open hardware</span></div>
@@ -322,13 +322,15 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 <!-- TWO MOVES -->
 <section class="moves" id="ric"><div class="wrap">
   <div class="sechead rv">
-    <span class="lbl teal">The counter problem</span>
-    <h2 class="sec">Two moves.<br><span class="g">No training.</span></h2>
-    <p class="sub">The RIC lives on the counter, not on a staff member's phone. Nobody learns a wallet app. Nobody hands over a device.</p>
+    <span class="lbl teal">The solution</span>
+    <h2 class="sec">Type amount.<br><span class="g">Scan or Tap.</span></h2>
+    <p class="sub">The RIC is dialed in, so when the moment comes to accept a Bitcoin payment, the process is streamlined and virtually foolproof - no more errors and no more classic “How do I do this again?” moments. 
+
+Bitcoin payments don't usually happen every day, it’s easy for staff to forget the workflow. The RIC removes that friction by making the process simple, consistent, and intuitive every time.</p>
   </div>
   <div class="movesin">
     <ol class="steps rv">
-      <li><span class="n">01</span><div><h3>Staff type the amount.</h3><p>Keypad, one screen, always on. Same as any card terminal.</p></div></li>
+      <li><span class="n">01</span><div><h3>Staff type the amount.</h3><p>Keypad and screen always ready. Same as any card terminal.</p></div></li>
       <li><span class="n">02</span><div><h3>Customer taps a card or scans.</h3><p>An openLN card, any Bolt Card, or any Lightning wallet by QR.</p></div></li>
       <li class="res"><span class="n">03</span><div><h3>Sats land in the merchant's wallet.</h3><p>Their wallet, their keys. The same terminal also writes and wipes NTAG424 cards at the counter.</p></div></li>
     </ol>
@@ -385,11 +387,11 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
     <div class="ctext rv">
       <span class="lbl teal">Tap-to-pay cards</span>
       <h2 class="sec" style="margin-top:18px">A card that pays<br>from <span class="g">your</span> wallet.</h2>
-      <p class="sub">An NTAG424 DNA card linked to your openLN account. Tap it at a RIC or any terminal that takes Bolt Cards. The payment comes from a wallet you control. Freeze or wipe it from the app.</p>
+      <p class="sub">Link an NTAG424 DNA card to your openLN account. Tap it at a RIC or any terminal that takes Bolt Cards. The payment comes from the wallet you control. Freeze or wipe it from the app.</p>
       <ul class="cfacts">
-        <li><span>Chip</span><b>NTAG424 DNA · AES-128</b></li>
+        <li><span>Chip</span><b>Authentic NTAG424 DNA · AES-128</b></li>
         <li><span>Works at</span><b>RIC · any Bolt Card terminal</b></li>
-        <li><span>Printed</span><b>to order, by a local partner</b></li>
+        <li><span>Printed</span><b>to order by a local partner</b></li>
         <li><span>Design</span><b>catalog or your own, with free Card Studio</b></li>
       </ul>
       <div class="ctas"><a class="btn btn-teal" href="https://cards.openln.com/shop">Browse the catalog <span class="ar">→</span></a><a class="btn btn-ghost" href="https://cards.openln.com/shop">Design your own <span class="ar">→</span></a></div>
@@ -397,14 +399,14 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   </div>
 </div></section>
 
-<!-- WHERE THE MONEY GOES -->
+<!-- CASHFLOW -->
 <section class="receipt" id="money"><div class="wrap">
   <div class="rin">
     <div class="rtext rv">
-      <span class="lbl">Where the money goes</span>
-      <h2 class="sec" style="margin-top:18px">A toll,<br>not a vault.</h2>
-      <p class="sub">openLN routes the payment and takes a fee. It does not hold balances. The customer's sats are locked to a hold invoice, forwarded to the merchant's own wallet, and settled in one motion.</p>
-      <p class="fine">Your wallet connects over <b>Nostr Wallet Connect</b> (NIP-47). openLN never holds your keys, and there is no openLN balance to withdraw. <b>Payments pass through. The fee is the only thing we keep.</b></p>
+      <span class="lbl"> Cashflow</span>
+      <h2 class="sec" style="margin-top:18px">A route,<br>not a vault.</h2>
+      <p class="sub">openLN routes the payment and requires a routing fee. It does not hold balances. The customer's sats are locked to a hold invoice, forwarded to the merchant's own wallet, and settled in one motion.</p>
+      <p class="fine">Your wallet connects over <b>Nostr Wallet Connect</b> (NIP-47). openLN never holds your keys, and there is no openLN balance to withdraw. <b>Payments pass through, only the routing fee is left behind.</b></p>
     </div>
     <div class="rv">
       <div class="slip" id="slip" role="img" aria-label="Receipt: customer pays 12,000 sats; hold invoice locked; openLN fee 2% is 240 sats; 11,760 sats forwarded to the merchant's own wallet; settled by releasing the preimage. Balance held at openLN: 0 sats.">
@@ -412,7 +414,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
         <div class="rows">
           <div class="r"><span class="k">Customer pays</span><span class="v">12 000 sats</span></div>
           <div class="r"><span class="k">Hold invoice</span><span class="v">locked</span></div>
-          <div class="r fee"><span class="k">openLN fee · 2%</span><span class="v">− 240 sats</span></div>
+          <div class="r fee"><span class="k">Routing fee · 2%</span><span class="v">− 240 sats</span></div>
           <div class="r sats"><span class="k">Forwarded to merchant</span><span class="v">11 760 sats</span></div>
           <div class="r"><span class="k">Destination</span><span class="v">merchant's own wallet</span></div>
           <div class="r"><span class="k">Settled</span><span class="v">preimage released</span></div>
@@ -420,7 +422,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
         </div>
         <div class="meta"><span>payment_hash <b>9b1f 04c7 … e6a3</b></span><span>terminal <b>RIC · counter 1</b></span><span>rail <b>Lightning · NIP-47</b></span></div>
         <div class="stampbox"><div class="stamp" aria-hidden="true">settled</div></div>
-        <div class="foot">Balances are never stored at openLN. Your keys stay in your wallet; the merchant's keys stay in theirs.<br><b>Don't trust. Verify. The source is public.</b></div>
+        <div class="foot">Balances are never stored at openLN. Your keys stay in your wallet; the merchant's keys stay in theirs.<br><b>Don't trust. Verify.</b></div>
       </div>
     </div>
   </div>
@@ -429,15 +431,15 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 <!-- VERIFY -->
 <section class="verify" id="verify"><div class="wrap">
   <div class="sechead rv">
-    <span class="lbl teal">Why you can trust it</span>
+    <span class="lbl teal">AUDIT THE CODE</span>
     <h2 class="sec">Don't trust.<br><span class="g">Verify.</span></h2>
-    <p class="sub">Every claim on this page is checkable. The code is public, the hardware is open, the company is real, and your keys never leave your wallet.</p>
+    <p class="sub">Every claim on this page is verifiable. The code is public, the hardware is open and your keys are <b>yours</b>.</p>
   </div>
   <div class="vgrid rv">
     <div class="vcell"><span class="lbl">Source</span><div class="big">AGPL-3.0</div><p>Platform under AGPL-3.0, firmware under MIT. Read it, build it, run your own.</p><a href="https://github.com/openlnhq/openln">github.com/openlnhq →</a></div>
     <div class="vcell"><span class="lbl">Custody</span><div class="big">None</div><p>Your account connects to your wallet over NIP-47. openLN routes payments; it never holds keys or balances.</p><a href="#money">how the money moves →</a></div>
-    <div class="vcell"><span class="lbl">Hardware</span><div class="big">Open</div><p>ESP32 board, printed case, published build files. Assembled and sold by local partners, who keep the hardware revenue.</p><a href="https://github.com/openlnhq/openln">build files →</a></div>
-    <div class="vcell"><span class="lbl">Company</span><div class="big">Koh Samui</div><p>openLN Co., Ltd., Thailand. Engineering and operations in one place, on our own infrastructure.</p><a href="mailto:hello@openln.com">hello@openln.com →</a></div>
+    <div class="vcell"><span class="lbl">Hardware</span><div class="big">Open</div><p>ESP32 board, printed case, published build files. Assembled and sold by local partners.</p><a href="https://github.com/openlnhq/openln">build files →</a></div>
+    <div class="vcell"><span class="lbl">Organization</span><div class="big">Koh Samui</div><p>openLN, Thailand. Engineering and operations in one place, on sovereign infrastructure.</p><a href="mailto:hello@openln.com">hello@openln.com →</a></div>
   </div>
 </div></section>
 
@@ -445,7 +447,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 <section class="partners" id="partners"><div class="wrap">
   <div class="sechead rv">
     <span class="lbl teal">Distributor network</span>
-    <h2 class="sec">Built where<br><span class="g">it's used.</span></h2>
+    <h2 class="sec">Built Locally.<br><span class="g">Serve Globally.</span></h2>
     <p class="sub">Partners source parts locally, assemble the RIC, print the cards, and onboard the merchants around them. They keep 100% of every hardware sale and earn on every payment their devices route, for the life of the device.</p>
   </div>
   <table class="ptable rv" aria-label="Distributors">
@@ -462,7 +464,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 
 <!-- FINALE -->
 <section class="fin" id="start"><div class="wrap">
-  <h2 class="rv">On every counter,<br><span class="g">in every city.</span></h2>
+  <h2 class="rv">Bitcoin payments<br><span class="g">Made simple.</span></h2>
   <div class="row rv">
     <a class="btn btn-teal" href="https://cards.openln.com/shop/">Get the RIC <span class="ar">→</span></a>
     <a class="btn btn-ghost" href="https://cards.openln.com/shop">Get a card <span class="ar">→</span></a>
@@ -474,7 +476,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 <footer><div class="wrap fin2">
   <div class="brand" style="font-size:16px"><svg class="mark" style="width:18px;height:18px" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="40" fill="#0e8388"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/></svg>open<em>LN</em></div>
   <div class="fl"><a href="https://github.com/openlnhq/openln">Source</a><a href="/app">Wallet</a><a href="https://cards.openln.com">Cards</a><a href="/partner">Partners</a><a href="https://github.com/openlnhq/openln/blob/main/LICENSE">AGPL-3.0</a></div>
-  <div class="co">openLN Co., Ltd. · Koh Samui, Thailand</div>
+  <div class="co">openLN · Koh Samui, Thailand</div>
 </div></footer>
 
 <script>

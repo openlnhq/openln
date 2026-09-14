@@ -14,7 +14,7 @@ import { logger } from './money/logger.js';
 
 type Invoice = typeof pendingInvoicesTable.$inferSelect;
 type Raw = {type?:string;state?:string;payment_hash?:string;preimage?:string;settled_at?:number;amount?:number;fees_paid?:number};
-export type RicInvoiceResult = {status:string;paymentHash:string;dispatched?:boolean;doNotRetry?:boolean};
+export type RicInvoiceResult = {status:string;paymentHash:string;dispatched?:boolean;doNotRetry?:boolean;cleanupPending?:boolean};
 const directExpired = new Set<string>();
 const validHash = (hash:string) => /^[0-9a-f]{64}$/.test(hash);
 const pending = (hash:string):RicInvoiceResult => ({status:'pending',paymentHash:hash,doNotRetry:true});
@@ -25,6 +25,13 @@ function proofPaid(raw:Raw):boolean {
 }
 function unpaidTerminal(raw:Raw):boolean { return !proofPaid(raw) && ['expired','cancelled','canceled','failed'].includes(raw.state??''); }
 function incoming(raw:Raw,hash:string):boolean { return raw.type==='incoming' && raw.payment_hash===hash; }
+// Bind the unsupported-cancel fallback to a hold we minted, not a direct or
+// legacy same-hash invoice. The persisted preimage is never sent to the wallet.
+function mintedHold(row:Invoice):boolean {
+  return !!row.holdPreimage && /^[0-9a-f]{64}$/i.test(row.holdPreimage) &&
+    createHash('sha256').update(Buffer.from(row.holdPreimage,'hex')).digest('hex')===row.paymentHash &&
+    !!row.merchantPaymentHash && validHash(row.merchantPaymentHash) && row.merchantPaymentHash!==row.paymentHash;
+}
 function rememberDirectExpiry(hash:string) { if(directExpired.size>=1024)directExpired.delete(directExpired.values().next().value!);directExpired.add(hash); }
 async function bounded<T>(client:NWCClient,work:()=>Promise<T>):Promise<T> {
   let timer:NodeJS.Timeout|undefined;
@@ -39,6 +46,7 @@ async function lookup(client:NWCClient,hash:string):Promise<Raw|undefined> {
 // to 50. Only a complete declared total or a subsequent empty page proves absence.
 export async function outgoingEvidence(client:NWCClient,hash:string,from:number):Promise<{complete:boolean;match?:Raw}> {
   const direct=await lookup(client,hash);
+  if(direct && direct.payment_hash!==hash)return {complete:false};
   if(direct?.type==='outgoing' && direct.payment_hash===hash)return {complete:true,match:direct};
   let offset=0;const seen=new Set<string>();let previousTotal:number|undefined;
   for(let page=0;page<20;page++) {
@@ -67,12 +75,15 @@ export function ricInvoiceView(row:Invoice):RicInvoiceResult {
   const paymentHash=row.paymentHash;
   if(row.paidAt || row.wrapStatus==='settled')return {status:'paid',paymentHash};
   if(row.wrapStatus==='cancelled')return {status:'cancelled',paymentHash,dispatched:false};
+  // Checkout is irrevocably aborted; the wallet invoice/HTLC is NOT terminal.
+  // No forward can claim this state. Keep it in the cleanup sweep until proof.
+  if(row.wrapStatus==='cancel_pending')return {status:'cancelled',paymentHash,dispatched:false,cleanupPending:true};
   if(!row.wrapStatus && directExpired.has(paymentHash))return {status:'expired',paymentHash,dispatched:false};
   if(['accepted','forwarding','forwarded'].includes(row.wrapStatus??''))return {status:row.wrapStatus!,paymentHash,dispatched:true,doNotRetry:true};
   return pending(paymentHash);
 }
 async function markCancelled(row:Invoice):Promise<void> {
-  const r=await pool.query("UPDATE pending_invoices SET wrap_status='cancelled',wrap_updated_at=now() WHERE id=$1 AND paid_at IS NULL AND wrap_status IN ('created','cancelling') RETURNING id",[row.id]);
+  const r=await pool.query("UPDATE pending_invoices SET wrap_status='cancelled',wrap_updated_at=now() WHERE id=$1 AND paid_at IS NULL AND wrap_status IN ('created','cancelling','cancel_pending') RETURNING id",[row.id]);
   if(r.rowCount) {
     const {recordPaymentEvent}=await import('./money/paymentLog.js');
     recordPaymentEvent({paymentId:row.id,accountId:row.accountId,kind:'wrap',event:'wrap.expired_reconciled',status:'info',paymentHash:row.paymentHash,message:'Unpaid terminal hold confirmed; no outgoing liability. Checkout closed.'});
@@ -82,22 +93,27 @@ async function inspectInvoice(hash:string):Promise<RicInvoiceResult> {
   const row=await readInvoice(hash);
   if(!row)return {status:'not_found',paymentHash:hash};
   const view=ricInvoiceView(row);
-  if(['paid','cancelled','expired'].includes(view.status))return view;
-  if(relayInCooldown())return pending(hash);
+  if(['paid','cancelled','expired'].includes(view.status) && !view.cleanupPending)return view;
+  const unknown=()=>view.cleanupPending?view:pending(hash);
+  if(relayInCooldown())return unknown();
   const url=row.wrapStatus?PLATFORM_NWC_URL:(row.nwcUrlEncrypted?decrypt(row.nwcUrlEncrypted):undefined);
-  if(!url)return pending(hash);
+  if(!url)return unknown();
   const client=new NWCClient({nostrWalletConnectUrl:url});
   try {
     const hold=await lookup(client,hash);
-    if(!hold || !incoming(hold,hash))return pending(hash);
+    if(!hold || !incoming(hold,hash))return unknown();
     if(!row.wrapStatus) {
       if(proofPaid(hold))await settleInvoiceByPaymentHash(hash,new Date());
       else if(unpaidTerminal(hold))rememberDirectExpiry(hash);
       return ricInvoiceView((await readInvoice(hash))!);
     }
-    const held=hold.state==='accepted' && !unpaidTerminal(hold);
+    const held=hold.state==='accepted' && !proofPaid(hold);
     if(row.wrapStatus==='created' && hold.state==='pending' && !proofPaid(hold))return pending(hash);
-    const needsOtherLeg=row.wrapStatus==='cancelling' || unpaidTerminal(hold) || proofPaid(hold);
+    const cancelling=row.wrapStatus==='cancelling' || row.wrapStatus==='cancel_pending';
+    // Do not let a later outgoing-read failure hide known first-leg payment
+    // behind the durable-checkout fallback. This anomaly needs reconciliation.
+    if(cancelling && proofPaid(hold))return pending(hash);
+    const needsOtherLeg=cancelling || unpaidTerminal(hold) || proofPaid(hold);
     let outgoing:{complete:boolean;match?:Raw}|undefined;
     if(needsOtherLeg) {
       if(!row.merchantPaymentHash)return pending(hash);
@@ -105,19 +121,41 @@ async function inspectInvoice(hash:string):Promise<RicInvoiceResult> {
       if(!outgoing.complete)return pending(hash);
     }
     const noLiability=outgoing?.complete && (!outgoing.match || (outgoing.match.state==='failed' && !proofPaid(outgoing.match)));
-    if(row.wrapStatus==='cancelling') {
-      if(held) {
-        await pool.query("UPDATE pending_invoices SET wrap_status='created',wrap_updated_at=now() WHERE id=$1 AND wrap_status='cancelling' AND paid_at IS NULL",[row.id]);
-        return pending(hash);
-      }
-      if(!noLiability)return pending(hash);
+    if(cancelling) {
+      // Cancellation ownership is permanent: even late acceptance must never
+      // revive created/accepted or enter advanceWrap. Paid/liability wins.
+      if(proofPaid(hold) || !noLiability)return pending(hash);
       if(unpaidTerminal(hold))await markCancelled(row);
-      else if(hold.state==='pending' && !proofPaid(hold)) {
-        // Claim is already durable. Cancellation is idempotent, but wallet ACK
-        // is not terminal proof: read the exact incoming hold back afterward.
-        await bounded(client,()=>client.cancelHoldInvoice({payment_hash:hash}));
+      else if(held || hold.state==='pending') {
+        let notFound=false;
+        try {await bounded(client,()=>client.cancelHoldInvoice({payment_hash:hash}));}
+        catch(err) {
+          // Alby only cancels ACCEPTED holds. NOT_FOUND alone is never proof
+          // of absence, refund, or even an unsupported pending cancellation.
+          if((err as {code?:string})?.code!=='NOT_FOUND')throw err;
+          notFound=true;
+        }
         const after=await lookup(client,hash);
-        if(after && incoming(after,hash) && unpaidTerminal(after))await markCancelled(row);
+        if(!after || !incoming(after,hash))return unknown();
+        if(proofPaid(after))return pending(hash);
+        const unsupportedPending=row.wrapStatus==='cancelling' && hold.state==='pending' &&
+          notFound && after.state==='pending' && mintedHold(row);
+        if(unpaidTerminal(after) || unsupportedPending) {
+          // Recheck after the wallet round trip; a newly visible outgoing
+          // payment must not be hidden by our earlier complete history read.
+          const latest=await outgoingEvidence(client,row.merchantPaymentHash!,Math.floor(row.createdAt.getTime()/1000)-300);
+          if(!latest.complete || (latest.match && !(latest.match.state==='failed' && !proofPaid(latest.match))))return pending(hash);
+          if(unpaidTerminal(after))await markCancelled(row);
+          else {
+            // Only the durable cancelling owner may become a tombstone. A
+            // stale created/accepted advance loses its CAS before pay_invoice.
+            const aborted=await pool.query("UPDATE pending_invoices SET wrap_status='cancel_pending',wrap_updated_at=now() WHERE id=$1 AND paid_at IS NULL AND wrap_status='cancelling' RETURNING id",[row.id]);
+            if(aborted.rowCount) {
+              const {recordPaymentEvent}=await import('./money/paymentLog.js');
+              recordPaymentEvent({paymentId:row.id,accountId:row.accountId,kind:'wrap',event:'wrap.cancel_pending',status:'info',paymentHash:hash,message:'Checkout aborted; forwarding permanently disabled. Wallet hold cleanup pending.'});
+            }
+          }
+        }
       }
       return ricInvoiceView((await readInvoice(hash))!);
     }
@@ -145,7 +183,13 @@ const MIN_RECOVERY_INTERVAL_MS=15_000;
 export function reconcileRicInvoiceNow(hash:string):Promise<RicInvoiceResult> {
   if(!validHash(hash))return Promise.resolve({status:'not_found',paymentHash:hash});
   const existing=inFlight.get(hash);if(existing)return existing;
-  const work=inspectInvoice(hash).catch(err=>{logger.warn({paymentHash:hash,errorClass:err instanceof Error?err.name:'lookup'},'RIC invoice status unknown; retained for reconciliation');return pending(hash);}).finally(()=>inFlight.delete(hash));
+  const work=inspectInvoice(hash).catch(async err=>{
+    logger.warn({paymentHash:hash,errorClass:err instanceof Error?err.name:'lookup'},'RIC invoice status unknown; retained for reconciliation');
+    // A failed wallet read cannot undo a durable checkout abort. Never infer
+    // one from a failed read, and let a concurrently paid DB row take priority.
+    try {const row=await readInvoice(hash);if(row && (row.paidAt || row.wrapStatus==='cancel_pending'))return ricInvoiceView(row);} catch { /* DB uncertainty remains pending. */ }
+    return pending(hash);
+  }).finally(()=>inFlight.delete(hash));
   inFlight.set(hash,work);return work;
 }
 function drain() {
@@ -174,7 +218,7 @@ export function startRicReconciler():()=>void {
   const sweep=async()=>{
     if(sweeping || relayInCooldown())return;sweeping=true;
     try {
-      const r=await pool.query<{payment_hash:string;id:string}>("SELECT id,payment_hash FROM pending_invoices WHERE paid_at IS NULL AND (wrap_status IN ('created','cancelling','accepted','forwarding','forwarded','needs_reconciliation') OR (wrap_status IS NULL AND created_at>now()-interval '24 hours')) AND id::text>$1 ORDER BY id::text LIMIT 20",[cursor]);
+      const r=await pool.query<{payment_hash:string;id:string}>("SELECT id,payment_hash FROM pending_invoices WHERE paid_at IS NULL AND (wrap_status IN ('created','cancelling','cancel_pending','accepted','forwarding','forwarded','needs_reconciliation') OR (wrap_status IS NULL AND created_at>now()-interval '24 hours')) AND id::text>$1 ORDER BY id::text LIMIT 20",[cursor]);
       cursor=r.rows.length===20?r.rows[r.rows.length-1].id:'';
       for(const row of r.rows)if(!directExpired.has(row.payment_hash))enqueueRicInvoice(row.payment_hash);
     } catch(err) {logger.warn({errorClass:err instanceof Error?err.name:'db'},'RIC reconciliation sweep unavailable');}

@@ -140,6 +140,8 @@ async function inspectInvoice(hash:string):Promise<RicInvoiceResult> {
 const inFlight=new Map<string,Promise<RicInvoiceResult>>();
 const lastAttempt=new Map<string,number>();
 const queue=new Set<string>();let active=0;
+const MAX_RECOVERY_CONCURRENCY=1;
+const MIN_RECOVERY_INTERVAL_MS=15_000;
 export function reconcileRicInvoiceNow(hash:string):Promise<RicInvoiceResult> {
   if(!validHash(hash))return Promise.resolve({status:'not_found',paymentHash:hash});
   const existing=inFlight.get(hash);if(existing)return existing;
@@ -147,7 +149,7 @@ export function reconcileRicInvoiceNow(hash:string):Promise<RicInvoiceResult> {
   inFlight.set(hash,work);return work;
 }
 function drain() {
-  while(active<2 && queue.size) {
+  while(active<MAX_RECOVERY_CONCURRENCY && queue.size) {
     const hash=queue.values().next().value!;queue.delete(hash);active++;
     lastAttempt.delete(hash);lastAttempt.set(hash,Date.now());
     if(lastAttempt.size>2048)lastAttempt.delete(lastAttempt.keys().next().value!);
@@ -155,7 +157,7 @@ function drain() {
   }
 }
 export function enqueueRicInvoice(hash:string):void {
-  if(!validHash(hash) || inFlight.has(hash) || queue.size>=128 || Date.now()-(lastAttempt.get(hash)??0)<2000)return;
+  if(!validHash(hash) || inFlight.has(hash) || queue.size>=128 || Date.now()-(lastAttempt.get(hash)??0)<MIN_RECOVERY_INTERVAL_MS)return;
   queue.add(hash);drain();
 }
 export async function cancelRicInvoice(accountId:string,hash:string):Promise<RicInvoiceResult> {
@@ -178,7 +180,7 @@ export function startRicReconciler():()=>void {
     } catch(err) {logger.warn({errorClass:err instanceof Error?err.name:'db'},'RIC reconciliation sweep unavailable');}
     finally{sweeping=false;}
   };
-  void sweep();interval=setInterval(()=>void sweep(),3000);interval.unref();
+  void sweep();interval=setInterval(()=>void sweep(),15000);interval.unref();
   return ()=>{if(interval)clearInterval(interval);interval=undefined;};
 }
 // Standalone generic pending sends: proof-only recovery. No age-based failure,

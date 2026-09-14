@@ -14,6 +14,8 @@ import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { reconcileAccountInvoicesBounded } from "./money/invoiceMonitor.js";
+import { enqueueRicInvoice, startRicReconciler, cancelRicInvoice, ricInvoiceView, reconcileRicPendingSends } from './ric-reconcile.js';
+import { startRicPaymentRecovery } from '../plugins/ric-payment-routes.js';
 import { onAccountEvent , emitAccountEvent } from "./events.js";
 import { handleCardsPreview } from "../plugins/cards-preview.js";
 import { handleCardsRoute } from "../plugins/cards.js";
@@ -26,7 +28,7 @@ import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
 import { DOMAIN } from "./domain.js";
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
-const json = (r: ServerResponse, s: number, b: unknown) => { r.writeHead(s, { "content-type": "application/json" }); r.end(JSON.stringify(b)); };
+const json = (r: ServerResponse, s: number, b: unknown) => { const body=JSON.stringify(b); r.writeHead(s, { "content-type": "application/json", "content-length": Buffer.byteLength(body), "cache-control":"no-store" }); r.end(body); };
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   let raw = ""; for await (const c of req) raw += c;
   if (!raw) return {};
@@ -51,7 +53,7 @@ const server = createServer(async (req, res) => {
     // otherwise it can overwrite the merchant Send PIN or call wallet/pay.
     if(currentAccount && /^[0-9a-f]{64}$/.test(cardToken ?? "")) {
       const deviceAllowed = (req.method === "GET" && (/^\/api\/pos\/(config|invoice\/[^/]+\/status|withdraw\/[^/]+\/status|next-provision|wipe-keys\/[^/]+)$/.test(u.pathname) || u.pathname === "/api/price" || /^\/api\/firmware\//.test(u.pathname))) ||
-        (req.method === "POST" && (/^\/api\/pos\/(invoice|withdraw|send-to-card|mark-written\/[^/]+|mark-wiped\/[^/]+)$/.test(u.pathname) || ["/api/ric/hello","/api/ric/status"].includes(u.pathname)));
+        (req.method === "POST" && (/^\/api\/pos\/(invoice|withdraw|send-to-card|(?:invoice|withdraw)\/[^/]+\/cancel|mark-written\/[^/]+|mark-wiped\/[^/]+)$/.test(u.pathname) || ["/api/ric/hello","/api/ric/status"].includes(u.pathname)));
       if(!deviceAllowed)return json(res,403,{error:"Device credential cannot access account settings or browser wallet operations"});
     }
     if(await handleCardsPreview(req,res,u))return;
@@ -299,11 +301,18 @@ const server = createServer(async (req, res) => {
           amountSats,
           feeSats: wrap.feeSats,
         });
+        enqueueRicInvoice(wrap.paymentHash);
         return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, feeSats:wrap.feeSats, merchantAmountSats:amountSats-wrap.feeSats, expiresAt: wrap.expiresAt });
       }
       const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);
       await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
       return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
+    }
+    const invoiceCancel=u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/cancel$/);
+    if(req.method==='POST' && invoiceCancel) {
+      if(!currentAccount)return json(res,401,{error:'Authentication required'});
+      const result=await cancelRicInvoice(currentAccount.id,invoiceCancel[1]);
+      return json(res,result.status==='not_found'?404:200,result);
     }
     const posStatus = u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/status$/);
     if (req.method === "GET" && posStatus) {
@@ -311,12 +320,8 @@ const server = createServer(async (req, res) => {
       const paymentHash = decodeURIComponent(posStatus[1]);
       const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
       if (!invoice || invoice.accountId!==currentAccount.id) return json(res, 404, { status: "unknown", paymentHash });
-      if (invoice.wrapStatus) {
-        const status = await advanceWrap(invoice as unknown as WrapRow);
-        if (status === "settled") emitAccountEvent(invoice.accountId, "payment", { paymentHash, status: "paid", amountSats: invoice.amountSats, feeSats: invoice.feeSats ?? 0 });
-        return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
-      }
-      return json(res, 200, { status: invoice.paidAt ? "paid" : invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, feeSats: 0 });
+      enqueueRicInvoice(paymentHash);
+      return json(res,200,{...ricInvoiceView(invoice),feeSats:invoice.feeSats??0});
     }
     // LNURL-pay endpoints are core money-path routes and deliberately root-level.
     const meta = u.pathname.match(/^\/.well-known\/lnurlp\/([^/]+)$/);
@@ -364,13 +369,8 @@ const server = createServer(async (req, res) => {
       const paymentHash = decodeURIComponent(paymentStatus[1]);
       const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
       if (!invoice) return json(res, 404, { status: "unknown" });
-      if (invoice.wrapStatus) {
-        const status = await advanceWrap(invoice as unknown as WrapRow);
-        if (status === "settled") emitAccountEvent(invoice.accountId, "payment", { paymentHash, status: "paid", amountSats: invoice.amountSats, feeSats: invoice.feeSats ?? 0 });
-        return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
-      }
-      if (invoice.paidAt) return json(res, 200, { status: "paid", paymentHash, feeSats: 0 });
-      return json(res, 200, { status: invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, feeSats: 0 });
+      enqueueRicInvoice(paymentHash);
+      return json(res,200,{...ricInvoiceView(invoice),feeSats:invoice.feeSats??0});
     }
 
     // Core money-path read surfaces. These remain deliberately small until the
@@ -393,7 +393,17 @@ const server = createServer(async (req, res) => {
     return json(res, 404, { error: "Not found" });
   } catch (e) { return json(res, 500, { error: e instanceof Error ? e.message : "Internal server error" }); }
 });
-const port = Number(process.env.PORT ?? 3001); server.listen({ port, host: "0.0.0.0" }, () => console.log(`openLN core listening on ${port}`));
+let stopInvoices: (()=>void)|undefined, stopSends: (()=>void)|undefined;
+let pendingTimer:NodeJS.Timeout|undefined, pendingBusy=false;
+const port = Number(process.env.PORT ?? 3001);
+server.listen({port,host:'0.0.0.0'},()=>{
+  console.log(`openLN core listening on ${port}`);
+  if(process.env.RIC_RECONCILE_ENABLED==='0')return;
+  stopInvoices=startRicReconciler();stopSends=startRicPaymentRecovery();
+  const sends=async()=>{if(pendingBusy)return;pendingBusy=true;try{await reconcileRicPendingSends();}catch{}finally{pendingBusy=false;}};
+  pendingTimer=setInterval(()=>void sends(),20000);pendingTimer.unref();
+});
+server.on('close',()=>{stopInvoices?.();stopSends?.();if(pendingTimer)clearInterval(pendingTimer);});
 export { auth, wallet, registry };
 
 export const __test = { accountForHandle };

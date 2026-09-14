@@ -28,10 +28,11 @@ import { settleInvoiceByPaymentHash } from "../core/money/invoiceMonitor.js";
 import { decrypt } from "../core/money/encrypt.js";
 import { logger } from "../core/money/logger.js";
 import { DOMAIN } from "../core/domain.js";
+import { claimCardPayment } from './ric-card-claim.js';
 
 type Request = { params: Record<string,string>; query: Record<string,string> };
 type Response = { json: (value: unknown) => void };
-const K1_TTL_MS = 5 * 60 * 1000; // k1 challenge expires after 5 minutes
+const K1_TTL_MS = 10 * 60 * 1000; // Customer interaction window, independent of HTTP budgets
 
 function resolveKey(encrypted: string): string {
   return decrypt(encrypted);
@@ -205,6 +206,27 @@ async function tap(req: Request, res: Response): Promise<void> {
   res.json(tapResp);
 }
 
+/** Only pre-dispatch PIN checks may restore a still-current challenge.
+ * Lock and compare the SUN counter so a late rejection cannot overwrite a new tap.
+ * Failure counting is under the same row lock, not a stale read/add/write.
+ */
+async function rejectPinBeforeDispatch(cardId: string, counter: number, k1: string, expiresAt: Date | null, pinHash: string, wrong: boolean): Promise<Record<string, unknown>> {
+  return db.transaction(async tx => {
+    const [current] = await tx.select({counter:cardsTable.counter,pendingK1:cardsTable.pendingK1,pinHash:cardsTable.pinHash,pinFailCount:cardsTable.pinFailCount,pinLockedAt:cardsTable.pinLockedAt,status:cardsTable.status}).from(cardsTable).where(eq(cardsTable.id,cardId)).for("update");
+    const rejected = (code: string, reason: string) => ({status:"ERROR",code,dispatched:false,reason});
+    if (!current || current.status !== "active" || current.pinHash !== pinHash || current.counter !== counter || current.pendingK1 !== null) return rejected("CHALLENGE_REPLACED", "Card challenge changed. Tap the card again.");
+    if (current.pinLockedAt) return rejected("CARD_PIN_LOCKED", "Card is locked. Unlock it in the app.");
+    const failCount = current.pinFailCount + (wrong ? 1 : 0);
+    if (failCount >= 3) {
+      await tx.update(cardsTable).set({pinFailCount:failCount,pinLockedAt:new Date()}).where(eq(cardsTable.id,cardId));
+      return rejected("CARD_PIN_LOCKED", "Card is locked after three incorrect attempts. Unlock it in the app.");
+    }
+    if (!expiresAt || expiresAt.getTime() <= Date.now()) return rejected("CHALLENGE_EXPIRED", "Card challenge expired. Tap the card again.");
+    await tx.update(cardsTable).set({pendingK1:k1,pendingK1ExpiresAt:expiresAt,pinFailCount:failCount}).where(and(eq(cardsTable.id,cardId),eq(cardsTable.counter,counter),isNull(cardsTable.pendingK1)));
+    return rejected(wrong ? "PIN_INVALID" : "PIN_REQUIRED", wrong ? "Incorrect card PIN" : "Card PIN required");
+  });
+}
+
 // ── Callback: GET /card/:cardId/callback?k1=<challenge>&pr=<bolt11> ──────────
 async function callback(req: Request, res: Response): Promise<void> {
   // Anchor the response deadline to request arrival. The POS device aborts its
@@ -224,7 +246,7 @@ async function callback(req: Request, res: Response): Promise<void> {
 
   // ── Pre-check frozen status (non-atomic, safe - k1 consumption below is still atomic) ──
   const [cardRow] = await db
-    .select({ status: cardsTable.status, name: cardsTable.name, note: cardsTable.note })
+    .select({ status: cardsTable.status, name: cardsTable.name, note: cardsTable.note, pendingK1ExpiresAt: cardsTable.pendingK1ExpiresAt })
     .from(cardsTable)
     .where(eq(cardsTable.id, cardId));
 
@@ -258,7 +280,7 @@ async function callback(req: Request, res: Response): Promise<void> {
       dailyLimitSats: cardsTable.dailyLimitSats,
       pinHash: cardsTable.pinHash,
       pinLimitMsats: cardsTable.pinLimitMsats,
-      pinFailCount: cardsTable.pinFailCount,
+      counter: cardsTable.counter,
     });
 
   if (!consumed) {
@@ -266,7 +288,7 @@ async function callback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { accountId: cardAccountId, perTapLimitSats, dailyLimitSats, pinHash, pinLimitMsats, pinFailCount } = consumed;
+  const { accountId: cardAccountId, perTapLimitSats, dailyLimitSats, pinHash, pinLimitMsats, counter } = consumed;
   const cardShortId = cardId.replace(/-/g, "").slice(-8).replace(/(.{4})(.{4})/, "$1 $2");
   const cardLabel = cardRow?.name ?? cardShortId;
 
@@ -317,28 +339,11 @@ async function callback(req: Request, res: Response): Promise<void> {
 
     if (pinRequired) {
       if (!pinParam) {
-        res.json({ status: "ERROR", reason: "PIN required" });
+        res.json(await rejectPinBeforeDispatch(cardId, counter, k1, cardRow?.pendingK1ExpiresAt ?? null, pinHash, false));
         return;
       }
-
-      const pinMatch = await verifyCardPin(pinParam, pinHash);
-      if (!pinMatch) {
-        const newFailCount = pinFailCount + 1;
-        if (newFailCount >= 3) {
-          await db
-            .update(cardsTable)
-            .set({ pinFailCount: newFailCount, pinLockedAt: new Date() })
-            .where(eq(cardsTable.id, cardId));
-          logger.warn({ cardId }, "Card PIN locked after 3 failed attempts");
-          res.json({ status: "ERROR", reason: "Incorrect PIN. Card is now locked - unlock it in the app." });
-        } else {
-          await db
-            .update(cardsTable)
-            .set({ pinFailCount: newFailCount })
-            .where(eq(cardsTable.id, cardId));
-          logger.warn({ cardId, failCount: newFailCount }, "Card PIN mismatch");
-          res.json({ status: "ERROR", reason: `Incorrect PIN. ${3 - newFailCount} attempt(s) remaining.` });
-        }
+      if (!await verifyCardPin(pinParam, pinHash)) {
+        res.json(await rejectPinBeforeDispatch(cardId, counter, k1, cardRow?.pendingK1ExpiresAt ?? null, pinHash, true));
         return;
       }
 
@@ -354,9 +359,7 @@ async function callback(req: Request, res: Response): Promise<void> {
   // A pending send on this card means a previous tap's outcome is still
   // unresolved (ambiguous relay timeout). Paying again now is exactly how the
   // triple-charge incident happened - block until it resolves. The background
-  // reconciler finalizes pending sends within minutes, and the window bounds
-  // the block even if it cannot.
-  const guardCutoff = new Date(Date.now() - 15 * 60 * 1000);
+  // reconciler resolves pending sends from wallet proof. Age never clears it.
   const [inflightTx] = await db
     .select({ id: transactionsTable.id })
     .from(transactionsTable)
@@ -365,7 +368,6 @@ async function callback(req: Request, res: Response): Promise<void> {
         eq(transactionsTable.cardId, cardId),
         eq(transactionsTable.direction, "out"),
         eq(transactionsTable.status, "pending"),
-        gte(transactionsTable.createdAt, guardCutoff),
       ),
     )
     .limit(1);
@@ -473,6 +475,10 @@ async function callback(req: Request, res: Response): Promise<void> {
     }
   };
 
+  if(!await claimCardPayment(cardId,cardAccountId,pr,amountSats)) {
+    res.json({status:'ERROR',code:'CARD_PAYMENT_PENDING',dispatched:false,reason:'Card payment or spending-limit reservation is unresolved. Check the account.'});
+    return;
+  }
   const work = executePayment();
   // Remaining time before the POS device's HTTP deadline, measured from request
   // arrival so slow prechecks (e.g. a stalled balance read) do not eat into the
@@ -521,11 +527,11 @@ async function callback(req: Request, res: Response): Promise<void> {
 // we answer OK ("payment on the way") and finish in the background. The POS
 // confirms via its own invoice settlement, so answering early is safe and never
 // shows a false "paid".
-const CARD_TAP_GLOBAL_DEADLINE_MS = 6_000;
+const CARD_TAP_GLOBAL_DEADLINE_MS = 1_500;
 
 // Minimum window the payment step always gets, even if prior steps ran slow, so
 // a fast in-network settlement can still confirm within the same tap.
-const CARD_TAP_MIN_PAYMENT_WINDOW_MS = 1_500;
+const CARD_TAP_MIN_PAYMENT_WINDOW_MS = 250;
 
 /** Map definitive pay failures to actionable messages; generic otherwise. */
 function payFailureReason(err: unknown): string {

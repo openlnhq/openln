@@ -1,4 +1,5 @@
 #include "NfcReader.h"
+#include "../core/NfcPolicy.h"
 #include <Wire.h>
 
 Adafruit_PN532 NfcReader::_nfc(PN532_IRQ, PN532_RST);
@@ -56,11 +57,13 @@ void NfcReader::rfReduceRxGain() {
 }
 
 bool NfcReader::begin() {
+    _ready = false;
+    _uidLen = 0;
     Wire.begin(PN532_SDA, PN532_SCL);
     // Raise I2C timeout to 3s — the original ESP32 (not S3) has a clock-stretching
     // hardware bug; when the PN532 stretches CLK during ISO-DEP exchanges the
     // default 50ms timeout fires too early and causes spurious I2C errors.
-    Wire.setTimeOut(3000);
+    Wire.setTimeOut(NfcPolicy::kI2cTimeoutMs);
 
     bool anyFound = false;
     for (uint8_t addr = 1; addr < 127; addr++) {
@@ -80,7 +83,10 @@ bool NfcReader::begin() {
         Serial.println("NFC: PN532 not at 0x24 — check DIP switches (must be I2C mode)");
         return false;
     }
-    _nfc.begin();
+    if (!_nfc.begin()) {
+        Serial.println("NFC: PN532 initialization failed");
+        return false;
+    }
     uint32_t versiondata = _nfc.getFirmwareVersion();
     if (!versiondata) {
         Serial.println("NFC: PN532 found on bus but firmware read failed");
@@ -88,7 +94,15 @@ bool NfcReader::begin() {
     }
     Serial.printf("NFC: PN532 fw v%d.%d\n",
                   (versiondata >> 16) & 0xFF, (versiondata >> 8) & 0xFF);
-    _nfc.SAMConfig();
+    if (!_nfc.SAMConfig()) {
+        Serial.println("NFC: SAM configuration failed");
+        return false;
+    }
+    // The host wait alone does not stop InListPassiveTarget on the PN532.
+    if (!_nfc.setPassiveActivationRetries(NfcPolicy::kPassiveActivationRetries)) {
+        Serial.println("NFC: finite passive retry configuration failed");
+        return false;
+    }
     // Reduce receiver gain to handle the strong load-modulation signal at close
     // (tap) range. CfgItem 0x0A takes the full 11-byte analog-settings block;
     // byte 0 (RFCfg) holds RxGain in bits [6:4]. We keep TX power at default
@@ -111,16 +125,15 @@ bool NfcReader::reinit() {
 }
 
 bool NfcReader::detectCard(String& outUid) {
-    if (!_ready) return false;
+    outUid = "";
     _uidLen = 0;
+    if (!_ready) return false;
     memset(_uid, 0, sizeof(_uid));
 
-    uint8_t uidLen = 0;
-    if (!_nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, _uid, &uidLen, 300)) {
+    if (!readUid(_uid, sizeof(_uid), _uidLen, NfcPolicy::kDetectTimeoutMs)) {
         return false;
     }
 
-    _uidLen = uidLen;
     outUid  = uidToHex(_uid, _uidLen);
     Serial.printf("NFC: card detected UID=%s (%d bytes)\n", outUid.c_str(), _uidLen);
     return true;
@@ -147,9 +160,8 @@ String NfcReader::readNdef() {
         return "";
     }
 
-    String norm = normalizeUrl(url);
-    Serial.printf("NFC: URL=%s\n", norm.c_str());
-    return norm;
+    // NDEF URLs carry card capabilities (PICC data/CMAC). Never log them.
+    return normalizeUrl(url);
 }
 
 // ── NTAG 424 DNA (Bolt Card) ──────────────────────────────────────────────────
@@ -163,25 +175,26 @@ String NfcReader::readNdefUrlNtag424() {
     // clean post-RATS state: GetFileSettings → ISO SELECT AID → ISO SELECT EF →
     // READ BINARY. If the card is not NTAG424, ISOReadFile returns 0 immediately.
 
-    // Retry up to 5 times. On each failure: RF off → RF on (hard card power-cycle)
+    // At most two attempts. Between attempts: RF off → RF on (hard card power-cycle)
     // → readPassiveTargetID (fresh ANTICOL+SELECT; RATS follows on next InDataExchange).
     // A plain ISOReadFile retry against a broken ISO-DEP session always fails; the RF
     // cycle forces the card to reinitialise from zero so each retry is a clean attempt.
     uint8_t buf[512];
     uint8_t bytesRead = 0;
-    for (int attempt = 1; attempt <= 5 && bytesRead == 0; attempt++) {
+    int attempts = 0;
+    while (attempts < NfcPolicy::kNdefReadAttempts && bytesRead == 0) {
+        ++attempts;
         bytesRead = _nfc.ntag424_ISOReadFile(buf, sizeof(buf) - 1);
-        if (bytesRead == 0 && attempt < 5) {
-            Serial.printf("NFC: NTAG424 attempt %d failed — RF cycle\n", attempt);
+        if (bytesRead == 0 && attempts < NfcPolicy::kNdefReadAttempts) {
+            Serial.printf("NFC: NTAG424 attempt %d failed - RF cycle\n", attempts);
             rfFieldSet(false);   // card drains capacitors → full state reset
             delay(50);
             rfFieldSet(true);
             delay(100);
             uint8_t reUid[7]; uint8_t reLen = 0;
-            bool reFound = _nfc.readPassiveTargetID(
-                PN532_MIFARE_ISO14443A, reUid, &reLen, 1000);
+            bool reFound = readUid(reUid, sizeof(reUid), reLen, 1000);
             if (!reFound) {
-                Serial.println("NFC: card left field after RF cycle");
+                Serial.println("NFC: card missing or invalid after RF cycle");
                 break;
             }
             delay(300);
@@ -189,17 +202,35 @@ String NfcReader::readNdefUrlNtag424() {
     }
 
     if (bytesRead == 0) {
-        Serial.println("NFC: NTAG424 read returned 0 bytes after 5 attempts");
+        Serial.printf("NFC: NTAG424 read returned 0 bytes after %d attempts\n", attempts);
         return "";
     }
 
     buf[bytesRead] = '\0';
-    String result = String((char*)buf);
-    Serial.printf("NFC: NTAG424 raw=%s\n", result.substring(0, 60).c_str());
-    return result;
+    return String((char*)buf);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+bool NfcReader::readUid(uint8_t* uid, size_t capacity, uint8_t& len, uint16_t timeout) {
+    len = 0;
+    // PN532 1.3.3 copies an unchecked uint8_t count before returning it. A
+    // seven-byte destination plus a post-call check is already too late.
+    // This bounds writes to OUR memory. The library's own packet-buffer reads
+    // still require upstream validation for corrupt response lengths.
+    uint8_t scratch[UINT8_MAX] = {};
+    uint8_t detectedLen = 0;
+    if (!_nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, scratch, &detectedLen, timeout)) {
+        return false;
+    }
+    if (detectedLen == 0 || detectedLen > capacity) {
+        Serial.printf("NFC: invalid UID length (%u bytes)\n", unsigned(detectedLen));
+        return false;
+    }
+    memcpy(uid, scratch, detectedLen);
+    len = detectedLen;
+    return true;
+}
 
 String NfcReader::normalizeUrl(const String& raw) {
     if (raw.startsWith("lnurlw://")) return "https://" + raw.substring(9);

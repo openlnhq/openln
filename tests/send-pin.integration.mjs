@@ -39,7 +39,7 @@ test('device send verifies the merchant send PIN; the 4-digit card PIN never aut
   assert.equal(w.status,400);assert.match(w.data.error,/wallet not configured/i,'correct PIN reaches the wallet stage');
   assert.equal((await devCall('/api/pos/send-to-card',{cardUrl:'junk',amountSats:100,pin:'111111'})).status,401);
   const sc=await devCall('/api/pos/send-to-card',{cardUrl:'junk',amountSats:100,pin:'654321'});
-  assert.equal(sc.status,400);assert.match(sc.data.error,/card url/i,'correct PIN reaches the card stage');
+  assert.equal(sc.status,400);assert.match(sc.data.error,/update ric firmware/i,'legacy NFC without a durable checkout fails closed after PIN verification');
   const cb=await fetch(base+'/api/pos/withdraw/callback?k1=deadbeef');assert.equal(cb.status,200);assert.equal((await cb.json()).status,'ERROR');
 });
 

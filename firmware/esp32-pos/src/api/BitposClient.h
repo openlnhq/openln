@@ -4,12 +4,14 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "../nfc/NfcWriter.h"
+#include "../core/CardTransportPolicy.h"
 
 struct Invoice {
     String bolt11;
     String paymentHash;
-    long   amountSats;
+    long   amountSats = 0;
     String expiresAt;
+    uint32_t ttlSec = 0; // Unavailable is not proof of expiry. UI cap: 600 s.
 };
 
 class BitposClient {
@@ -42,11 +44,22 @@ public:
         String tag;
         String callback;
         String k1;
-        long   maxWithdrawable;  // msats
+        int64_t maxWithdrawable = 0;  // msats, never a 32-bit long
         String defaultDescription;
-        long   pinLimitMsats;    // LUD-21: -1 = no PIN; >=0 = required when amount*1000 >= pinLimitMsats
+        int64_t pinLimitMsats = -1; // LUD-21: -1 = no PIN; otherwise msats threshold
     };
     static LnurlWithdraw fetchLnurl(const String& url, String& err);
+
+    // Single I/O-owner task only. No method automatically retries a submission.
+    // Accepted/ambiguous callbacks are Pending, never proof of settlement.
+    static CardTransportPolicy::Outcome submitLnurlCallback(
+        const String& callbackUrl, const String& k1, const String& bolt11,
+        const String& pin, String& detail);
+    static CardTransportPolicy::Outcome submitCardSend(
+        const String& cardUrl, long amountSats, const String& merchantPin,
+        const String& k1, String& detail);
+    static CardTransportPolicy::Outcome cancelWithdraw(const String& k1, String& detail);
+    static CardTransportPolicy::Outcome cancelInvoice(const String& paymentHash, String& detail);
 
     // Call LNURL-withdraw callback with a bolt11 (and optional PIN)
     // Returns "" on success, error reason on failure
@@ -58,7 +71,8 @@ public:
     // POST /api/pos/withdraw — create a LNURL-W for the merchant to send sats outward.
     // Returns the LNURL-W string (for QR display) or sets err on failure.
     // k1 is also returned so the device can poll the withdrawal status.
-    static String createWithdraw(long amountSats, const String& pin, String& err, String& outK1);
+    static String createWithdraw(long amountSats, const String& pin, String& err,
+                                 String& outK1, const String& requestId = "");
 
     // GET /api/pos/withdraw/:k1/status — returns "pending"|"paid"|"expired"
     static String pollWithdrawStatus(const String& k1);
@@ -114,4 +128,7 @@ private:
     // Prepare an unauthenticated request to an arbitrary host.  Always starts
     // from a clean slate (stop + reconnect) because the destination changes.
     static bool beginPubRequest(const char* url);
+    static bool _publicUsesAuth;
+    static bool readResponse(HTTPClient& http, WiFiClientSecure& client, int code);
+    static CardTransportPolicy::Outcome cancelManaged(const String& key, bool invoice, String& detail);
 };

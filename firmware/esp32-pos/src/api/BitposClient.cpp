@@ -331,6 +331,19 @@ bool BitposClient::beginAuthRequest(const char* url) {
     _authHttp.end();
     _authHttp.setAuthorization(""); // end() clears custom headers, not Basic auth
     _authHttp.setTimeout(CardTransportPolicy::BodyTimeoutMs);
+#ifdef ARDUINO_ARCH_ESP32
+    if (!_authClient.connected()) {
+        CardTransportPolicy::Origin origin;
+        if (CardTransportPolicy::httpsUrl(url, &origin)) {
+            String host(origin.host, origin.hostLength);
+            IPAddress address;
+            const bool resolved=WiFi.hostByName(host.c_str(),address);
+            Serial.printf("RIC TLS retry: fd=%d wifi=%d rssi=%d ip=%s target=%s:%u dns=%s\n",
+                _authClient.fd(),int(WiFi.status()),WiFi.RSSI(),WiFi.localIP().toString().c_str(),
+                host.c_str(),origin.port,resolved?address.toString().c_str():"failed");
+        }
+    }
+#endif
     return _authHttp.begin(_authClient, url);
 }
 
@@ -666,6 +679,9 @@ CardTransportPolicy::Outcome BitposClient::cancelManaged(const String& key, bool
     _authHttp.addHeader("Authorization", _authHeader);
     _authHttp.addHeader("Content-Type", "application/json");
     const int code = _authHttp.POST(reinterpret_cast<uint8_t*>(const_cast<char*>("{}")), 2);
+#ifdef ARDUINO_ARCH_ESP32
+    Serial.printf("RIC cancel transport: http=%d fd=%d wifi=%d heap=%u\n",code,_authClient.fd(),int(WiFi.status()),ESP.getFreeHeap());
+#endif
     if (!readResponse(_authHttp, _authClient, code) || code != 200) return Outcome::Pending;
     JsonDocument doc;
     if (!jsonObject(_respBuf, doc) || !jsonEquals(doc[invoice ? "paymentHash" : "k1"], key) ||

@@ -20,6 +20,7 @@ import { onAccountEvent , emitAccountEvent } from "./events.js";
 import { handleCardsPreview } from "../plugins/cards-preview.js";
 import { handleCardsRoute } from "../plugins/cards.js";
 import { getRicCardFailure } from "../plugins/card-tap.js";
+import { adminCancelRicInvoice } from './admin/ricCancel.js';
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handleExtensionsRoute } from "../plugins/extensions.js";
 import { handlePosboxRoute } from "../plugins/posbox.js";
@@ -312,7 +313,10 @@ const server = createServer(async (req, res) => {
     const invoiceCancel=u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/cancel$/);
     if(req.method==='POST' && invoiceCancel) {
       if(!currentAccount)return json(res,401,{error:'Authentication required'});
-      const result=await cancelRicInvoice(currentAccount.id,invoiceCancel[1]);
+      const result=await adminCancelRicInvoice(currentAccount.id,invoiceCancel[1],{
+        actor:`merchant:${currentAccount.id}`,
+        reason:'Merchant cancelled checkout on the RIC before payment forwarding.',
+      });
       return json(res,result.status==='not_found'?404:200,result);
     }
     const posStatus = u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/status$/);

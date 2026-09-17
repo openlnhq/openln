@@ -98,11 +98,9 @@ bool NfcReader::begin() {
         Serial.println("NFC: SAM configuration failed");
         return false;
     }
-    // The host wait alone does not stop InListPassiveTarget on the PN532.
-    if (!_nfc.setPassiveActivationRetries(NfcPolicy::kPassiveActivationRetries)) {
-        Serial.println("NFC: finite passive retry configuration failed");
-        return false;
-    }
+    // Preserve v1.0.6's passive activation behavior. Do not issue an extra
+    // RFConfiguration command here: its unread response interferes with the
+    // following InListPassiveTarget transaction on this reader.
     // Reduce receiver gain to handle the strong load-modulation signal at close
     // (tap) range. CfgItem 0x0A takes the full 11-byte analog-settings block;
     // byte 0 (RFCfg) holds RxGain in bits [6:4]. We keep TX power at default
@@ -175,7 +173,7 @@ String NfcReader::readNdefUrlNtag424() {
     // clean post-RATS state: GetFileSettings → ISO SELECT AID → ISO SELECT EF →
     // READ BINARY. If the card is not NTAG424, ISOReadFile returns 0 immediately.
 
-    // At most two attempts. Between attempts: RF off → RF on (hard card power-cycle)
+    // Up to five attempts, as in v1.0.6. Between attempts: RF off → RF on (hard card power-cycle)
     // → readPassiveTargetID (fresh ANTICOL+SELECT; RATS follows on next InDataExchange).
     // A plain ISOReadFile retry against a broken ISO-DEP session always fails; the RF
     // cycle forces the card to reinitialise from zero so each retry is a clean attempt.

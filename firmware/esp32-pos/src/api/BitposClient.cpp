@@ -415,6 +415,10 @@ String BitposClient::pollInvoiceStatus(const String& paymentHash) {
     if(!jsonObject(_respBuf,doc) || !jsonEquals(doc["paymentHash"],paymentHash) || !jsonText(doc["status"],32))return "error";
     const String status=doc["status"].as<String>();
     if(status=="paid" || status=="pending" || status=="created" || status=="accepted" || status=="forwarding" || status=="forwarded" || status=="needs_reconciliation")return status;
+    // Card failure does not close the exposed invoice: main requests cancellation.
+    if(status=="card_failed" && jsonEquals(doc["code"],"INSUFFICIENT_BALANCE") &&
+       doc["paymentFailed"].is<bool>() && doc["paymentFailed"].as<bool>() &&
+       doc["dispatched"].is<bool>() && doc["dispatched"].as<bool>())return status;
     if((status=="cancelled" || status=="expired") && nonDispatchProof(doc))return status;
     return "error";
 }
@@ -525,6 +529,15 @@ CardTransportPolicy::Outcome BitposClient::submitLnurlCallback(
     if (jsonEquals(doc["status"], "OK")) {
         detail = "Payment accepted. Awaiting settlement.";
         return Outcome::Pending;
+    }
+    // A dispatched pay_invoice can be definitively declined. Only trust the
+    // same-origin, challenge-bound contract; generic LNURL errors stay pending.
+    if(CardTransportPolicy::sameOrigin(_serverUrl.c_str(),callbackUrl.c_str()) &&
+       jsonEquals(doc["status"],"ERROR") && jsonEquals(doc["k1"],k1) &&
+       jsonEquals(doc["code"],"INSUFFICIENT_BALANCE") &&
+       doc["paymentFailed"].is<bool>() && doc["paymentFailed"].as<bool>() &&
+       doc["dispatched"].is<bool>() && doc["dispatched"].as<bool>()) {
+        detail="Insufficient balance"; return Outcome::Failed;
     }
     // These are openLN's explicit rearmed-challenge codes, not generic LNURL
     // prose. Legacy bitpos.app stays CA/hostname checked, without redirection.

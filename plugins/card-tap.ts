@@ -18,7 +18,8 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { verifyCardPin } from "../core/auth/card-pin.js";
-import { db } from "../core/db/index.js";
+import { db, pool } from "../core/db/index.js";
+import { extractPaymentHash } from "../core/money/lnAddress.js";
 import { cardsTable, transactionsTable } from "../core/db/index.js";
 import { eq, and, gte, isNull, isNotNull, sql } from "drizzle-orm";
 import { decryptSunP, verifySunC, parseBolt11AmountSats, generateK1 } from "../core/money/boltcard.js";
@@ -227,6 +228,58 @@ async function rejectPinBeforeDispatch(cardId: string, counter: number, k1: stri
   });
 }
 
+/** Only the wallet's specific balance rejection is eligible for typed failure.
+ * A timeout containing "insufficient", or insufficient routing information, is
+ * not balance proof. The failed transaction below is also mandatory: feeEngine
+ * may have lost its failure CAS to settlement, or failed to persist the outcome.
+ */
+function isInsufficientBalance(reason: unknown): boolean {
+  return typeof reason === 'string' && /^insufficient (?:balance|funds)[.!]?$/i.test(reason.trim());
+}
+const cardFailure = () => ({code:'INSUFFICIENT_BALANCE' as const,paymentFailed:true as const,dispatched:true as const,reason:'Insufficient balance'});
+
+/** The existing failed send is the durable receipt, not an extra best-effort
+ * log write. This survives a lost callback, response deadline, or process restart
+ * after feeEngine finalizes. Never reuse a historical failed attempt if another
+ * send or a newer claim exists for this invoice, even on another card/account.
+ * The invoice remains unpaid/non-terminal: callers must REQUEST cancellation.
+ */
+async function readCardFailure(paymentHash: string, merchantAccountId: string | null, attempt?: {cardId:string;accountId:string;bolt11:string;since:Date}): Promise<boolean> {
+  if (!/^[0-9a-f]{64}$/.test(paymentHash)) return false;
+  const result = await pool.query(`
+    SELECT t.failure_reason FROM transactions t
+    LEFT JOIN pending_invoices i ON i.payment_hash=t.payment_hash
+    WHERE t.payment_hash=$1 AND t.direction='out' AND t.type='send'
+      AND t.card_id IS NOT NULL AND t.status='failed'
+      AND ($2::uuid IS NULL OR i.account_id=$2)
+      AND ($3::uuid IS NULL OR t.card_id=$3)
+      AND ($4::uuid IS NULL OR t.account_id=$4)
+      AND ($5::text IS NULL OR t.bolt11=$5)
+      AND ($6::timestamptz IS NULL OR t.created_at >= $6)
+      AND (i.id IS NULL OR (i.bolt11=t.bolt11 AND i.created_at <= t.created_at
+        AND i.paid_at IS NULL AND (i.wrap_status IS NULL OR i.wrap_status='created')))
+      AND NOT EXISTS (SELECT 1 FROM transactions other
+        WHERE other.payment_hash=t.payment_hash AND other.direction='out' AND other.id<>t.id)
+      AND NOT EXISTS (SELECT 1 FROM ric_card_claims c
+        WHERE c.payment_hash=t.payment_hash AND (c.card_id<>t.card_id
+          OR c.account_id<>t.account_id OR c.created_at > t.created_at))
+    LIMIT 1`, [paymentHash,merchantAccountId,attempt?.cardId??null,attempt?.accountId??null,attempt?.bolt11??null,attempt?.since??null]);
+  return isInsufficientBalance(result.rows[0]?.failure_reason);
+}
+
+/** Authenticated merchant status extension, scoped to the exact owned invoice.
+ * No card identifiers, card wallet data, or k1 challenges cross this boundary.
+ * Existing paid/accepted/forwarding/cancelled views must retain precedence.
+ */
+export async function getRicCardFailure(accountId:string,paymentHash:string) {
+  try {
+    if (await readCardFailure(paymentHash,accountId)) return {status:'card_failed',paymentHash,...cardFailure()};
+  } catch (err) {
+    logger.warn({paymentHash,err},'Card failure proof unavailable; keeping invoice pending');
+  }
+  return undefined;
+}
+
 // ── Callback: GET /card/:cardId/callback?k1=<challenge>&pr=<bolt11> ──────────
 async function callback(req: Request, res: Response): Promise<void> {
   // Anchor the response deadline to request arrival. The POS device aborts its
@@ -406,7 +459,7 @@ async function callback(req: Request, res: Response): Promise<void> {
   // callback stalls (production incident: 72s hold). If the budget expires,
   // respond "still processing" and let the work finish in the background -
   // the DB row is finalized either way and the in-flight guard clears.
-  const executePayment = async (): Promise<{ status: "OK" } | { status: "ERROR"; reason: string }> => {
+  const executePayment = async (): Promise<{ status: "OK" } | { status: "ERROR"; reason: string } | ({status:'ERROR';k1:string} & ReturnType<typeof cardFailure>)> => {
     try {
       const { paymentHash, feeSats } = await processExternalPayment(
         cardAccountId,
@@ -471,6 +524,15 @@ async function callback(req: Request, res: Response): Promise<void> {
         return { status: "OK" };
       }
       logger.error({ cardId, accountId: cardAccountId, amountSats, err }, "Bolt Card payment failed");
+      if (/^[0-9a-f]{64}$/.test(k1) && isInsufficientBalance(err instanceof Error ? err.message : String(err))) {
+        try {
+          if (await readCardFailure(extractPaymentHash(pr),null,{cardId,accountId:cardAccountId,bolt11:pr,since:new Date(requestStart)})) {
+            return {status:'ERROR',k1,...cardFailure()};
+          }
+        } catch (proofErr) {
+          logger.warn({cardId,proofErr},'Card failure proof unavailable; retaining ambiguous device recovery');
+        }
+      }
       return { status: "ERROR", reason: payFailureReason(err) };
     }
   };

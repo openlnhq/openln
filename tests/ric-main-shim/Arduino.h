@@ -65,7 +65,7 @@ inline std::vector<uint32_t> delays;
 inline std::string worker;
 inline unsigned watchdogFeeds=0, displayWrites=0, socketAttempts=0, restarts=0;
 inline bool strictIo=false;
-inline std::vector<std::string> displayText;
+inline std::vector<std::string> displayText, serialLines;
 inline void ui() { if(!worker.empty()) throw std::runtime_error("Worker touched UI: "+worker); ++displayWrites; }
 }
 inline uint32_t millis() {return RicMainShim::now;}
@@ -80,7 +80,13 @@ inline void ledcAttachPin(int,int) {}
 inline void ledcWrite(int,int) {}
 inline uint32_t esp_random(){return 0x19;}
 inline int esp_reset_reason(){return 1;}
-struct SerialShim {void begin(int){} template<class... T> void printf(const char*,T...){} template<class T> void print(T){} template<class T> void println(T){} };
+struct SerialShim {
+    void begin(int){}
+    template<class... T> void printf(const char* format,T... args){
+        char text[512];std::snprintf(text,sizeof(text),format,args...);RicMainShim::serialLines.emplace_back(text);
+    }
+    template<class T> void print(T){} template<class T> void println(T){}
+};
 inline SerialShim Serial;
 struct EspShim {void restart(){++RicMainShim::restarts;} unsigned getFreeHeap(){return 100000;} unsigned getMaxAllocHeap(){return 64000;} };
 inline EspShim ESP;

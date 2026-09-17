@@ -9,18 +9,15 @@ void require(bool ok, const char* message) {
     if (!ok) throw std::runtime_error(message);
 }
 
-void finitePassiveRetries() {
+void v106Pn532Policy() {
     require(NfcReader::begin(), "reader should initialize");
     const auto& s = HostNfc::state;
-    require(s.passiveRetries == std::vector<uint8_t>{2},
-            "begin must replace PN532's infinite passive retries with 0x02");
+    require(s.passiveRetries.empty(),
+            "v1.0.6 left PN532 passive activation at its proven hardware setting");
     require(s.sda == 22 && s.scl == 27, "classic CYD I2C pins must not change");
     require(NfcReader::getNfc().irq == 35 && NfcReader::getNfc().reset == 16,
             "classic CYD IRQ/RST pins must not change");
     require(s.wireTimeout == 3000, "preserve real 3-second I2C clock-stretch budget");
-    auto sam = std::find(s.events.begin(), s.events.end(), "sam");
-    auto retries = std::find(s.events.begin(), s.events.end(), "passive-retries:2");
-    require(sam < retries, "set finite retries after SAM configuration");
     HostNfc::state.detections.push_back({});
     String uid;
     require(NfcReader::detectCard(uid), "valid card detection should work");
@@ -32,14 +29,14 @@ void initializationFailsClosed(const std::string& stage) {
     auto& s = HostNfc::state;
     if (stage == "begin-failure") s.beginOk = false;
     else if (stage == "sam-failure") s.samOk = false;
-    else s.retriesOk = false;
+    else s.firmware = 0;
     require(!NfcReader::begin(), "failed PN532 initialization must not mark reader ready");
     s.detections.push_back({});
     String uid;
-    require(!NfcReader::detectCard(uid), "must not poll with missing finite-retry configuration");
+    require(!NfcReader::detectCard(uid), "must not poll after failed PN532 initialization");
     require(s.detectTimeouts.empty(), "failed init must prevent library detection calls");
     require(NfcReader::readNdef().isEmpty(), "failed init must not read a previous card");
-    s.beginOk = true; s.samOk = true; s.retriesOk = true;
+    s.beginOk = true; s.samOk = true; s.firmware = 0x32010600;
     require(NfcReader::reinit(), "healthy hardware should recover on reinit");
     require(NfcReader::detectCard(uid), "detection should resume after successful reinit");
 }
@@ -51,27 +48,36 @@ void activateCard() {
     require(NfcReader::detectCard(uid), "initial detection should work");
 }
 
-void twoReadAttempts() {
+void fiveReadAttempts() {
     activateCard();
     auto& s = HostNfc::state;
-    // Enough failing fixtures to expose the old five-attempt loop.
+    // v1.0.6 gave a real tap five clean APDU attempts, with a card power-cycle
+    // and fresh activation between failures.
     for (int i = 0; i < 5; ++i) { s.reads.push_back({}); s.detections.push_back({}); }
     require(NfcReader::readNdef().isEmpty(), "exhausted reads must fail");
-    require(s.readCalls == 2, "a single tap must perform at most two NDEF read attempts, not five");
-    require(s.commands == std::vector<std::vector<uint8_t>>{{0x32, 0x01, 0x00}, {0x32, 0x01, 0x01}},
-            "only one existing RF-off/on recovery is allowed");
-    require(s.detectTimeouts == std::vector<uint16_t>{300, 1000}, "keep established reactivation timeout");
-    require(s.delays == std::vector<unsigned long>{250, 50, 100, 300}, "preserve RF/activation settling");
+    require(s.readCalls == 5, "restore the five NDEF attempts proven in v1.0.6");
+    const std::vector<std::vector<uint8_t>> cycle = {{0x32, 0x01, 0x00}, {0x32, 0x01, 0x01}};
+    std::vector<std::vector<uint8_t>> expectedCommands;
+    for (int i = 0; i < 4; ++i) expectedCommands.insert(expectedCommands.end(), cycle.begin(), cycle.end());
+    require(s.commands == expectedCommands, "each retry must power-cycle the card field");
+    require(s.detectTimeouts == std::vector<uint16_t>{300, 1000, 1000, 1000, 1000},
+            "keep the established fresh-activation timeout for every retry");
+    const std::vector<unsigned long> retryDelays = {50, 100, 300};
+    std::vector<unsigned long> expectedDelays = {250};
+    for (int i = 0; i < 4; ++i) expectedDelays.insert(expectedDelays.end(), retryDelays.begin(), retryDelays.end());
+    require(s.delays == expectedDelays, "preserve RF and activation settling on every retry");
     require(s.samCalls == 2, "read failure must still clean up the active target");
-    require(s.serial.find("after 2 attempts") != std::string::npos, "log actual number of read attempts");
-    require(NfcReader::readNdef().isEmpty() && s.readCalls == 2, "a new read requires fresh card detection");
+    require(s.serial.find("after 5 attempts") != std::string::npos, "log actual number of read attempts");
+    require(NfcReader::readNdef().isEmpty() && s.readCalls == 5, "a new read requires fresh card detection");
 }
 
 void recoveryRead(const std::string& test) {
     activateCard();
     auto& s = HostNfc::state;
     const std::string url = "lnurlw://example.test/card/test?p=fixture&c=fixture";
-    if (test != "first-attempt-success") {
+    const unsigned failures = test == "first-attempt-success" ? 0u :
+                              test == "fifth-attempt-success" ? 4u : 1u;
+    for (unsigned i = 0; i < failures; ++i) {
         s.reads.push_back({});
         s.detections.push_back({test != "card-removed", {0x04, 0x01, 0x02, 0x03}});
     }
@@ -83,7 +89,7 @@ void recoveryRead(const std::string& test) {
     } else {
         require(std::string(result.c_str()) == "https://example.test/card/test?p=fixture&c=fixture",
                 "read must preserve URL and scheme normalization");
-        require(s.readCalls == (test == "first-attempt-success" ? 1u : 2u), "stop reading immediately on success");
+        require(s.readCalls == failures + 1, "stop reading immediately on success");
     }
     require(s.samCalls == 2, "cleanup must run after a read, successful or not");
 }
@@ -136,11 +142,10 @@ int main(int argc, char** argv) {
     try {
         if (argc != 2) throw std::runtime_error("one named test is required");
         const std::string test = argv[1];
-        if (test == "finite-passive-retries") finitePassiveRetries();
-        else if (test == "begin-failure" || test == "sam-failure" ||
-                 test == "retry-config-failure" || test == "failed-rebegin") initializationFailsClosed(test);
-        else if (test == "two-read-attempts") twoReadAttempts();
-        else if (test == "first-attempt-success" || test == "second-attempt-success" || test == "card-removed") recoveryRead(test);
+        if (test == "v106-pn532-policy") v106Pn532Policy();
+        else if (test == "begin-failure" || test == "sam-failure" || test == "failed-rebegin") initializationFailsClosed(test);
+        else if (test == "five-read-attempts") fiveReadAttempts();
+        else if (test == "first-attempt-success" || test == "second-attempt-success" || test == "fifth-attempt-success" || test == "card-removed") recoveryRead(test);
         else if (test.rfind("invalid-uid-", 0) == 0) invalidUid(std::stoul(test.substr(12)), false);
         else if (test.rfind("retry-uid-", 0) == 0) invalidUid(std::stoul(test.substr(10)), true);
         else if (test.rfind("valid-uid-", 0) == 0) validUid(std::stoul(test.substr(10)));

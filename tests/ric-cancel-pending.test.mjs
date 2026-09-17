@@ -119,6 +119,12 @@ test('pending hold + exact NOT_FOUND becomes durable checkout abort, not termina
   assert.ok(f.sql.some(s=>s.includes("wrap_status='cancelling'")));
   assert.equal(f.events.filter(e=>e.event==='wrap.expired_reconciled').length,0);
 });
+test('sequential cancellation polling shares the recovery throttle',async()=>{
+  const f=fixture();closed(await cancel(f));const calls=f.calls.holdLookup,cancels=f.calls.cancel;
+  for(let i=0;i<20;i++)closed(await cancel(f));
+  assert.equal(f.calls.holdLookup,calls,'repeated cancels must not flood wallet lookup');
+  assert.equal(f.calls.cancel,cancels,'repeated cancels must not flood cancel_hold_invoice');noMoney(f);
+});
 test('fresh module instance and DB read retain tombstone without wallet availability',async()=>{
   const f=fixture();closed(await cancel(f));f.restart();f.lookupError=Error('offline');
   closed(f.api.ricInvoiceView(clone(f.row)));closed(await reconcile(f));
@@ -157,6 +163,20 @@ for(const scenario of ['incomplete','duplicate','changing-total','list-error','o
   if(scenario==='outgoing-error')f.outgoingError=Error('offline');
   if(scenario==='mismatch-outgoing')f.outgoing={type:'outgoing',payment_hash:'44'.repeat(32),state:'failed'};
   uncertain(await cancel(f));assert.equal(f.row.wrapStatus,'cancelling');assert.equal(f.calls.cancel,0);noMoney(f);
+});
+for(const total of ['0',null,-1,0.5,NaN,Infinity])test(`malformed outgoing total ${String(total)} is not absence proof`,async()=>{
+  const f=fixture();f.listResponse=()=>({transactions:[],total_count:total});
+  uncertain(await cancel(f));assert.equal(f.calls.cancel,0);noMoney(f);
+});
+for(const scenario of ['more-empty','bad-more','bad-hash','match-over-total','unknown-direct-type','failed-paid-flag','failed-bad-time','failed-bad-preimage'])test(`outgoing ${scenario} cannot erase liability`,async()=>{
+  const f=fixture();
+  if(scenario==='more-empty')f.listResponse=()=>({transactions:[],has_more:true});
+  if(scenario==='bad-more')f.listResponse=()=>({transactions:[],has_more:'false'});
+  if(scenario==='bad-hash')f.listResponse=()=>({transactions:[{type:'outgoing',payment_hash:'bad',state:'failed'}],total_count:1});
+  if(scenario==='match-over-total')f.listResponse=()=>({transactions:[{type:'outgoing',payment_hash:merchant,state:'failed'}],total_count:0});
+  if(scenario==='unknown-direct-type')f.outgoing={payment_hash:merchant,state:'failed'};
+  if(scenario.startsWith('failed-'))f.outgoing={type:'outgoing',payment_hash:merchant,state:'failed',...(scenario==='failed-paid-flag'?{paid:true}:scenario==='failed-bad-time'?{settled_at:'123'}:{preimage:'malformed'})};
+  uncertain(await cancel(f));assert.equal(f.calls.cancel,0);noMoney(f);
 });
 for(const scenario of ['missing','mismatch','outgoing-type','unknown','settled','timestamp','preimage','lookup-error'])test(`incoming ${scenario} never falsely cancelled`,async()=>{
   const f=fixture();

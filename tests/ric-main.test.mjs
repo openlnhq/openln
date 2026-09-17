@@ -19,7 +19,7 @@ const names = [
   'cancel-receive-pending-cadence', 'cancel-send-pending-cadence',
   'insufficient-balance-repeated-proof',
   'boot-receive-unsent-expiry', 'boot-receive-dispatched-expiry',
-  'safe-stage-trace',
+  'safe-stage-trace', 'closed-direct-checkout', 'failed-status-reconnect',
 ];
 let report, buildError;
 function harness() {

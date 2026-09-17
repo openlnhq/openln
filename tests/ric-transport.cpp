@@ -163,6 +163,12 @@ void cancellationOutcomes() {
     }
 }
 void metadataAndStatusValidation() {
+    const std::string closed="{\"status\":\"closed\",\"paymentHash\":\""+std::string(HASH.c_str())+"\",\"checkoutClosed\":true,\"paymentStatus\":\"pending\",\"monitoring\":true,\"doNotRetry\":true}";
+    fresh();queue(closed);assert(BitposClient::pollInvoiceStatus(HASH)=="closed");
+    fresh();queue(closed);String closeDetail;assert(BitposClient::cancelInvoice(HASH,closeDetail)==Outcome::Closed);
+    for(const std::string& bad:std::vector<std::string>{"{\"status\":\"closed\",\"paymentHash\":\""+std::string(HASH.c_str())+"\"}",closed+"trailing"}){
+        fresh();queue(bad);assert(BitposClient::pollInvoiceStatus(HASH)=="error");
+    }
     // A saved receive can exit on server expiry proof, never on an expired
     // label alone or a device timer. Keep late settlement higher priority.
     for(const std::string& status:std::vector<std::string>{"expired","cancelled"}) {

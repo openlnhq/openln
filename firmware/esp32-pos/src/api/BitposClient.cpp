@@ -109,6 +109,13 @@ bool jsonObject(const String& body, JsonDocument& doc) {
         if (body[i] != ' ' && body[i] != '\r' && body[i] != '\n' && body[i] != '\t') return false;
     return !deserializeJson(doc, body, DeserializationOption::NestingLimit(6)) && doc.is<JsonObject>();
 }
+bool closedCheckoutProof(const JsonDocument& doc) {
+    return jsonEquals(doc["status"],"closed") &&
+           doc["checkoutClosed"].is<bool>() && doc["checkoutClosed"].as<bool>() &&
+           jsonEquals(doc["paymentStatus"],"pending") &&
+           doc["monitoring"].is<bool>() && doc["monitoring"].as<bool>() &&
+           doc["doNotRetry"].is<bool>() && doc["doNotRetry"].as<bool>();
+}
 bool nonDispatchProof(const JsonDocument& doc) {
     return doc["dispatched"].is<bool>() && !doc["dispatched"].as<bool>() &&
            (doc["doNotRetry"].isUnbound() || (doc["doNotRetry"].is<bool>() && !doc["doNotRetry"].as<bool>()));
@@ -432,6 +439,7 @@ String BitposClient::pollInvoiceStatus(const String& paymentHash) {
     if(status=="card_failed" && jsonEquals(doc["code"],"INSUFFICIENT_BALANCE") &&
        doc["paymentFailed"].is<bool>() && doc["paymentFailed"].as<bool>() &&
        doc["dispatched"].is<bool>() && doc["dispatched"].as<bool>())return status;
+    if(status=="closed" && closedCheckoutProof(doc))return status;
     if((status=="cancelled" || status=="expired") && nonDispatchProof(doc))return status;
     return "error";
 }
@@ -684,8 +692,9 @@ CardTransportPolicy::Outcome BitposClient::cancelManaged(const String& key, bool
 #endif
     if (!readResponse(_authHttp, _authClient, code) || code != 200) return Outcome::Pending;
     JsonDocument doc;
-    if (!jsonObject(_respBuf, doc) || !jsonEquals(doc[invoice ? "paymentHash" : "k1"], key) ||
-        !nonDispatchProof(doc)) return Outcome::Pending;
+    if (!jsonObject(_respBuf, doc) || !jsonEquals(doc[invoice ? "paymentHash" : "k1"], key)) return Outcome::Pending;
+    if(invoice && closedCheckoutProof(doc)){detail="Checkout closed. Payment tracked in account.";return Outcome::Closed;}
+    if(!nonDispatchProof(doc)) return Outcome::Pending;
     if (jsonEquals(doc["status"], "cancelled")) { detail = "Checkout cancelled"; return Outcome::Cancelled; }
     if (jsonEquals(doc["status"], "expired")) { detail = "Unused checkout expired"; return Outcome::Expired; }
     return Outcome::Pending;

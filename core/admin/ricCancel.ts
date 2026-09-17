@@ -6,6 +6,7 @@ import {cancelRicInvoice, enqueueRicInvoice, type RicInvoiceResult} from '../ric
 type Operator = {actor:string;reason:string};
 export async function adminCancelRicInvoice(accountId:string,hash:string,operator:Operator):Promise<RicInvoiceResult> {
   const pending = ():RicInvoiceResult => ({status:'pending',paymentHash:hash,doNotRetry:true});
+  const closed = ():RicInvoiceResult => ({status:'closed',paymentHash:hash,checkoutClosed:true,paymentStatus:'pending',monitoring:true,doNotRetry:true});
   if(!/^[0-9a-f]{64}$/.test(hash))return {status:'not_found',paymentHash:hash};
   if(!operator?.actor?.trim() || !operator?.reason?.trim() || operator.reason.length>500)return pending();
   const client=await pool.connect();let direct=false,aborted=false;
@@ -21,8 +22,13 @@ export async function adminCancelRicInvoice(accountId:string,hash:string,operato
       await client.query('ROLLBACK');return {status:'cancelled',paymentHash:hash,dispatched:false,cleanupPending:true};
     }
     if(!row.wrap_status) {
+      if(row.hold_preimage || row.merchant_payment_hash || row.merchant_bolt11){await client.query('ROLLBACK');return pending();}
+      if(row.ric_checkout_closed_at){await client.query('ROLLBACK');return closed();}
+      // Only close the presentation. Keep invoice, card reservations, sends and
+      // settlement monitoring unchanged; this is NOT proof that nobody paid.
+      await client.query('UPDATE pending_invoices SET ric_checkout_closed_at=now() WHERE id=$1 AND paid_at IS NULL',[row.id]);
       direct=true;
-      await client.query("INSERT INTO payment_events(payment_id,account_id,kind,event,status,payment_hash,message,detail) VALUES($1,$2,'admin','admin.cancel_requested','info',$3,'Operator requested direct-invoice cancellation; wallet proof is still required.',$4::jsonb)",[row.id,accountId,hash,JSON.stringify({actor:operator.actor,reason:operator.reason.trim(),before:null})]);
+      await client.query("INSERT INTO payment_events(payment_id,account_id,kind,event,status,payment_hash,message,detail) VALUES($1,$2,'admin','admin.cancel_requested','info',$3,'Operator closed the direct checkout. Payment remains tracked; invoice revocation or refund is not asserted.',$4::jsonb)",[row.id,accountId,hash,JSON.stringify({actor:operator.actor,reason:operator.reason.trim(),before:null,checkoutClosed:true,paymentStatus:'pending',monitoring:true})]);
     } else {
       // All platform forwards claim accepted/forwarding in this same row first.
       // Holding this row lock and winning this CAS irrevocably disables forwarding.
@@ -38,5 +44,6 @@ export async function adminCancelRicInvoice(accountId:string,hash:string,operato
   } catch(error) {await client.query('ROLLBACK');throw error;}
   finally {client.release();}
   if(aborted) {enqueueRicInvoice(hash);return {status:'cancelled',paymentHash:hash,dispatched:false,cleanupPending:true};}
-  return direct ? cancelRicInvoice(accountId,hash) : pending();
+  if(direct){enqueueRicInvoice(hash);return closed();}
+  return pending();
 }

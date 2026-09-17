@@ -26,6 +26,23 @@ inline void receive(){
 inline void tap(char action=0){
     touched=false;tick(250);pinAction=action;touched=true;tick(250);touched=false;tick(250);
 }
+inline void closedDirectCheckout(){
+    receive();invoiceStatus="closed";
+    until([]{return !app::checkoutActive;},100,500);
+    require(app::state==app::STATE_IDLE_AMOUNT,"server-owned closure must release the amount screen");
+    require(successDraws==0 && errorDraws==0,"closed is neither paid nor failed");
+    CheckoutJournal::Record record{};
+    require(CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Missing,"durable server handoff must clear device receipt");
+    require(count("callback")==0,"closure must never dispatch payment");
+}
+inline void failedStatusReconnect(){
+    receive();invoiceStatus="error";
+    until([]{return count("pollInvoiceStatus")>=3;},120,500);
+    ticks(10,500);
+    require(WiFi.reconnects>0,"TLS failure with associated WiFi must recover the network path, not retry dead sockets forever");
+    require(count("callback")==0 && count("createInvoice")==1,"network recovery cannot submit replacement payments");
+    CheckoutJournal::Record record{};require(CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Valid,"network recovery must preserve receipt");
+}
 inline void frozenTls(){
     receive();strictIo=true;RicIoWorker::gateNetwork=true;
     app::lastStatusPoll=millis()-3000;
@@ -415,7 +432,9 @@ int main(int argc,char** argv){
             require(socketAttempts==4,"transport canary did not exercise all deny wrappers");
             report(scenario,true,"");return 0;
         }
-        if(scenario=="frozen-tls")frozenTls();
+        if(scenario=="closed-direct-checkout")closedDirectCheckout();
+        else if(scenario=="failed-status-reconnect")failedStatusReconnect();
+        else if(scenario=="frozen-tls")frozenTls();
         else if(scenario=="frozen-nfc")frozenNfc();
         else if(scenario=="callback-paid-only")callbackPaidOnly();
         else if(scenario=="callback-timeout-once")callbackTimeoutOnce();

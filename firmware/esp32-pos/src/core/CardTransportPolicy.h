@@ -7,7 +7,7 @@ namespace CardTransportPolicy {
 // Pending includes every possibly dispatched request, not just HTTP 202.
 // Only PinRejected is permission to correct a PIN on the same capability.
 enum class Outcome : uint8_t {
-    NotSubmitted, PinRejected, Rejected, Pending, Paid, Failed, Expired, Cancelled
+    NotSubmitted, PinRejected, Rejected, Pending, Paid, Failed, Expired, Cancelled, Closed
 };
 constexpr size_t MaxUrlChars = 2047;
 constexpr size_t MaxBodyBytes = 4096;

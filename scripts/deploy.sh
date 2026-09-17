@@ -30,7 +30,7 @@ for k in DATABASE_URL SESSION_SECRET; do
   grep -qE "^$k=." "$ENVF" || { echo "FATAL: $k not set in $ENVF" >&2; exit 1; }
 done
 
-BEFORE=$(git rev-parse --short HEAD)
+BEFORE=$(git rev-parse HEAD)
 log "fetching origin/$BRANCH"
 git fetch -q origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -38,6 +38,13 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git status --short --untracked-files=no >&2
   echo "Commit them from a dev checkout (or: git stash) before deploying. Deployment targets are read-only." >&2
   exit 1
+fi
+# Compare release inputs before resetting HEAD, including retries of the same SHA.
+# Cards runtime drift/stale markers must not turn an unrelated release into a rollback.
+CARDS_RELEASE_CHANGES=$(git diff --name-only "$BEFORE" "origin/$BRANCH" -- artifacts/cards-shop-release.json artifacts/cards-shop-release.tar.gz)
+CARDS_STATIC_ROOT="$DIR/artifacts/cards-shop/current/public"
+if [ "$TARGET" = prod ]; then
+  CARDS_STATIC_ROOT="/opt/maekob/artifacts/maekob-shop/dist/public"
 fi
 git checkout -q -B "$ENV_BRANCH" "origin/$BRANCH"
 git reset -q --hard "origin/$BRANCH"
@@ -59,8 +66,12 @@ done
 TABLES=$(psql "$DBURL" -tAc "select count(*) from pg_tables where schemaname='public'")
 log "schema ok ($TABLES tables)"
 
-log "install pinned Cards frontend"
-python3 scripts/install-cards-shop.py "$TARGET"
+if [ -n "$CARDS_RELEASE_CHANGES" ] || [ ! -f "$CARDS_STATIC_ROOT/index.html" ]; then
+  log "install pinned Cards frontend (release changed or initial install missing)"
+  python3 scripts/install-cards-shop.py "$TARGET"
+else
+  log "Cards release unchanged; leaving existing Cards runtime untouched"
+fi
 
 log "restart"
 $RESTART

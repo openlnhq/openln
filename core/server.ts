@@ -19,6 +19,7 @@ import { startRicPaymentRecovery } from '../plugins/ric-payment-routes.js';
 import { onAccountEvent , emitAccountEvent } from "./events.js";
 import { handleCardsPreview } from "../plugins/cards-preview.js";
 import { handleCardsRoute } from "../plugins/cards.js";
+import { getRicCardFailure } from "../plugins/card-tap.js";
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handleExtensionsRoute } from "../plugins/extensions.js";
 import { handlePosboxRoute } from "../plugins/posbox.js";
@@ -321,7 +322,9 @@ const server = createServer(async (req, res) => {
       const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
       if (!invoice || invoice.accountId!==currentAccount.id) return json(res, 404, { status: "unknown", paymentHash });
       enqueueRicInvoice(paymentHash);
-      return json(res,200,{...ricInvoiceView(invoice),feeSats:invoice.feeSats??0});
+      const view=ricInvoiceView(invoice);
+      const cardFailure=view.status==='pending' ? await getRicCardFailure(currentAccount.id,paymentHash) : undefined;
+      return json(res,200,{...(cardFailure??view),feeSats:invoice.feeSats??0});
     }
     // LNURL-pay endpoints are core money-path routes and deliberately root-level.
     const meta = u.pathname.match(/^\/.well-known\/lnurlp\/([^/]+)$/);

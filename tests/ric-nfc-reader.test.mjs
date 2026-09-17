@@ -5,8 +5,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const cases = ['finite-passive-retries', 'begin-failure', 'sam-failure', 'retry-config-failure', 'failed-rebegin',
-  'two-read-attempts', 'first-attempt-success', 'second-attempt-success', 'card-removed',
+const cases = ['v106-pn532-policy', 'begin-failure', 'sam-failure', 'failed-rebegin',
+  'five-read-attempts', 'first-attempt-success', 'second-attempt-success', 'fifth-attempt-success', 'card-removed',
   'invalid-uid-0', 'invalid-uid-8', 'invalid-uid-255', 'retry-uid-0', 'retry-uid-8', 'retry-uid-255',
   'valid-uid-4', 'valid-uid-7', 'private-ndef-logging']
   .filter(name => !process.env.RIC_NFC_CASE || new RegExp(process.env.RIC_NFC_CASE).test(name));

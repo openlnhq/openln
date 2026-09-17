@@ -25,6 +25,12 @@ SCENARIOS = [
     "journal-before-expose", "maintenance-gate", "pin-timeout-not-rejection", "cancel-while-detecting",
     "boot-corrupt-journal", "boot-unavailable-journal", "invoice-journal-save-failure",
     "worker-network-unavailable", "worker-nfc-unavailable", "cancel-retry-after-pending", "send-timeout-once",
+    "insufficient-balance", "insufficient-balance-pending", "insufficient-balance-paid-wins",
+    "insufficient-balance-lost-reply",
+    "cancel-receive-pending-cadence", "cancel-send-pending-cadence",
+    "insufficient-balance-repeated-proof",
+    "boot-receive-unsent-expiry", "boot-receive-dispatched-expiry",
+    "safe-stage-trace",
 ]
 
 

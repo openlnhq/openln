@@ -1318,7 +1318,10 @@ uint8_t Adafruit_PN532::ntag424_apdu_send(
       ? (size_t(cmd_data_length) / 16 + 1) * 16 : cmd_data_length;
   const size_t required = 8 + size_t(cmd_header_length) + payload +
       (comm_mode == NTAG424_COMM_MODE_PLAIN ? 0 : 8);
-  if (required > sizeof(apdu) || payload > 48) return 0;
+  // Only FULL mode uses the fixed encryption scratch buffer. Plain NDEF
+  // writes use 54-byte chunks and must not inherit its 48-byte payload cap.
+  if (required > sizeof(apdu) ||
+      (comm_mode == NTAG424_COMM_MODE_FULL && payload > 48)) return 0;
   uint8_t apdusize = 0;
   if (!cla || !ins || !p1 || !p2 || !response || !response_le ||
       (cmd_header_length && !cmd_header) || (cmd_data_length && !cmd_data) ||
@@ -2744,6 +2747,7 @@ bool Adafruit_PN532::ntag424_FormatNDEF() {
 /**************************************************************************/
 bool Adafruit_PN532::ntag424_ISOUpdateBinary(uint8_t *data_to_write,
                                              uint8_t length) {
+  if (!data_to_write || !length) return false;
   uint8_t cla[1] = {NTAG424_COM_ISOCLA};
   uint8_t ins[1] = {NTAG424_CMD_ISOUPDATEBINARY};
   uint8_t p1[1] = {0x84};
@@ -2768,8 +2772,10 @@ bool Adafruit_PN532::ntag424_ISOUpdateBinary(uint8_t *data_to_write,
           NTAG424_COMM_MODE_PLAIN, result, sizeof(result)
 
       );
-      if (bytesread < 4) {
-        // error
+      // ISO UPDATE BINARY must acknowledge every chunk with exactly 90 00.
+      // A later successful chunk cannot repair a missing NDEF header/body.
+      if (bytesread != 2 || result[0] != 0x90 || result[1] != 0x00) {
+        return false;
       }
     }
     offset += datalen;

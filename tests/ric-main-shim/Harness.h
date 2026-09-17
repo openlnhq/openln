@@ -59,7 +59,7 @@ inline String lastCardUrl;
 inline unsigned paymentDraws=0,paymentUpdates=0,pinUpdates=0,processingUpdates=0,wrongPins=0;
 inline unsigned idleDraws=0,successDraws=0,errorDraws=0,otaChecks=0,helloCalls=0,priceCalls=0,nfcReinits=0;
 inline unsigned journalWritesAtQr=0;
-inline String lastQr,stageLabel,lastResult,pinValue="1234";
+inline String lastQr,stageLabel,lastResult,progressTitle,pinValue="1234";
 inline int lastTtl=0;
 inline uint32_t qrDrawAt=0;
 inline bool paymentCanCancel=true,sendMode=false,hasAmountInput=false;
@@ -133,7 +133,7 @@ public:
     static String getPin(){return RicMainShim::pinValue;}
     static void clearPin(){RicMainShim::pinValue="";}
     static void setWrongPin(TFT_eSPI&){RicMainShim::display();++RicMainShim::wrongPins;}
-    static void drawProcessing(TFT_eSPI&,const char* = "Verifying",const char* = "PIN..."){RicMainShim::display();++RicMainShim::processingUpdates;}
+    static void drawProcessing(TFT_eSPI&,const char* title = "Verifying",const char* = "PIN..."){RicMainShim::display();RicMainShim::progressTitle=title;++RicMainShim::processingUpdates;}
     static void drawConfirming(TFT_eSPI&){RicMainShim::display();++RicMainShim::processingUpdates;}
     static void updateConfirming(TFT_eSPI&){RicMainShim::display();++RicMainShim::processingUpdates;}
 };

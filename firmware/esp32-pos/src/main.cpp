@@ -184,6 +184,9 @@ static bool checkoutActive = false;
 static bool checkoutSending = false;
 static bool checkoutRecovering = false;
 static bool checkoutCancelRequested = false;
+static String checkoutFailure;
+static bool checkoutFailureAutoDismiss = false;
+static uint32_t checkoutFailureShownAt = 0;
 static bool cancelRetryReady = false;
 static bool checkoutJournalFault = false;
 static bool callbackQueued = false;
@@ -210,6 +213,7 @@ struct NetworkJob {
     NetworkOp op = NetworkOp::None;
     String reference, url, callback, invoice, pin, error, status;
     long amount = 0;
+    uint32_t elapsedMs = 0;
     Invoice resultInvoice;
     BitposClient::LnurlWithdraw lnurl;
     CardTransportPolicy::Outcome outcome = CardTransportPolicy::Outcome::NotSubmitted;
@@ -580,8 +584,7 @@ static void networkWork(void* context) {
         case NetworkOp::None: break;
     }
     job.pin="";
-    Serial.printf("RIC IO: op=%u ms=%u outcome=%u heap=%u largest=%u\n",
-        static_cast<unsigned>(job.op),millis()-start,static_cast<unsigned>(job.outcome),ESP.getFreeHeap(),ESP.getMaxAllocHeap());
+    job.elapsedMs=millis()-start;
 }
 static void nfcWork(void* context) {
     auto& job=*static_cast<NfcJob*>(context);
@@ -605,7 +608,10 @@ static bool startNetwork(NetworkOp op) {
     if(op==NetworkOp::CreateWithdraw || op==NetworkOp::SendCard) {
         networkJob.pin=sendPin; networkJob.url=checkoutCardUrl;
     }
-    return networkWorker.start(networkWork,&networkJob);
+    const bool started=networkWorker.start(networkWork,&networkJob);
+    if(started) Serial.printf("RIC IO: submitted op=%u state=%u at=%u\n",
+        static_cast<unsigned>(op),static_cast<unsigned>(state),millis());
+    return started;
 }
 static bool saveCheckout(bool dispatched) {
     const String& reference=checkoutSending ? sendK1 : currentInvoice.paymentHash;
@@ -640,7 +646,12 @@ static void finishCheckout(bool paid,const char* failure="Checkout closed") {
     lnurlCallbackSent=false; paymentInFlightAtTimeout=false; paymentInterruptedByWifi=false;
     callbackQueued=false; metadataQueued=false; nfcReadQueued=false;
     clearCheckoutSecrets();
+    checkoutFailureAutoDismiss=false;
     if(paid) { ResultScreen::draw(tft,RESULT_SUCCESS,currentAmountSats,"",sent); state=STATE_SUCCESS; }
+    else if(!checkoutFailure.isEmpty()) {
+        ResultScreen::draw(tft,RESULT_ERROR,0,checkoutFailure,sent,"Payment declined"); state=STATE_ERROR;
+        checkoutFailureShownAt=millis(); checkoutFailureAutoDismiss=true;
+    }
     else if(checkoutFlow.phase==RicCheckout::Phase::Declined && !cancelled) {
         ResultScreen::draw(tft,RESULT_ERROR,0,"No payment confirmed",sent,failure); state=STATE_ERROR;
     } else { AmountScreen::setSendMode(false); enterIdleAmount(); }
@@ -650,7 +661,7 @@ static void requestCheckoutCancel() {
     checkoutCancelRequested=true; cancelRetryReady=false;
     metadataQueued=false; nfcReadQueued=false;
     clearCheckoutSecrets();
-    showCheckoutProgress("Closing checkout","Checking payment status first");
+    showCheckoutProgress(checkoutFailure.isEmpty()?"Closing checkout":checkoutFailure.c_str(),"Checking payment status first");
 }
 static void beginReceiveCallback(const String& pin) {
     if(!checkoutActive || !checkoutFlow.canSubmit() || checkoutCancelRequested || callbackQueued) return;
@@ -665,6 +676,19 @@ static void beginReceiveCallback(const String& pin) {
 static void applyCheckoutStatus(const String& status) {
     if(!checkoutActive) return;
     lastStatusPoll=millis();
+    if(!checkoutSending && status=="card_failed") {
+        // Recover the authoritative rejection even when the callback reply was
+        // lost. Never clear the journal until the invoice cancellation is proven.
+        if(!checkoutCancelRequested && lnurlCallbackSent && !callbackQueued) {
+            checkoutFailure="Insufficient balance";
+            checkoutFlow=RicCheckout::Flow{}; lnurlCallbackSent=false;
+            requestCheckoutCancel();
+        }
+        // The same proven card failure may persist while invoice cancellation
+        // is pending. Re-arm cancellation only, never the payment callback.
+        cancelRetryReady=checkoutCancelRequested;
+        return;
+    }
     if(status=="error" || status=="unknown" || status.isEmpty()) {
         ++pollFailCount;
         currentPollInterval=std::min(uint32_t(15000),std::max(uint32_t(2000),currentPollInterval*2));
@@ -689,6 +713,11 @@ static void applyCheckoutStatus(const String& status) {
 static void pumpCheckoutJobs() {
     if(networkWorker.take()) {
         const NetworkOp op=networkJob.op;
+        // Log only operation metadata and allowlisted transport status, never
+        // request references, card URLs, PINs, invoice text or server error prose.
+        Serial.printf("RIC IO: completed op=%u state=%u ms=%u outcome=%u status=%s heap=%u largest=%u\n",
+            static_cast<unsigned>(op),static_cast<unsigned>(state),networkJob.elapsedMs,
+            static_cast<unsigned>(networkJob.outcome),networkJob.status.c_str(),ESP.getFreeHeap(),ESP.getMaxAllocHeap());
         if(op==NetworkOp::CreateInvoice) {
             creatingStarted=false;
             if(networkJob.error.length() || networkJob.resultInvoice.bolt11.isEmpty()) {
@@ -742,6 +771,8 @@ static void pumpCheckoutJobs() {
             } else if(networkJob.outcome==Outcome::Rejected || networkJob.outcome==Outcome::NotSubmitted || networkJob.outcome==Outcome::Failed) {
                 // Even a rejected card request leaves an exposed QR. Close it with proof.
                 checkoutFlow=RicCheckout::Flow{}; lnurlCallbackSent=false;
+                if(op==NetworkOp::ReceiveCallback && networkJob.outcome==Outcome::Failed && networkJob.error=="Insufficient balance")
+                    checkoutFailure="Insufficient balance";
                 requestCheckoutCancel();
             } else {
                 checkoutFlow.networkLost(); clearCheckoutSecrets();
@@ -752,7 +783,13 @@ static void pumpCheckoutJobs() {
             const auto result=networkJob.outcome;
             if(result==Outcome::Cancelled || result==Outcome::Expired || result==Outcome::Failed) finishCheckout(false);
             else if(result==Outcome::Paid) finishCheckout(true);
-            else { checkoutFlow.phase=RicCheckout::Phase::Reconciling; showCheckoutProgress("Checking payment","Do not pay again"); lastStatusPoll=millis()-currentPollInterval; }
+            else {
+                checkoutFlow.phase=RicCheckout::Phase::Reconciling;
+                showCheckoutProgress(checkoutFailure.isEmpty()?"Checking payment":checkoutFailure.c_str(),"Do not pay again");
+                // Pending is not proof. Wait before querying again; backdating
+                // this timer made pending -> cancel -> pending spin at IO speed.
+                lastStatusPoll=millis();
+            }
         }
         networkJob=NetworkJob{};
     }
@@ -800,6 +837,7 @@ static void scheduleCheckoutWork() {
     }
 }
 static void startCheckout(bool sending) {
+    checkoutFailure=""; checkoutFailureAutoDismiss=false;
     checkoutActive=true; checkoutSending=sending; checkoutRecovering=false;
     checkoutCancelRequested=false; cancelRetryReady=false; checkoutFlow=RicCheckout::Flow{};
     callbackQueued=false; metadataQueued=false; nfcReadQueued=false; creatingStarted=false;
@@ -843,6 +881,10 @@ static void handleSuccess() {
 }
 static void handleError() {
     if(checkoutJournalFault || checkoutActive || networkWorker.busy() || nfcWorker.busy()) return;
+    if(checkoutFailureAutoDismiss && uint32_t(millis()-checkoutFailureShownAt)>=4000) {
+        checkoutFailureAutoDismiss=false; checkoutFailure="";
+        AmountScreen::setSendMode(false); enterIdleAmount(); return;
+    }
     int tx,ty;
     if(readTouch(tx,ty) && ResultScreen::handleTouch(tx,ty)) { AmountScreen::setSendMode(false); enterIdleAmount(); }
 }
@@ -865,6 +907,7 @@ static bool restoreCheckout() {
     const auto loaded=CheckoutJournal::load(record);
     if(loaded==CheckoutJournal::LoadResult::Missing) return false;
     if(loaded!=CheckoutJournal::LoadResult::Valid) {
+        Serial.printf("RIC recovery: journal=%u\n",static_cast<unsigned>(loaded));
         checkoutJournalFault=true; checkoutActive=true; checkoutRecovering=true;
         return true;
     }
@@ -874,6 +917,11 @@ static bool restoreCheckout() {
     if(checkoutSending) sendK1=record.reference; else currentInvoice.paymentHash=record.reference;
     checkoutFlow.phase=RicCheckout::Phase::Reconciling;
     lnurlCallbackSent=true; lastStatusPoll=0;
+    // A receive payment hash is safe to correlate. A withdrawal k1 is a
+    // capability, so never print it, even though both are 64 hex characters.
+    Serial.printf("RIC recovery: kind=%u dispatched=%u hash=%s\n",
+        static_cast<unsigned>(record.kind),static_cast<unsigned>(record.dispatched),
+        checkoutSending?"withheld":record.reference);
     return true;
 }
 static void resumeCheckout() {

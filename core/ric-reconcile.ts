@@ -13,17 +13,21 @@ import { emitAccountEvent } from './events.js';
 import { logger } from './money/logger.js';
 
 type Invoice = typeof pendingInvoicesTable.$inferSelect;
-type Raw = {type?:string;state?:string;payment_hash?:string;preimage?:string;settled_at?:number;amount?:number;fees_paid?:number};
+type Raw = {type?:string;state?:string;payment_hash?:string;preimage?:string;settled_at?:number|null;expires_at?:number|null;amount?:number;fees_paid?:number;paid?:boolean;settled?:boolean};
 export type RicInvoiceResult = {status:string;paymentHash:string;dispatched?:boolean;doNotRetry?:boolean;cleanupPending?:boolean};
-const directExpired = new Set<string>();
 const validHash = (hash:string) => /^[0-9a-f]{64}$/.test(hash);
 const pending = (hash:string):RicInvoiceResult => ({status:'pending',paymentHash:hash,doNotRetry:true});
 function proofPaid(raw:Raw):boolean {
   const preimage = typeof raw.preimage==='string' && /^[0-9a-f]{64}$/i.test(raw.preimage) &&
     createHash('sha256').update(Buffer.from(raw.preimage,'hex')).digest('hex')===raw.payment_hash;
-  return raw.state==='settled' || !!preimage || (typeof raw.settled_at==='number' && raw.settled_at>0);
+  return raw.state==='settled' || !!preimage || (Number.isSafeInteger(raw.settled_at) && Number(raw.settled_at)>0);
 }
-function unpaidTerminal(raw:Raw):boolean { return !proofPaid(raw) && ['expired','cancelled','canceled','failed'].includes(raw.state??''); }
+// Malformed or conflicting settlement hints are uncertainty, not unpaid proof.
+function cleanUnpaid(raw:Raw):boolean {
+  return !proofPaid(raw) && (raw.settled_at==null || raw.settled_at===0) &&
+    (raw.preimage==null || raw.preimage==='') && (raw.paid==null || raw.paid===false) && (raw.settled==null || raw.settled===false);
+}
+function unpaidTerminal(raw:Raw):boolean { return cleanUnpaid(raw) && ['expired','cancelled','canceled','failed'].includes(raw.state??''); }
 function incoming(raw:Raw,hash:string):boolean { return raw.type==='incoming' && raw.payment_hash===hash; }
 // Bind the unsupported-cancel fallback to a hold we minted, not a direct or
 // legacy same-hash invoice. The persisted preimage is never sent to the wallet.
@@ -32,7 +36,80 @@ function mintedHold(row:Invoice):boolean {
     createHash('sha256').update(Buffer.from(row.holdPreimage,'hex')).digest('hex')===row.paymentHash &&
     !!row.merchantPaymentHash && validHash(row.merchantPaymentHash) && row.merchantPaymentHash!==row.paymentHash;
 }
-function rememberDirectExpiry(hash:string) { if(directExpired.size>=1024)directExpired.delete(directExpired.values().next().value!);directExpired.add(hash); }
+function directInvoice(row:Invoice):boolean {
+  return !row.wrapStatus && !row.holdPreimage && !row.merchantPaymentHash && !row.merchantBolt11;
+}
+// Decode the persisted invoice, not the DB's creation time or the wallet's
+// record timestamp. Validate checksum, exact payment hash and signature before
+// using BOLT11's x tag (default 3600s) as expiry evidence.
+async function directBolt11Expiry(row:Invoice):Promise<number|undefined> {
+  try {
+    const invoice=row.bolt11;
+    if(!invoice || invoice.length>8192 || (invoice!==invoice.toLowerCase() && invoice!==invoice.toUpperCase()))return;
+    const lower=invoice.toLowerCase(),split=lower.lastIndexOf('1'),hrp=lower.slice(0,split);
+    if(!/^ln(?:bc|tb|bcrt)(?:[0-9]+[munp]?)?$/.test(hrp))return;
+    const chars='qpzry9x8gf2tvdw0s3jn54khce6mua7l',words=[...lower.slice(split+1)].map(c=>chars.indexOf(c));
+    if(words.some(w=>w<0) || words.length<7+104+6)return;
+    const expanded=[...hrp].map(c=>c.charCodeAt(0)>>>5).concat(0,[...hrp].map(c=>c.charCodeAt(0)&31));
+    let check=1;
+    for(const word of [...expanded,...words]) {
+      const top=check>>>25;check=((check&0x1ffffff)<<5)^word;
+      [0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3].forEach((g,i)=>{if((top>>>i)&1)check^=g;});
+    }
+    if((check>>>0)!==1)return;
+    const bytes=(input:number[],pad=false):Buffer=>{
+      let acc=0,bits=0;const out:number[]=[];
+      for(const w of input){acc=(acc<<5)|w;bits+=5;while(bits>=8){bits-=8;out.push((acc>>>bits)&255);}}
+      if(pad && bits)out.push((acc<<(8-bits))&255);
+      else if(bits>=5 || (acc&((1<<bits)-1)))throw Error('Invalid BOLT11 padding');
+      return Buffer.from(out);
+    };
+    const number=(ws:number[])=>ws.reduce((n,w)=>n*32+w,0),data=words.slice(0,-110);
+    let hash:string|undefined,payee:Buffer|undefined,expiry=3600,hasExpiry=false;
+    for(let i=7;i<data.length;) {
+      if(i+3>data.length)return;
+      const tag=chars[data[i]],length=data[i+1]*32+data[i+2];i+=3;
+      if(i+length>data.length)return;const field=data.slice(i,i+length);i+=length;
+      if(tag==='p'){if(hash || length!==52)return;hash=bytes(field).toString('hex');}
+      if(tag==='n'){if(payee || length!==53)return;payee=bytes(field);}
+      if(tag==='x'){if(hasExpiry || !length)return;hasExpiry=true;expiry=number(field);}
+    }
+    const expires=number(data.slice(0,7))+expiry;
+    if(hash!==row.paymentHash || !Number.isSafeInteger(expiry) || !Number.isSafeInteger(expires) || expires*1000>Date.now())return;
+    const signature=bytes(words.slice(-110,-6));if(signature.length!==65 || signature[64]>3)return;
+    const {recoverPublicKeyAsync}=await import('@noble/secp256k1');
+    const digest=createHash('sha256').update(Buffer.concat([Buffer.from(hrp),bytes(data,true)])).digest();
+    const recovered=await recoverPublicKeyAsync(Buffer.concat([signature.subarray(64),signature.subarray(0,64)]),digest,{prehash:false});
+    if(payee && !payee.equals(Buffer.from(recovered)))return;
+    return expires;
+  } catch {return undefined;}
+}
+async function expiredDirectPending(row:Invoice,raw:Raw):Promise<boolean> {
+  if(!directInvoice(row) || raw.state!=='pending' || !cleanUnpaid(raw) ||
+    (raw.amount!==undefined && (!Number.isSafeInteger(raw.amount) || raw.amount!==row.amountSats*1000)) ||
+    !Number.isFinite(row.expiresAt.getTime()) || row.expiresAt.getTime()>Date.now())return false;
+  if(!Number.isSafeInteger(raw.expires_at) || Number(raw.expires_at)<=0 || Number(raw.expires_at)*1000>Date.now())return false;
+  const signedExpiry=await directBolt11Expiry(row);
+  return signedExpiry!==undefined && signedExpiry===raw.expires_at;
+}
+async function rememberDirectExpiry(row:Invoice,raw:Raw):Promise<void> {
+  if(!directInvoice(row))return;
+  // Persist the observation and its redacted story atomically. Do not write
+  // wrap_status, paid_at or a failed send. A concurrent/late paid row wins.
+  const detail={walletState:raw.state,walletExpiresAt:raw.expires_at??null,
+    invoiceExpiresAt:raw.state==='pending'?raw.expires_at:null,evidence:raw.state==='pending'?'bolt11_and_wallet_expiry':'wallet_terminal'};
+  await pool.query(`WITH marked AS (
+    UPDATE pending_invoices p SET ric_expiry_confirmed_at=now()
+    WHERE id=$1 AND payment_hash=$2 AND paid_at IS NULL AND ric_expiry_confirmed_at IS NULL
+      AND wrap_status IS NULL AND hold_preimage IS NULL AND merchant_payment_hash IS NULL AND merchant_bolt11 IS NULL
+      AND nwc_url_encrypted=$3 AND bolt11=$4
+      AND NOT EXISTS(SELECT 1 FROM transactions t WHERE t.payment_hash=p.payment_hash AND t.direction='out' AND t.status IN ('pending','completed'))
+    RETURNING id,account_id,payment_hash)
+    INSERT INTO payment_events(payment_id,account_id,kind,event,status,payment_hash,message,detail)
+    SELECT id::text,account_id,'receive','invoice.expired_reconciled','info',payment_hash,
+      'Direct invoice expiry confirmed by its own wallet; no wrap or known outgoing liability.',$5::jsonb FROM marked`,
+    [row.id,row.paymentHash,row.nwcUrlEncrypted,row.bolt11,JSON.stringify(detail)]);
+}
 async function bounded<T>(client:NWCClient,work:()=>Promise<T>):Promise<T> {
   let timer:NodeJS.Timeout|undefined;
   try { return await Promise.race([work(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{client.close();reject(Error('Wallet observation timed out'));},12000);timer.unref();})]); }
@@ -46,22 +123,30 @@ async function lookup(client:NWCClient,hash:string):Promise<Raw|undefined> {
 // to 50. Only a complete declared total or a subsequent empty page proves absence.
 export async function outgoingEvidence(client:NWCClient,hash:string,from:number):Promise<{complete:boolean;match?:Raw}> {
   const direct=await lookup(client,hash);
-  if(direct && direct.payment_hash!==hash)return {complete:false};
+  if(direct && (direct.payment_hash!==hash || !['incoming','outgoing'].includes(direct.type??'')))return {complete:false};
   if(direct?.type==='outgoing' && direct.payment_hash===hash)return {complete:true,match:direct};
   let offset=0;const seen=new Set<string>();let previousTotal:number|undefined;
   for(let page=0;page<20;page++) {
     const result=await bounded(client,()=>client.listTransactions({from,offset,limit:100,type:'outgoing',unpaid:true}));
     const entries=result.transactions as Raw[];
     if(!Array.isArray(entries))return {complete:false};
-    const total=Number.isSafeInteger(result.total_count)&&result.total_count>=0?result.total_count:undefined;
+    if(result.total_count!==undefined && (!Number.isSafeInteger(result.total_count) || result.total_count<0))return {complete:false};
+    const total=result.total_count??previousTotal;
+    const more=(result as typeof result & {has_more?:unknown}).has_more;
+    if(more!==undefined && typeof more!=='boolean')return {complete:false};
     if(previousTotal!==undefined && total!==undefined && total!==previousTotal)return {complete:false};
     if(total!==undefined)previousTotal=total;
+    if(total!==undefined && offset+entries.length>total)return {complete:false};
+    if(more===true && (!entries.length || (total!==undefined && offset+entries.length>=total)))return {complete:false};
+    if(more===false && total!==undefined && offset+entries.length!==total)return {complete:false};
     if(entries.length===0)return {complete:total===undefined || offset===total};
+    let match:Raw|undefined;
     for(const row of entries) {
-      if(row.type!=='outgoing' || !row.payment_hash || seen.has(row.payment_hash))return {complete:false};
+      if(row.type!=='outgoing' || typeof row.payment_hash!=='string' || !validHash(row.payment_hash) || seen.has(row.payment_hash))return {complete:false};
       seen.add(row.payment_hash);
-      if(row.payment_hash===hash)return {complete:true,match:row};
+      if(row.payment_hash===hash)match=row;
     }
+    if(match)return {complete:true,match};
     offset+=entries.length;
     if(total!==undefined && offset===total)return {complete:true};
     if(total!==undefined && offset>total)return {complete:false};
@@ -78,7 +163,7 @@ export function ricInvoiceView(row:Invoice):RicInvoiceResult {
   // Checkout is irrevocably aborted; the wallet invoice/HTLC is NOT terminal.
   // No forward can claim this state. Keep it in the cleanup sweep until proof.
   if(row.wrapStatus==='cancel_pending')return {status:'cancelled',paymentHash,dispatched:false,cleanupPending:true};
-  if(!row.wrapStatus && directExpired.has(paymentHash))return {status:'expired',paymentHash,dispatched:false};
+  if(!row.wrapStatus && row.ricExpiryConfirmedAt)return {status:'expired',paymentHash,dispatched:false};
   if(['accepted','forwarding','forwarded'].includes(row.wrapStatus??''))return {status:row.wrapStatus!,paymentHash,dispatched:true,doNotRetry:true};
   return pending(paymentHash);
 }
@@ -104,7 +189,7 @@ async function inspectInvoice(hash:string):Promise<RicInvoiceResult> {
     if(!hold || !incoming(hold,hash))return unknown();
     if(!row.wrapStatus) {
       if(proofPaid(hold))await settleInvoiceByPaymentHash(hash,new Date());
-      else if(unpaidTerminal(hold))rememberDirectExpiry(hash);
+      else if(unpaidTerminal(hold) || await expiredDirectPending(row,hold))await rememberDirectExpiry(row,hold);
       return ricInvoiceView((await readInvoice(hash))!);
     }
     const held=hold.state==='accepted' && !proofPaid(hold);
@@ -120,7 +205,7 @@ async function inspectInvoice(hash:string):Promise<RicInvoiceResult> {
       outgoing=await outgoingEvidence(client,row.merchantPaymentHash,Math.floor(row.createdAt.getTime()/1000)-300);
       if(!outgoing.complete)return pending(hash);
     }
-    const noLiability=outgoing?.complete && (!outgoing.match || (outgoing.match.state==='failed' && !proofPaid(outgoing.match)));
+    const noLiability=outgoing?.complete && (!outgoing.match || (outgoing.match.state==='failed' && cleanUnpaid(outgoing.match)));
     if(cancelling) {
       // Cancellation ownership is permanent: even late acceptance must never
       // revive created/accepted or enter advanceWrap. Paid/liability wins.
@@ -144,7 +229,7 @@ async function inspectInvoice(hash:string):Promise<RicInvoiceResult> {
           // Recheck after the wallet round trip; a newly visible outgoing
           // payment must not be hidden by our earlier complete history read.
           const latest=await outgoingEvidence(client,row.merchantPaymentHash!,Math.floor(row.createdAt.getTime()/1000)-300);
-          if(!latest.complete || (latest.match && !(latest.match.state==='failed' && !proofPaid(latest.match))))return pending(hash);
+          if(!latest.complete || (latest.match && !(latest.match.state==='failed' && cleanUnpaid(latest.match))))return pending(hash);
           if(unpaidTerminal(after))await markCancelled(row);
           else {
             // Only the durable cancelling owner may become a tombstone. A
@@ -208,19 +293,25 @@ export async function cancelRicInvoice(accountId:string,hash:string):Promise<Ric
   const row=validHash(hash)?await readInvoice(hash):undefined;
   if(!row || row.accountId!==accountId)return {status:'not_found',paymentHash:hash};
   if(row.wrapStatus==='created')await pool.query("UPDATE pending_invoices SET wrap_status='cancelling',wrap_updated_at=now() WHERE id=$1 AND account_id=$2 AND paid_at IS NULL AND wrap_status='created'",[row.id,accountId]);
+  // Status and cancel polls share the same serialized, per-hash throttle.
+  enqueueRicInvoice(hash);
+  const work=inFlight.get(hash);
+  if(!work)return ricInvoiceView((await readInvoice(hash))??row);
   let timer:NodeJS.Timeout|undefined;
-  try {return await Promise.race([reconcileRicInvoiceNow(hash),new Promise<RicInvoiceResult>(resolve=>{timer=setTimeout(()=>resolve(pending(hash)),1200);timer.unref();})]);}
+  try {return await Promise.race([work,new Promise<RicInvoiceResult>(resolve=>{timer=setTimeout(()=>resolve(pending(hash)),1200);timer.unref();})]);}
   finally {if(timer)clearTimeout(timer);}
 }
 let interval:NodeJS.Timeout|undefined;let sweeping=false;let cursor='';
 export function startRicReconciler():()=>void {
   if(interval)return ()=>{};
   const sweep=async()=>{
-    if(sweeping || relayInCooldown())return;sweeping=true;
+    // One idle sweep item at a time. Never fill the request queue with an old
+    // page of slow wallets while an active checkout waits behind that page.
+    if(sweeping || active || queue.size || relayInCooldown())return;sweeping=true;
     try {
-      const r=await pool.query<{payment_hash:string;id:string}>("SELECT id,payment_hash FROM pending_invoices WHERE paid_at IS NULL AND (wrap_status IN ('created','cancelling','cancel_pending','accepted','forwarding','forwarded','needs_reconciliation') OR (wrap_status IS NULL AND created_at>now()-interval '24 hours')) AND id::text>$1 ORDER BY id::text LIMIT 20",[cursor]);
-      cursor=r.rows.length===20?r.rows[r.rows.length-1].id:'';
-      for(const row of r.rows)if(!directExpired.has(row.payment_hash))enqueueRicInvoice(row.payment_hash);
+      const r=await pool.query<{payment_hash:string;id:string}>("SELECT id,payment_hash FROM pending_invoices WHERE paid_at IS NULL AND (wrap_status IN ('created','cancelling','cancel_pending','accepted','forwarding','forwarded','needs_reconciliation') OR (wrap_status IS NULL AND ric_expiry_confirmed_at IS NULL)) AND id::text>$1 ORDER BY id::text LIMIT 1",[cursor]);
+      cursor=r.rows[0]?.id??'';
+      for(const row of r.rows)enqueueRicInvoice(row.payment_hash);
     } catch(err) {logger.warn({errorClass:err instanceof Error?err.name:'db'},'RIC reconciliation sweep unavailable');}
     finally{sweeping=false;}
   };
@@ -241,7 +332,7 @@ export async function reconcileRicPendingSends():Promise<void> {
     try {
       const proof=await outgoingEvidence(client,row.payment_hash,Math.floor(row.created_at.getTime()/1000)-300);
       if(proof.match && proofPaid(proof.match))await finalizePendingSend(row.id,{status:'completed',paymentHash:row.payment_hash,feeSats:Math.ceil((proof.match.fees_paid??0)/1000)});
-      else if(proof.match?.state==='failed')await finalizePendingSend(row.id,{status:'failed',reason:'Wallet reported payment failed'});
+      else if(proof.match?.state==='failed' && cleanUnpaid(proof.match))await finalizePendingSend(row.id,{status:'failed',reason:'Wallet reported payment failed'});
     } catch { /* Unknown remains pending. */ } finally {client.close();}
   }
 }

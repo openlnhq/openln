@@ -93,6 +93,20 @@ void callbackOutcomes() {
         {302,"{\"status\":\"OK\"}",Outcome::Pending}
     };
     for(const auto& c:cases){fresh();queue(c.body,c.code);String detail;assert(BitposClient::submitLnurlCallback(CALLBACK,"challenge",BOLT11,"1234",detail)==c.outcome);assert(getCalls==1);assert(postCalls==0);assert(!detail.isEmpty());assert(requests[0].headers.count("Authorization")==0);}
+    const std::string declined="{\"status\":\"ERROR\",\"code\":\"INSUFFICIENT_BALANCE\",\"paymentFailed\":true,\"dispatched\":true,\"k1\":\"challenge\",\"reason\":\"Insufficient balance\"}";
+    fresh();queue(declined);String failureDetail;
+    assert(BitposClient::submitLnurlCallback(CALLBACK,"challenge",BOLT11,"1234",failureDetail)==Outcome::Failed);
+    assert(failureDetail=="Insufficient balance");
+    for(const auto& url:std::vector<String>{CALLBACK,String("https://third-party.example/callback")}) {
+        fresh();queue(declined);assert(BitposClient::submitLnurlCallback(url,"wrong-challenge",BOLT11,"1234",failureDetail)==Outcome::Pending);
+    }
+    fresh();queue(declined);assert(BitposClient::submitLnurlCallback("https://third-party.example/callback","challenge",BOLT11,"1234",failureDetail)==Outcome::Pending);
+    for(const auto& field:std::vector<std::string>{"\"paymentFailed\":true","\"dispatched\":true"}) {
+        std::string bad=declined;bad.replace(bad.find(field),field.size(),field.substr(0,field.find(':')+1)+"\"true\"");
+        fresh();queue(bad);assert(BitposClient::submitLnurlCallback(CALLBACK,"challenge",BOLT11,"1234",failureDetail)==Outcome::Pending);
+    }
+    fresh();queue("{\"status\":\"ERROR\",\"code\":\"INSUFFICIENT_BALANCE\",\"reason\":\"Insufficient balance\"}");
+    assert(BitposClient::submitLnurlCallback(CALLBACK,"challenge",BOLT11,"1234",failureDetail)==Outcome::Pending);
     fresh();queue("{\"status\":\"OK\"}");String detail;
     assert(BitposClient::submitLnurlCallback(CALLBACK+"?token=x%26y","opaque +&?/=%",BOLT11,"1234",detail)==Outcome::Pending);
     assert(requests[0].url.find("?token=x%26y&k1=opaque%20%2B%26%3F%2F%3D%25&pr=")!=std::string::npos);
@@ -149,6 +163,25 @@ void cancellationOutcomes() {
     }
 }
 void metadataAndStatusValidation() {
+    // A saved receive can exit on server expiry proof, never on an expired
+    // label alone or a device timer. Keep late settlement higher priority.
+    for(const std::string& status:std::vector<std::string>{"expired","cancelled"}) {
+        const std::string prefix="{\"paymentHash\":\""+std::string(HASH.c_str())+"\",\"status\":\""+status+"\"";
+        fresh();queue(prefix+",\"dispatched\":false}");assert(BitposClient::pollInvoiceStatus(HASH)==String(status));
+        fresh();queue(prefix+",\"dispatched\":false}");assert(BitposClient::pollInvoiceStatus(KEY)=="error");
+        for(const std::string& fields:std::vector<std::string>{"",",\"dispatched\":true",",\"dispatched\":\"false\"",",\"dispatched\":null",",\"dispatched\":false,\"doNotRetry\":true"}) {
+            fresh();queue(prefix+fields+"}");assert(BitposClient::pollInvoiceStatus(HASH)=="error");
+        }
+    }
+
+    const std::string failed="{\"status\":\"card_failed\",\"paymentHash\":\""+std::string(HASH.c_str())+"\",\"code\":\"INSUFFICIENT_BALANCE\",\"paymentFailed\":true,\"dispatched\":true}";
+    fresh();queue(failed);assert(BitposClient::pollInvoiceStatus(HASH)=="card_failed");
+    fresh();queue(failed);assert(BitposClient::pollInvoiceStatus(KEY)=="error");
+    for(const auto& field:std::vector<std::string>{"\"paymentFailed\":true","\"dispatched\":true"}) {
+        std::string bad=failed;bad.replace(bad.find(field),field.size(),field.substr(0,field.find(':')+1)+"false");
+        fresh();queue(bad);assert(BitposClient::pollInvoiceStatus(HASH)=="error");
+    }
+    fresh();queue("{\"status\":\"card_failed\",\"paymentHash\":\""+std::string(HASH.c_str())+"\"}");assert(BitposClient::pollInvoiceStatus(HASH)=="error");
     fresh();String err;queue(metadata());const auto card=BitposClient::fetchLnurl(CARD,err);
     assert(card.maxWithdrawable==5000000000LL);
     fresh();queue("{\"tag\":\"withdrawRequest\",\"callback\":\"http://unsafe.invalid/pay\",\"k1\":\"c\",\"maxWithdrawable\":1000}");

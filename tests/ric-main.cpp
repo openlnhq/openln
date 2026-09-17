@@ -108,6 +108,26 @@ inline void bootQueryOnly(bool withdraw,bool dispatched){
     CheckoutJournal::Record record{};
     require(CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Missing,"confirmed paid recovery did not clear journal");
 }
+inline void bootReceiveExpiry(bool dispatched){
+    require(CheckoutJournal::save(CheckoutJournal::Kind::Receive,paymentHash.c_str(),amount,dispatched),
+        "could not seed receive recovery");
+    FakeNvs::reboot();app::setup();
+    now+=3600001; // Even an hour of local time is not wallet-side expiry proof.
+    until([]{return count("pollInvoiceStatus")>=2;},100,500);
+    CheckoutJournal::Record record{};
+    require(app::checkoutActive && CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Valid,
+        "boot recovery inferred an unpaid result from local age/pending status");
+    require(count("cancelInvoice")==0 && count("callback")==0 && count("createInvoice")==0,
+        "boot recovery must remain query-only while the saved invoice is ambiguous");
+    require(otaChecks==0 && priceCalls==0,"ambiguous recovery ran maintenance");
+    invoiceStatus="expired"; // Actual transport accepts only identity-bound non-dispatch proof.
+    until([]{return !app::checkoutActive;},100,500);
+    require(CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Missing,
+        "authoritative expiry failed to release the saved receive");
+    resultDismiss=true;tap();
+    require(app::state==app::STATE_IDLE_AMOUNT,"proven expiry left recovery UI locked");
+    require(count("createInvoice")==0 && count("callback")==0,"expiry recovery created or paid a replacement");
+}
 inline void receiveWindow(){receive();require(lastTtl==600,"receive presentation window must be 600 seconds, got "+std::to_string(lastTtl));}
 inline void receiveExpiry(bool viaCard){
     receive();
@@ -200,6 +220,53 @@ inline void openSend(){
     boot();sendMode=true;app::currentAmountSats=amount;app::state=app::STATE_SEND_PIN_ENTRY;
     pinValue="123456";tap('O');until([]{return app::state==app::STATE_SEND_WAITING;});
 }
+inline void insufficientBalance(bool pendingFirst=false,bool paidWins=false) {
+    CheckoutJournal::Record record{};
+    receive();callbackKind="failed";callbackError="Insufficient balance";cancelKind=pendingFirst?"pending":"cancelled";
+    card();until([]{return count("callback")==1;});
+    until([]{return count("cancelInvoice")>=1;});
+    require(count("callback")==1,"declined card callback was resubmitted");
+    if(pendingFirst) {
+        ticks(12);require(app::checkoutActive && CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Valid,"unknown cancellation must retain receipt");
+        require(progressTitle=="Insufficient balance","card failure reason lost while closing checkout");
+        if(paidWins) {invoiceStatus="paid";until([]{return successDraws>0;},200,500);return;}
+        cancelKind="cancelled";invoiceStatus="pending";
+    }
+    until([]{return app::state==app::STATE_ERROR;},200,250);
+    require(lastResult=="Insufficient balance","safe cancellation discarded the card failure reason");
+    require(!app::checkoutActive && CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Missing,"closed checkout retained journal");
+    until([]{return app::state==app::STATE_IDLE_AMOUNT;},100,100);
+    require(count("callback")==1,"return to default resubmitted failed payment");
+}
+inline void insufficientBalancePending(){insufficientBalance(true);}
+inline void insufficientBalancePaidWins(){insufficientBalance(true,true);}
+inline void insufficientBalanceImmediate(){insufficientBalance();}
+inline void insufficientBalanceLostReply(){
+    receive();callbackKind="unknown";callbackError="Network timeout";cancelKind="cancelled";
+    card();until([]{return count("callback")==1;});ticks(5);
+    invoiceStatus="card_failed";
+    until([]{return app::state==app::STATE_ERROR;},160,250);
+    require(lastResult=="Insufficient balance","late wallet failure was not displayed");
+    require(count("cancelInvoice")==1,"late wallet failure must close exposed invoice");
+    until([]{return app::state==app::STATE_IDLE_AMOUNT;},100,100);
+    CheckoutJournal::Record record{};
+    require(CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Missing,"closed delayed failure retained journal");
+    require(count("callback")==1,"lost callback reply caused payment resubmission");
+}
+inline void insufficientBalanceRepeatedProof(){
+    receive();callbackKind="failed";callbackError="Insufficient balance";
+    invoiceStatus="card_failed";cancelKinds={String("pending"),String("cancelled")};
+    card();until([]{return count("cancelInvoice")==1;});
+    CheckoutJournal::Record record{};
+    require(app::checkoutActive && CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Valid,
+        "card failure must retain invoice until cancellation proof");
+    until([]{return app::state==app::STATE_ERROR;},160,250);
+    require(count("cancelInvoice")==2,"repeated card failure did not retry pending cancellation");
+    require(lastResult=="Insufficient balance","closing invoice lost the authoritative card failure");
+    until([]{return app::state==app::STATE_IDLE_AMOUNT;},100,100);
+    require(count("callback")==1 && count("createInvoice")==1,"card failure recovery repeated payment");
+    require(CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Missing,"confirmed cancellation retained receipt");
+}
 inline void cancelRetryAfterPending(){
     openSend();withdrawStatus="pending";cancelKinds={String("pending"),String("cancelled")};
     paymentCancel=true;tap();until([]{return count("cancelWithdraw")>=1;});
@@ -214,6 +281,24 @@ inline void cancelRetryAfterPending(){
     ticks(3);
     require(CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Missing,"confirmed repeated cancellation did not clear journal");
     require(count("cancelWithdraw")==2,"cancellation continued after definitive terminal proof");
+}
+inline void cancelPendingCadence(bool sending){
+    if(sending)openSend();else receive();
+    paymentCancel=true;tap();ticks(120,50);
+    const std::string cancel=sending?"cancelWithdraw":"cancelInvoice";
+    const std::string poll=sending?"pollWithdrawStatus":"pollInvoiceStatus";
+    require(count(cancel)>=2 && count(poll)>=2,"pending cancellation must continue status reconciliation");
+    uint32_t previous=0;bool seen=false;
+    for(const auto& call:calls)if(call.name==cancel){
+        if(seen)require(uint32_t(call.at-previous)>=2000,
+            "pending cancellation retry bypassed poll interval: "+std::to_string(uint32_t(call.at-previous))+"ms");
+        previous=call.at;seen=true;
+    }
+    CheckoutJournal::Record record{};
+    require(app::checkoutActive && CheckoutJournal::load(record)==CheckoutJournal::LoadResult::Valid,
+        "pending cancellation forgot an exposed checkout");
+    require(count("callback")==0 && count("sendToCard")==0 && count("createInvoice")==size_t(!sending) && count("createWithdraw")==size_t(sending),
+        "cancellation retry dispatched a payment or replacement checkout");
 }
 inline void sendTimeoutOnce(){
     openSend();sendKind="pending";sendError="Response lost after possible send";withdrawStatus="pending";
@@ -276,6 +361,25 @@ inline void maintenanceGate(){
         "checkout IO still owned context but idle maintenance began");
     require(RicIoWorker::anyBusy(),"gate was bypassed instead of holding the outstanding NFC operation");
 }
+inline void safeStageTrace(){
+    receive();pinLimitMsats=0;card("SECRET_CARD_URL");
+    until([]{return app::state==app::STATE_PIN_ENTRY;});
+    pinValue="9876";tap('O');until([]{return count("callback")==1;});ticks(5);
+    const std::string callbackOp=std::to_string(static_cast<unsigned>(app::NetworkOp::ReceiveCallback));
+    auto logged=[](const std::string& needle){return std::any_of(serialLines.begin(),serialLines.end(),[&](const std::string& line){return line.find(needle)!=std::string::npos;});};
+    require(logged("RIC IO: submitted op="+callbackOp+" state="),"missing submitted operation/state trace");
+    require(logged("RIC IO: completed op="+callbackOp+" state="),"missing completed operation/state trace");
+    require(logged(" at=") && logged(" ms=") && logged(" status=pending"),"trace omitted operation timing or parsed poll status");
+    require(app::restoreCheckout(),"saved receive was not restorable for trace check");
+    require(logged(std::string(" hash=")+paymentHash.c_str()),"recovery trace omitted the stored receive hash");
+    invoiceStatus="paid";until([]{return successDraws>0;},100,500);
+    require(CheckoutJournal::save(CheckoutJournal::Kind::Withdraw,withdrawK1.c_str(),amount,true),"could not seed withdrawal trace fixture");
+    require(app::restoreCheckout(),"saved withdrawal was not restorable for trace check");
+    for(const auto& line:serialLines)if(line.rfind("RIC IO:",0)==0 || line.rfind("RIC recovery:",0)==0){
+        for(const auto& secret:std::vector<std::string>{"9876","SECRET_CARD_URL","://",cardK1.c_str(),withdrawK1.c_str(),bolt11.c_str()})
+            require(line.find(secret)==std::string::npos,"stage/recovery trace exposed a checkout secret");
+    }
+}
 inline std::string quote(const std::string& value){
     std::ostringstream out;out<<'"';for(unsigned char c:value){switch(c){case '\\':out<<"\\\\";break;case '"':out<<"\\\"";break;case '\n':out<<"\\n";break;case '\r':out<<"\\r";break;case '\t':out<<"\\t";break;default:if(c<32)out<<"\\u"<<std::hex<<std::setw(4)<<std::setfill('0')<<unsigned(c)<<std::dec;else out<<c;}}out<<'"';return out.str();
 }
@@ -318,6 +422,8 @@ int main(int argc,char** argv){
         else if(scenario=="wifi-preserve-hash")wifiPreservesHash();
         else if(scenario=="boot-receive-unsent")bootQueryOnly(false,false);
         else if(scenario=="boot-receive-dispatched")bootQueryOnly(false,true);
+        else if(scenario=="boot-receive-unsent-expiry")bootReceiveExpiry(false);
+        else if(scenario=="boot-receive-dispatched-expiry")bootReceiveExpiry(true);
         else if(scenario=="boot-withdraw-unsent")bootQueryOnly(true,false);
         else if(scenario=="boot-withdraw-dispatched")bootQueryOnly(true,true);
         else if(scenario=="receive-window-600")receiveWindow();
@@ -335,7 +441,15 @@ int main(int argc,char** argv){
         else if(scenario=="worker-network-unavailable")workerAllocationFailure(false);
         else if(scenario=="worker-nfc-unavailable")workerAllocationFailure(true);
         else if(scenario=="cancel-retry-after-pending")cancelRetryAfterPending();
+        else if(scenario=="cancel-receive-pending-cadence")cancelPendingCadence(false);
+        else if(scenario=="cancel-send-pending-cadence")cancelPendingCadence(true);
         else if(scenario=="send-timeout-once")sendTimeoutOnce();
+        else if(scenario=="insufficient-balance")insufficientBalanceImmediate();
+        else if(scenario=="insufficient-balance-pending")insufficientBalancePending();
+        else if(scenario=="insufficient-balance-paid-wins")insufficientBalancePaidWins();
+        else if(scenario=="insufficient-balance-lost-reply")insufficientBalanceLostReply();
+        else if(scenario=="insufficient-balance-repeated-proof")insufficientBalanceRepeatedProof();
+        else if(scenario=="safe-stage-trace")safeStageTrace();
         else throw std::runtime_error("unknown scenario: "+scenario);
         require(socketAttempts==0,"unexpected attempt to use a real network transport");
         report(scenario,true,"");return 0;

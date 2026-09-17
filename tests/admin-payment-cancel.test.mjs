@@ -216,7 +216,7 @@ test('admin secret authorization attributes the credential type, not its value',
   assert.equal(f.helperCalls[0].actor, 'admin_secret');
 });
 
-for (const [status, expected] of [['pending', 202], ['paid', 409], ['cancelled', 200], ['expired', 200], ['not_found', 404]]) {
+for (const [status, expected] of [['pending', 202], ['paid', 409], ['cancelled', 200], ['expired', 200], ['closed', 200], ['not_found', 404]]) {
   test(`helper ${status} produces truthful HTTP ${expected}`, async () => {
     const f = fixture({ result: { status, paymentHash: hash, ...(status === 'pending' ? { doNotRetry: true } : {}) } });
     const response = await f.request();

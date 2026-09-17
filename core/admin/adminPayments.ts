@@ -795,7 +795,7 @@ export async function handleAdminPaymentsRoute(
         timeline,
         live,
         actions: {
-          canCancelPayment: !!(inv && !inv.paidAt && !inv.ricExpiryConfirmedAt &&
+          canCancelPayment: !!(inv && !inv.paidAt && !inv.ricExpiryConfirmedAt && !inv.ricCheckoutClosedAt &&
             (!inv.wrapStatus || ["created", "cancelling", "cancel_pending"].includes(inv.wrapStatus))),
           canAdvance: !!(inv?.wrapStatus && !["settled", "cancelled"].includes(inv.wrapStatus)),
           canLookup: !!(inv || tx),
@@ -843,10 +843,11 @@ export async function handleAdminPaymentsRoute(
       const [current] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.id, inv.id)).limit(1);
       if (current && ricInvoiceView(current).status === "paid") result = ricInvoiceView(current);
       const statusCode = result.status === "paid" ? 409 : result.status === "not_found" ? 404 :
-        ["cancelled", "expired"].includes(result.status) ? 200 : 202;
+        ["cancelled", "expired", "closed"].includes(result.status) ? 200 : 202;
       const message = result.status === "paid" ? "Payment is already paid and cannot be cancelled." :
         result.status === "not_found" ? "Invoice not found." :
         result.status === "expired" ? "Invoice expiry is confirmed. RIC can continue." :
+        result.status === "closed" ? "Checkout closed. RIC can continue. Payment remains tracked; do not repeat a payment that may already have been sent." :
         result.status === "cancelled" ? (result.cleanupPending
           ? "Checkout cancelled. RIC can continue. Wallet hold cleanup remains pending; this is not a refund confirmation."
           : "Payment cancelled.") :

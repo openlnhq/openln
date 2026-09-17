@@ -676,6 +676,13 @@ static void beginReceiveCallback(const String& pin) {
 static void applyCheckoutStatus(const String& status) {
     if(!checkoutActive) return;
     lastStatusPoll=millis();
+    if(!checkoutSending && status=="closed") {
+        // Explicit merchant/admin closure handed tracking to the server.
+        // This is not a paid, failed or refunded payment result.
+        checkoutCancelRequested=true;
+        finishCheckout(false);
+        return;
+    }
     if(!checkoutSending && status=="card_failed") {
         // Recover the authoritative rejection even when the callback reply was
         // lost. Never clear the journal until the invoice cancellation is proven.
@@ -691,6 +698,17 @@ static void applyCheckoutStatus(const String& status) {
     }
     if(status=="error" || status=="unknown" || status.isEmpty()) {
         ++pollFailCount;
+        // WiFi can remain associated while TCP stops making progress. Reset
+        // only the network after repeated transport failures, never the device
+        // or receipt. This runs after take(), with no payment request in flight.
+        if(status=="error" && pollFailCount>=3 && !networkWorker.busy()) {
+            BitposClient::releaseConnections();
+            // Arduino reconnect() already disconnects and reconnects the AP.
+            WiFi.reconnect();
+            wifiLostAt=millis();
+            pollFailCount=0;
+            Serial.println("RIC recovery: reconnecting WiFi, receipt preserved");
+        }
         currentPollInterval=std::min(uint32_t(15000),std::max(uint32_t(2000),currentPollInterval*2));
         checkoutFlow.networkLost();
         if(checkoutFlow.phase!=RicCheckout::Phase::Waiting || checkoutRecovering || checkoutCancelRequested)
@@ -781,7 +799,9 @@ static void pumpCheckoutJobs() {
         } else if(checkoutActive && (op==NetworkOp::CancelWithdraw || op==NetworkOp::CancelInvoice)) {
             using Outcome=CardTransportPolicy::Outcome;
             const auto result=networkJob.outcome;
-            if(result==Outcome::Cancelled || result==Outcome::Expired || result==Outcome::Failed) finishCheckout(false);
+            if(result==Outcome::Closed && op==NetworkOp::CancelInvoice) {
+                checkoutCancelRequested=true; finishCheckout(false);
+            } else if(result==Outcome::Cancelled || result==Outcome::Expired || result==Outcome::Failed) finishCheckout(false);
             else if(result==Outcome::Paid) finishCheckout(true);
             else {
                 checkoutFlow.phase=RicCheckout::Phase::Reconciling;

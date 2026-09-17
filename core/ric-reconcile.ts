@@ -14,7 +14,7 @@ import { logger } from './money/logger.js';
 
 type Invoice = typeof pendingInvoicesTable.$inferSelect;
 type Raw = {type?:string;state?:string;payment_hash?:string;preimage?:string;settled_at?:number|null;expires_at?:number|null;amount?:number;fees_paid?:number;paid?:boolean;settled?:boolean};
-export type RicInvoiceResult = {status:string;paymentHash:string;dispatched?:boolean;doNotRetry?:boolean;cleanupPending?:boolean};
+export type RicInvoiceResult = {status:string;paymentHash:string;dispatched?:boolean;doNotRetry?:boolean;cleanupPending?:boolean;checkoutClosed?:boolean;paymentStatus?:string;monitoring?:boolean};
 const validHash = (hash:string) => /^[0-9a-f]{64}$/.test(hash);
 const pending = (hash:string):RicInvoiceResult => ({status:'pending',paymentHash:hash,doNotRetry:true});
 function proofPaid(raw:Raw):boolean {
@@ -164,6 +164,7 @@ export function ricInvoiceView(row:Invoice):RicInvoiceResult {
   // No forward can claim this state. Keep it in the cleanup sweep until proof.
   if(row.wrapStatus==='cancel_pending')return {status:'cancelled',paymentHash,dispatched:false,cleanupPending:true};
   if(!row.wrapStatus && row.ricExpiryConfirmedAt)return {status:'expired',paymentHash,dispatched:false};
+  if(!row.wrapStatus && row.ricCheckoutClosedAt)return {status:'closed',paymentHash,checkoutClosed:true,paymentStatus:'pending',monitoring:true,doNotRetry:true};
   if(['accepted','forwarding','forwarded'].includes(row.wrapStatus??''))return {status:row.wrapStatus!,paymentHash,dispatched:true,doNotRetry:true};
   return pending(paymentHash);
 }

@@ -15,6 +15,15 @@ before(async()=>{await sql.connect();if(!server.listening)await once(server,'lis
 after(async()=>{resolveLookup();await new Promise(r=>setTimeout(r,30));server.closeAllConnections();await new Promise(r=>server.close(r));await sql.end();await pool.end();});
 test('actual device status route returns cached pending while wallet lookup is blocked',async()=>{const start=performance.now();const r=await fetch(base+'/api/pos/invoice/'+hash+'/status',{headers:{authorization:'Bearer '+token}});assert.equal(r.status,200);const body=await r.text();assert.equal(JSON.parse(body).status,'pending');assert.equal(JSON.parse(body).paymentHash,hash);assert.equal(Number(r.headers.get('content-length')),Buffer.byteLength(body));assert.ok(performance.now()-start<500,'UI status must not await Lightning');await new Promise(resolve=>setTimeout(resolve,30));assert.ok(lookups>0,'queued observation should start asynchronously');});
 test('device cancellation route is reachable but never claims cancellation from a stalled observation',async()=>{const r=await fetch(base+'/api/pos/invoice/'+hash+'/cancel',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:'{}'});assert.equal(r.status,200);const result=await r.json();assert.equal(result.status,'pending');assert.equal(result.doNotRetry,true);});
+test('direct invoice Cancel closes checkout immediately but preserves pending payment and monitoring',async()=>{
+ const aid=(await sql.query('SELECT account_id FROM device_tokens WHERE token=$1',[token])).rows[0].account_id;
+ const ph=randomBytes(32).toString('hex');
+ await sql.query("INSERT INTO pending_invoices(account_id,payment_hash,bolt11,amount_sats,expires_at)VALUES($1,$2,'offline-direct',39,now()+interval '1 hour')",[aid,ph]);
+ const at=performance.now();const r=await fetch(base+'/api/pos/invoice/'+ph+'/cancel',{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:'{}'});
+ const out=await r.json();assert.equal(out.status,'closed');assert.equal(out.checkoutClosed,true);assert.equal(out.paymentStatus,'pending');assert.equal(out.monitoring,true);assert.equal(out.doNotRetry,true);assert.ok(performance.now()-at<500);
+ const row=(await sql.query('SELECT wrap_status,paid_at FROM pending_invoices WHERE payment_hash=$1',[ph])).rows[0];assert.equal(row.wrap_status,null);assert.equal(row.paid_at,null);
+ const next=await fetch(base+'/api/pos/invoice/'+ph+'/status',{headers:{authorization:'Bearer '+token}});assert.equal((await next.json()).status,'closed');
+});
 test('actual RIC Cancel immediately closes its own minted unpaid checkout without waiting for wallet cleanup',async()=>{
  const aid=(await sql.query('SELECT account_id FROM device_tokens WHERE token=$1',[token])).rows[0].account_id;
  const pre=randomBytes(32).toString('hex'),ph=createHash('sha256').update(Buffer.from(pre,'hex')).digest('hex');

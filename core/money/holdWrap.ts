@@ -60,9 +60,17 @@ const WRAP_EXPIRY_SECONDS = 15 * 60;
 // Merchant invoice must outlive the wrap so forwarding never hits an expired
 // invoice even at the edge of the wrap window.
 const MERCHANT_EXPIRY_SECONDS = 60 * 60;
-// Cap concurrent unsettled holds to prevent HTLC-slot griefing of the
-// platform wallet. Beyond the cap, sales fall back to direct (unwrapped).
-const MAX_OPEN_WRAPS = 25;
+// Open-hold exposure is bounded by FLOAT, not by a fixed count. Every open
+// wrap is a forward we must be able to pay from the platform balance before
+// the held customer funds are credited. Beyond the cap, sales fall back to
+// direct (unwrapped, no fee) so a sale is never blocked.
+//   WRAP_FLOAT_MAX_PCT    obligations may use at most this share of balance
+//   WRAP_FLOAT_ALERT_PCT  log a warning (Treasury alert) above this share
+// HTLC-slot griefing still needs an absolute ceiling; WRAP_MAX_OPEN is that
+// ceiling and is sized for the node, not for liquidity.
+const WRAP_FLOAT_MAX_PCT = Number(process.env.WRAP_FLOAT_MAX_PCT ?? 60);
+const WRAP_FLOAT_ALERT_PCT = Number(process.env.WRAP_FLOAT_ALERT_PCT ?? 45);
+const WRAP_MAX_OPEN = Number(process.env.WRAP_MAX_OPEN ?? 200);
 // A 'forwarding' claim older than this is presumed crashed - recovery kicks in.
 const FORWARD_STALE_MS = 90 * 1000;
 // After this long stuck in forwarding with no resolution, flag for manual review.
@@ -138,23 +146,28 @@ export async function createWrappedInvoice(
 
   try {
     const { count, obligationSats } = await openWrapStats();
-    if (count >= MAX_OPEN_WRAPS) {
-      logger.warn({ cap: MAX_OPEN_WRAPS }, "Open wrap cap reached - falling back to direct invoice");
+    if (count >= WRAP_MAX_OPEN) {
+      logger.warn({ count, cap: WRAP_MAX_OPEN }, "Open wrap ceiling reached - falling back to direct invoice");
       return null;
     }
 
-    // Liquidity gate: the forward is paid from float before the held funds
-    // are credited. Without enough float the customer would pay and the sale
-    // would then fail at the forward step - fall back to direct instead.
+    // Liquidity gate, float-relative: the forward is paid from float before
+    // the held funds are credited. Obligations after this sale may not exceed
+    // WRAP_FLOAT_MAX_PCT of the platform balance (plus routing headroom).
     const merchantSats = amountSats - feeSats;
-    const required = obligationSats + merchantSats + FLOAT_MARGIN_SATS;
     const balance = await platformBalanceSats();
-    if (balance < required) {
+    const afterSats = obligationSats + merchantSats + FLOAT_MARGIN_SATS;
+    const usagePct = balance > 0 ? (afterSats / balance) * 100 : Infinity;
+    if (usagePct > WRAP_FLOAT_MAX_PCT) {
       logger.warn(
-        { balance, required, obligationSats, merchantSats },
-        "Platform float insufficient for wrap - falling back to direct invoice",
+        { balance, obligationSats, merchantSats, usagePct: Math.round(usagePct), maxPct: WRAP_FLOAT_MAX_PCT, openWraps: count },
+        "Platform float cap reached - falling back to direct invoice",
       );
+      recordPaymentEvent({ paymentId: "float", kind: "system", event: "wrap.float_cap", status: "info", message: `Float cap: ${Math.round(usagePct)}% of ${balance} sats committed (max ${WRAP_FLOAT_MAX_PCT}%), sale of ${amountSats} sats went direct`, amountSats });
       return null;
+    }
+    if (usagePct > WRAP_FLOAT_ALERT_PCT) {
+      logger.warn({ balance, obligationSats, usagePct: Math.round(usagePct), alertPct: WRAP_FLOAT_ALERT_PCT, openWraps: count }, "Platform float usage above alert threshold");
     }
 
     const merchant = await makeInvoice(
@@ -217,6 +230,50 @@ export async function createWrappedInvoice(
     );
     return null;
   }
+}
+
+
+/**
+ * Merchant cancelled the sale on the terminal (or the checkout was abandoned
+ * and the driver is cleaning up). Only a wrap that is still `created` (no
+ * customer HTLC accepted) may be cancelled. Once the hold is `accepted` the
+ * customer's funds are locked and the wrap MUST run to settle or fail through
+ * the normal state machine; cancelling here would strand real money.
+ *
+ * Returns the resulting wrap status. Wallet-side cleanup is best effort: on
+ * this Hub cancel_hold_invoice only acts on accepted holds (a still-pending
+ * hold answers NOT_FOUND and simply expires on its own), so the DB row is the
+ * source of truth for "this checkout is closed" and the hold expiry is the
+ * backstop on the node.
+ */
+export async function cancelWrap(row: WrapRow, reason: string): Promise<string> {
+  if (!row.wrapStatus) return "direct";
+  if (row.wrapStatus !== "created") return row.wrapStatus;
+  if (!PLATFORM_NWC_URL) return row.wrapStatus;
+  // Re-check the wallet before closing: the customer may have paid in the
+  // last second and the notification may still be in flight.
+  try {
+    const hold = await lookupInvoice(row.paymentHash, PLATFORM_NWC_URL);
+    if (hold.state === "accepted" || hold.state === "settled" || (hold.paid && hold.state !== "failed")) {
+      logger.info({ invoiceId: row.id, holdState: hold.state }, "cancelWrap: hold already accepted/paid - not cancelling, advancing instead");
+      return advanceWrap(row);
+    }
+  } catch (err) {
+    // Cannot see the wallet: do not close blind. The driver retries later.
+    logger.warn({ invoiceId: row.id, err: err instanceof Error ? err.message : String(err) }, "cancelWrap: hold lookup failed - leaving open");
+    return row.wrapStatus;
+  }
+  const closed = await setWrapStatus(row.id, ["created"], "cancelled");
+  if (!closed) return (await db.select({ s: pendingInvoicesTable.wrapStatus }).from(pendingInvoicesTable).where(eq(pendingInvoicesTable.id, row.id)))[0]?.s ?? row.wrapStatus;
+  // Best-effort wallet cleanup; NOT_FOUND on a pending hold is expected.
+  cancelHoldInvoice(row.paymentHash, PLATFORM_NWC_URL).catch(() => {});
+  recordPaymentEvent({
+    paymentId: row.id, accountId: row.accountId, kind: "wrap", event: "wrap.cancelled", status: "info", mile: "first_mile",
+    message: `Checkout cancelled before payment (${reason}); hold closed, no funds moved`,
+    paymentHash: row.paymentHash, merchantPaymentHash: row.merchantPaymentHash, amountSats: row.amountSats, feeSats: row.feeSats ?? 0,
+  });
+  logger.info({ invoiceId: row.id, reason }, "Wrap cancelled before acceptance");
+  return "cancelled";
 }
 
 // ── State machine ────────────────────────────────────────────────────────────

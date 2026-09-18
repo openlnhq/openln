@@ -19,7 +19,7 @@
 // WHEN to call it.
 import { and, inArray, isNull, eq, asc } from "drizzle-orm";
 import { db, pendingInvoicesTable } from "../db/index.js";
-import { advanceWrap, type WrapRow } from "./holdWrap.js";
+import { advanceWrap, cancelWrap, type WrapRow } from "./holdWrap.js";
 import { relayInCooldown } from "./nwc.js";
 import { emitAccountEvent } from "../events.js";
 import { logger } from "./logger.js";
@@ -32,6 +32,13 @@ const MIN_INTERVAL_MS = 2_500;        // per-invoice floor between relay lookups
 const SWEEP_INTERVAL_MS = 5_000;      // how often the loop looks for open wraps
 const SWEEP_BATCH = 40;               // open wraps advanced per sweep (oldest first)
 const MAX_CONCURRENT_ADVANCES = 4;    // relay requests in flight at once
+// A `created` wrap nobody has asked about for this long is abandoned (device
+// offline, cashier walked away without Cancel). Close it now instead of
+// letting it sit on the Treasury until the 15 min hold expiry. cancelWrap
+// re-checks the wallet first, so a customer paying at that exact moment is
+// never cut off.
+const ABANDON_AFTER_MS = 3 * 60 * 1000;
+const lastInterest = new Map<string, number>();  // paymentHash -> last poll/kick
 
 const lastPass = new Map<string, number>();       // paymentHash -> millis of last advance
 const inFlight = new Set<string>();               // paymentHash currently advancing
@@ -58,7 +65,7 @@ async function advanceOne(row: InvoiceRow, reason: string): Promise<string> {
       });
       lastPass.delete(hash);
     }
-    if (status === "cancelled" || status === "needs_reconciliation") lastPass.delete(hash);
+    if (status === "cancelled" || status === "needs_reconciliation" || status === "settled") { lastPass.delete(hash); lastInterest.delete(hash); }
     return status;
   } catch (err) {
     logger.warn({ paymentHash: hash, err: err instanceof Error ? err.message : String(err) }, "wrap driver: advance failed");
@@ -71,6 +78,7 @@ async function advanceOne(row: InvoiceRow, reason: string): Promise<string> {
 /** Ask for an immediate pass on one invoice. Never blocks the caller. */
 export function kickWrap(paymentHash: string): void {
   if (!/^[0-9a-f]{64}$/.test(paymentHash)) return;
+  lastInterest.set(paymentHash, Date.now());
   kicked.add(paymentHash);
   // Run soon, but coalesce bursts (several devices polling the same second).
   if (!timer) return;
@@ -101,6 +109,19 @@ async function drive(reason: "sweep" | "kick"): Promise<void> {
       .limit(SWEEP_BATCH);
 
     const now = Date.now();
+    // Abandoned checkouts: created, nobody polling, older than the window.
+    for (const r of rows) {
+      if (r.wrapStatus !== "created" || inFlight.has(r.paymentHash)) continue;
+      const interest = lastInterest.get(r.paymentHash) ?? r.createdAt.getTime();
+      if (now - interest < ABANDON_AFTER_MS) continue;
+      inFlight.add(r.paymentHash);
+      try {
+        const status = await cancelWrap(r as unknown as WrapRow, "abandoned");
+        if (status === "cancelled") { lastPass.delete(r.paymentHash); lastInterest.delete(r.paymentHash); }
+      } catch (err) {
+        logger.warn({ paymentHash: r.paymentHash, err: err instanceof Error ? err.message : String(err) }, "wrap driver: abandon cleanup failed");
+      } finally { inFlight.delete(r.paymentHash); }
+    }
     const due = rows.filter((r) => {
       if (inFlight.has(r.paymentHash)) return false;
       if (kicked.has(r.paymentHash)) return true;
@@ -133,5 +154,5 @@ export function startWrapDriver(): () => void {
 
 /** Test/ops visibility. */
 export function wrapDriverStats() {
-  return { tracked: lastPass.size, inFlight: inFlight.size, kicked: kicked.size, running };
+  return { tracked: lastPass.size, watched: lastInterest.size, inFlight: inFlight.size, kicked: kicked.size, running };
 }

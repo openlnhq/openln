@@ -684,15 +684,21 @@ static void handleWaitingPayment() {
     // says paid, expired or cancelled. A merchant can always leave via the
     // dashboard; the device never invents a "failed" it cannot prove.
     if (!lnurlCallbackSent && callbackRetryAt == 0 && now - invoiceCreateTime > INVOICE_TIMEOUT_MS) {
+        const String expired = currentInvoice.paymentHash;
         enterIdleAmount();
+        BitposClient::cancelInvoice(expired);
         return;
     }
 
     // ── Cancel button (only before a dispatch) ──────────────────────────────
+    // Screen returns to the amount pad first (instant for the cashier), then
+    // the server is told so the hold is closed now rather than at expiry.
     int tx, ty;
     if (!lnurlCallbackSent && callbackRetryAt == 0 && readTouch(tx, ty)) {
         if (PaymentScreen::handleTouch(tx, ty)) {
+            const String cancelled = currentInvoice.paymentHash;
             enterIdleAmount();
+            BitposClient::cancelInvoice(cancelled);
             return;
         }
     }

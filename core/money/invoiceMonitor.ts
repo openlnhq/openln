@@ -17,7 +17,7 @@ import {
 } from "./nwc.js";
 import { finalizePendingSend, checkOwnSettlementProof } from "./feeEngine.js";
 import { extractPaymentHash } from "./lnAddress.js";
-import { advanceWrap, advanceWrapBatch, type WrapRow } from "./holdWrap.js";
+import { kickWrap } from "./wrapDriver.js";
 import { checkLnurlVerify } from "./lnAddress.js";
 import { logger } from "./logger.js";
 import { autoSettleShopOrders, directSettleShopOrder } from "./shopOrderAutoSettle.js";
@@ -62,7 +62,7 @@ export async function settleInvoiceByPaymentHash(paymentHash: string, paidAt: Da
   if (invoice.wrapStatus) {
     // Wrapped (hold-invoice) rows settle only through the wrap state machine -
     // the merchant invoice being paid is a mid-flight step, not the end state.
-    advanceWrap(invoice as WrapRow).catch(() => {});
+    kickWrap(invoice.paymentHash);   // event-driven nudge; the driver dedupes
     return false;
   }
   return settleInvoice(invoice as PendingInvoiceRow, paidAt);
@@ -167,14 +167,9 @@ function isUnsupportedMethodError(err: unknown): boolean {
  * Makes at most one relay request per wallet (plus a bounded lookup fallback).
  */
 async function checkInvoiceBatch(invoices: PendingInvoiceRow[], context: string): Promise<void> {
-  // Wrapped (hold-invoice) rows advance through their own state machine -
-  // exclude them from the merchant-wallet lookup path entirely.
-  const wrapped = invoices.filter((inv) => inv.wrapStatus);
-  if (wrapped.length > 0) {
-    await advanceWrapBatch(wrapped as WrapRow[]).catch((err) =>
-      logger.warn({ err }, `${context}: wrap batch error`),
-    );
-  }
+  // Wrapped (hold-invoice) rows are owned by core/money/wrapDriver.ts, which
+  // is the ONLY caller of advanceWrap at runtime. Exclude them here so the
+  // sweep never becomes a second relay-polling loop.
   invoices = invoices.filter((inv) => !inv.wrapStatus);
 
   // Lightning-address rows settle via their LUD-21 verify URL (plain HTTPS,

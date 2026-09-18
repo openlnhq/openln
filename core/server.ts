@@ -8,13 +8,14 @@ import { createBuiltinRegistry } from "./plugins/builtin.js";
 import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
-import { createWrappedInvoice, advanceWrap, type WrapRow } from "./money/holdWrap.js";
+import { createWrappedInvoice } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
-import { reconcileAccountInvoicesBounded } from "./money/invoiceMonitor.js";
-import { onAccountEvent , emitAccountEvent } from "./events.js";
+import { reconcileAccountInvoicesBounded, startInvoiceMonitor } from "./money/invoiceMonitor.js";
+import { startWrapDriver, kickWrap, OPEN_WRAP_STATES } from "./money/wrapDriver.js";
+import { onAccountEvent } from "./events.js";
 import { handleCardsPreview } from "../plugins/cards-preview.js";
 import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
@@ -24,6 +25,24 @@ import { handleShopRoute } from "../plugins/shop.js";
 import { handlePartnerRoute } from "../plugins/partner.js";
 import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
 import { DOMAIN } from "./domain.js";
+
+
+// Wire status for a pending_invoices row, DB only. Open wraps nudge the driver.
+function wrapStatusView(invoice: typeof pendingInvoicesTable.$inferSelect): { status: string; paymentHash: string } {
+  const paymentHash = invoice.paymentHash;
+  if (invoice.paidAt || invoice.wrapStatus === "settled") return { status: "paid", paymentHash };
+  if (invoice.wrapStatus) {
+    if ((OPEN_WRAP_STATES as readonly string[]).includes(invoice.wrapStatus)) {
+      // A created hold past its expiry is dead; the driver will confirm and
+      // mark it cancelled, but tell the device now so it stops waiting.
+      if (invoice.wrapStatus === "created" && invoice.expiresAt < new Date()) { kickWrap(paymentHash); return { status: "expired", paymentHash }; }
+      kickWrap(paymentHash);
+      return { status: invoice.wrapStatus === "created" ? "pending" : invoice.wrapStatus, paymentHash };
+    }
+    return { status: invoice.wrapStatus, paymentHash }; // cancelled / needs_reconciliation
+  }
+  return { status: invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash };
+}
 
 const auth = new AuthService(); const wallet = new WalletService(); const registry = createBuiltinRegistry();
 const json = (r: ServerResponse, s: number, b: unknown) => { r.writeHead(s, { "content-type": "application/json" }); r.end(JSON.stringify(b)); };
@@ -311,12 +330,9 @@ const server = createServer(async (req, res) => {
       const paymentHash = decodeURIComponent(posStatus[1]);
       const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
       if (!invoice || invoice.accountId!==currentAccount.id) return json(res, 404, { status: "unknown", paymentHash });
-      if (invoice.wrapStatus) {
-        const status = await advanceWrap(invoice as unknown as WrapRow);
-        if (status === "settled") emitAccountEvent(invoice.accountId, "payment", { paymentHash, status: "paid", amountSats: invoice.amountSats, feeSats: invoice.feeSats ?? 0 });
-        return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
-      }
-      return json(res, 200, { status: invoice.paidAt ? "paid" : invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, feeSats: 0 });
+      // Answer from the DB. The wrap driver owns relay traffic; a poll only
+      // nudges it (non-blocking) so a stalled wrap still gets attention.
+      return json(res, 200, { ...wrapStatusView(invoice), feeSats: invoice.feeSats ?? 0 });
     }
     // LNURL-pay endpoints are core money-path routes and deliberately root-level.
     const meta = u.pathname.match(/^\/.well-known\/lnurlp\/([^/]+)$/);
@@ -364,13 +380,7 @@ const server = createServer(async (req, res) => {
       const paymentHash = decodeURIComponent(paymentStatus[1]);
       const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
       if (!invoice) return json(res, 404, { status: "unknown" });
-      if (invoice.wrapStatus) {
-        const status = await advanceWrap(invoice as unknown as WrapRow);
-        if (status === "settled") emitAccountEvent(invoice.accountId, "payment", { paymentHash, status: "paid", amountSats: invoice.amountSats, feeSats: invoice.feeSats ?? 0 });
-        return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash, feeSats: invoice.feeSats ?? 0 });
-      }
-      if (invoice.paidAt) return json(res, 200, { status: "paid", paymentHash, feeSats: 0 });
-      return json(res, 200, { status: invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, feeSats: 0 });
+      return json(res, 200, { ...wrapStatusView(invoice), feeSats: invoice.feeSats ?? 0 });
     }
 
     // Core money-path read surfaces. These remain deliberately small until the
@@ -393,7 +403,17 @@ const server = createServer(async (req, res) => {
     return json(res, 404, { error: "Not found" });
   } catch (e) { return json(res, 500, { error: e instanceof Error ? e.message : "Internal server error" }); }
 });
-const port = Number(process.env.PORT ?? 3001); server.listen({ port, host: "0.0.0.0" }, () => console.log(`openLN core listening on ${port}`));
+const port = Number(process.env.PORT ?? 3001);
+let stopWrapDriver: (() => void) | undefined;
+server.listen({ port, host: "0.0.0.0" }, () => {
+  console.log(`openLN core listening on ${port}`);
+  if (process.env.WRAP_DRIVER_ENABLED === "0") return;
+  // One place advances hold-wraps; HTTP polls never touch the relay.
+  stopWrapDriver = startWrapDriver();
+  // Pending-send reconciliation + fallback sweep (was defined, never started).
+  startInvoiceMonitor();
+});
+server.on("close", () => stopWrapDriver?.());
 export { auth, wallet, registry };
 
 export const __test = { accountForHandle };

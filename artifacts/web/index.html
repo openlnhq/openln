@@ -1143,7 +1143,7 @@ function ricLinkModal(){
   m.querySelector('#ricScan').onclick=async()=>{
     slot(1).innerHTML=`<span class="dim" style="font-size:12.5px">Scanning…</span>`;
     try{
-      device=await navigator.bluetooth.requestDevice({filters:[{name:'posBOX'},{name:'RIC'}],optionalServices:[RIC_BLE_SERVICE_UUID]});// posBOX kept for old firmware; new firmware advertises RIC
+      device=await navigator.bluetooth.requestDevice({filters:[{name:'posBOX'},{namePrefix:'RIC'}],optionalServices:[RIC_BLE_SERVICE_UUID]});// posBOX: legacy firmware. RIC (1.0.2-1.0.7) and RIC-XXXX (1.0.8+, unique per unit, shown on the device screen)
       if(!device.gatt)throw Error('Device has no GATT server');
       gatt=await device.gatt.connect();
       deviceName=device.name||'RIC';

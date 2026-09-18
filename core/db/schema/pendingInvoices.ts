@@ -41,9 +41,6 @@ export const pendingInvoicesTable = pgTable("pending_invoices", {
   fiatRateAt: timestamp("fiat_rate_at", { withTimezone: true }),
   wrapUpdatedAt: timestamp("wrap_updated_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  // Direct invoice expiry requires wallet proof, never elapsed time alone.
-  ricExpiryConfirmedAt: timestamp("ric_expiry_confirmed_at", { withTimezone: true }),
-  ricCheckoutClosedAt: timestamp("ric_checkout_closed_at", { withTimezone: true }),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

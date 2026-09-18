@@ -229,9 +229,8 @@ const AMBIGUOUS_POLL_INTERVAL_MS = 3_000;
  * Authoritative proof that a bolt11 we issued received the customer's payment.
  *
  * DIRECT invoices: paidAt set.
- * HOLD WRAPS: an `accepted` hold can prove payer success only while checkout
- * has not been aborted. A late HTLC on a cancellation tombstone is merely
- * locked pending cleanup, not paid. Actual paid/settled evidence still wins.
+ * HOLD WRAPS: once the platform hold is `accepted` the customer's HTLC is
+ * locked on Alby — payment success for the payer even before 2nd-mile settle.
  * Using only wrapStatus=settled left ambiguous card/pays stuck ~60s+ and made
  * users look unpaid while funds were already locked on the hold.
  */
@@ -287,28 +286,11 @@ export async function checkOwnSettlementProof(paymentHash: string | null): Promi
   if (row.wrapStatus && PLATFORM_NWC_URL) {
     try {
       const hold = await lookupInvoice(paymentHash, PLATFORM_NWC_URL);
-      const paid = hold.state === "settled" || (hold.paid && hold.state !== "failed");
-      const locked = hold.state === "accepted" || paid;
+      const locked =
+        hold.state === "accepted" ||
+        hold.state === "settled" ||
+        (hold.paid && hold.state !== "failed");
       if (locked) {
-        let payerSuccess = paid;
-        const cancellationStates = ["cancelling", "cancel_pending", "cancelled"];
-        if (paid && cancellationStates.includes(row.wrapStatus)) return paymentHash;
-        if (!paid) {
-          // The wallet await may race created -> cancelling. Re-read durable
-          // ownership before treating a merely accepted HTLC as payer success.
-          // No proof means unresolved, NOT failed; the paying wallet can still
-          // prove actual payment independently in the ambiguous resolver.
-          const [current] = await db
-            .select({ wrapStatus: pendingInvoicesTable.wrapStatus, paidAt: pendingInvoicesTable.paidAt })
-            .from(pendingInvoicesTable)
-            .where(and(eq(pendingInvoicesTable.id, row.id), eq(pendingInvoicesTable.paymentHash, paymentHash)))
-            .limit(1);
-          if (current?.paidAt || current?.wrapStatus === "settled") return paymentHash;
-          if (!current || cancellationStates.includes(current.wrapStatus ?? "")) return null;
-          // A still-created row can lose the upcoming advance CAS to cancel.
-          // Merely scheduling advance is not ownership or payer-success proof.
-          payerSuccess = ["accepted", "forwarding", "forwarded"].includes(current.wrapStatus ?? "");
-        }
         const wrapRow: WrapRow = { ...row,
           id: row.id,
           accountId: row.accountId,
@@ -337,7 +319,7 @@ export async function checkOwnSettlementProof(paymentHash: string | null): Promi
         };
         // Fire-and-forget — advance is CAS-safe and dynamic.
         void advanceWrap(wrapRow);
-        return payerSuccess ? paymentHash : null;
+        return paymentHash;
       }
     } catch (err) {
       logger.warn(

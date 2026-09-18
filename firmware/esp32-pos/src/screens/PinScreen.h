@@ -15,7 +15,11 @@ public:
     static void   clearPin();
     static void   setWrongPin(TFT_eSPI& tft);
 
-    // Draw once without delay. updateConfirming() animates while the I/O worker runs.
+    // Full-screen processing animation shown while the callback HTTP call runs.
+    // Plays a 3-frame bouncing-dot animation (≈420 ms) then holds the last frame
+    // so the screen is not blank during the blocking network call.
+    // title/subtitle default to "Verifying" / "PIN..." for the PIN path;
+    // pass different strings for the no-PIN path ("Processing" / "payment...").
     static void drawProcessing(TFT_eSPI& tft,
                                const char* title    = "Verifying",
                                const char* subtitle = "PIN...");

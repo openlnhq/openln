@@ -1,5 +1,0 @@
-.build/
-render/
-__pycache__/
-!evidence/*.log
-evidence/

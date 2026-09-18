@@ -1,1 +1,0 @@
-{"private":true,"type":"module","scripts":{"test":"node --experimental-vm-modules --test card-failure.test.mjs"},"dependencies":{"@electric-sql/pglite":"0.3.14","drizzle-orm":"0.44.5"}}

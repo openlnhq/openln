@@ -14,7 +14,8 @@ import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { reconcileAccountInvoicesBounded, startInvoiceMonitor } from "./money/invoiceMonitor.js";
-import { startWrapDriver, kickWrap, OPEN_WRAP_STATES } from "./money/wrapDriver.js";
+import { startWrapDriver, kickWrap, OPEN_WRAP_STATES, wrapDriverStats } from "./money/wrapDriver.js";
+import { startWrapNotifications, wrapNotificationStats } from "./money/nwcNotifications.js";
 import { onAccountEvent } from "./events.js";
 import { handleCardsPreview } from "../plugins/cards-preview.js";
 import { handleCardsRoute } from "../plugins/cards.js";
@@ -61,7 +62,7 @@ async function accountForHandle(handle: string) {
 const server = createServer(async (req, res) => {
   try {
     const u = new URL(req.url ?? "/", "http://localhost");
-    if (req.method === "GET" && u.pathname === "/health") return json(res, 200, { status: "ok", service: "openln-core", plugins: registry.list().map(p => p.id) });
+    if (req.method === "GET" && u.pathname === "/health") return json(res, 200, { status: "ok", service: "openln-core", plugins: registry.list().map(p => p.id), wraps: wrapDriverStats(), notifications: wrapNotificationStats() });
     // RIC/CYD firmware connectivity check — calls `${serverUrl}/healthz` where serverUrl is `${origin}/api` (see BitposClient.cpp beginAuthRequest). No auth: pure reachability probe before the device attempts authenticated calls.
     if (req.method === "GET" && u.pathname === "/api/healthz") return json(res, 200, { status: "ok" });
     const cardToken = (req.headers.authorization ?? "").startsWith("Bearer ") ? (req.headers.authorization ?? "").slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]);
@@ -412,8 +413,12 @@ server.listen({ port, host: "0.0.0.0" }, () => {
   stopWrapDriver = startWrapDriver();
   // Pending-send reconciliation + fallback sweep (was defined, never started).
   startInvoiceMonitor();
+  // Push path: Alby Hub notifications advance a wrap the moment the customer's
+  // HTLC locks. The driver sweep above is the safety net if the relay drops.
+  startWrapNotifications().then((stop) => { stopWrapNotifications = stop; }).catch(() => {});
 });
-server.on("close", () => stopWrapDriver?.());
+let stopWrapNotifications: (() => void) | undefined;
+server.on("close", () => { stopWrapDriver?.(); stopWrapNotifications?.(); });
 export { auth, wallet, registry };
 
 export const __test = { accountForHandle };

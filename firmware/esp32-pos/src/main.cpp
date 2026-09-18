@@ -148,18 +148,23 @@ static const uint32_t POLL_INTERVAL_MS = 2000;
 static int      pollFailCount      = 0;      // consecutive HTTP errors; resets on good response
 static uint32_t currentPollInterval = POLL_INTERVAL_MS; // grows with exponential back-off
 
-// Grace period after the on-screen invoice timeout when a LNURL callback has
-// been sent — the card was charged, the payment is in flight.  We keep polling
-// the invoice status so the device doesn't lose visibility of a settlement that
-// arrives a few seconds after the screen would normally give up.
-static const uint32_t PAYMENT_GRACE_MS = 90000; // 90 s grace after timeout
-static bool     paymentInFlightAtTimeout = false;
-static uint32_t invoiceTimeoutAt         = 0;
+// There is deliberately NO grace period / give-up timer once a card callback
+// may have been dispatched: the device polls the invoice until the server
+// reports paid, expired or cancelled. See handleWaitingPayment().
 
 // WiFi watchdog — reconnect if connection lost for >5 s in any operational state
 static uint32_t wifiConnectStart        = 0;
 static uint32_t wifiLostAt             = 0;
-static bool     paymentInterruptedByWifi = false; // true when WiFi dropped mid-payment
+
+// Card callback dispatch bookkeeping (see dispatchCardPayment).
+static uint32_t callbackRetryAt   = 0;   // non-zero: a NotSent callback is scheduled to retry
+static int      callbackAttempts  = 0;   // connect attempts for the current tap
+static String   pendingCallbackPin;      // PIN to reuse on the deferred retry
+static uint32_t nfcRetryHintAt    = 0;   // when "tap again" was shown (hint auto-clears)
+static const int CALLBACK_CONNECT_RETRIES = 3;
+static void dispatchCardPayment(const String& pin);
+static void enterCreatingInvoice();
+static void drawCreatingInvoice(bool retrying);
 
 // WiFi connecting screen animation state (reset by enterConnectingWifi)
 static uint32_t wifiAnimLast  = 0;
@@ -241,6 +246,13 @@ static void enterConnectingWifi() {
     tft.setTextColor(TFT_WHITE, tft.color565(180, 40, 40));
     tft.drawString("Cancel", SCREEN_W / 2, 218);
 
+    // Radio settings for a payment terminal on a weak 2.4 GHz link:
+    //  - no modem power-save: PS mode adds 100-300 ms latency spikes and is the
+    //    usual cause of TLS handshakes timing out on marginal RSSI.
+    //  - explicit STA mode + persistent off: we manage credentials in NVS.
+    WiFi.persistent(false);
+    WiFi.mode(WIFI_STA);
+    WiFi.setSleep(false);
     WiFi.setAutoReconnect(true);
     WiFi.begin(Config::ssid.c_str(), Config::pass.c_str());
 }
@@ -248,7 +260,8 @@ static void enterConnectingWifi() {
 static void handleConnectingWifi() {
     wl_status_t s = WiFi.status();
     if (s == WL_CONNECTED) {
-        DBG_PRINTLN("WiFi connected: " + WiFi.localIP().toString());
+        Serial.printf("RIC wifi: connected ip=%s rssi=%d ch=%d\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI(), WiFi.channel());
 
         BitposClient::init(Config::serverUrl, Config::token);
 
@@ -498,6 +511,13 @@ static void handleIdleAmount() {
         return;
     }
 
+    // Currency chip (top-right) — flip between typing fiat and typing sats.
+    if (AmountScreen::isCurrencyTap(tx, ty)) {
+        AmountScreen::toggleSatsMode(tft);
+        Buzzer::playTap();
+        return;
+    }
+
     bool pay = AmountScreen::handleTouch(tft, tx, ty);
     if (pay) {
         currentAmountSats = AmountScreen::getAmountSats();
@@ -507,48 +527,51 @@ static void handleIdleAmount() {
             PinScreen::draw(tft, "", 6);
         } else {
             // Normal mode — create invoice for receiving payment
-            state = STATE_CREATING_INVOICE;
-            tft.fillScreen(COL_BG);
-            tft.setTextColor(COL_TEXT, COL_BG);
-            tft.setTextDatum(MC_DATUM);
-            tft.setTextFont(FONT_SMALL);
-            tft.drawString("Creating invoice...", SCREEN_W / 2, SCREEN_H / 2);
+            enterCreatingInvoice();
         }
     }
 }
 
+// Invoice creation retries. A flaky uplink or a slow wallet RPC must not
+// end the sale: keep asking for the SAME amount with backoff until the server
+// answers or the cashier cancels. No invoice exists until the server says so,
+// so repeating this request can never double-charge anyone.
+static uint32_t createAttemptAt   = 0;   // millis() when the next attempt may run
+static uint32_t createBackoffMs   = 0;   // 0 on first attempt, then 1.5s, 3s, 6s ... capped
+static int      createAttempts    = 0;
+static const uint32_t CREATE_BACKOFF_MAX_MS = 8000;
+static void drawCreatingInvoice(bool retrying);
+
 static void handleCreatingInvoice() {
-    // Animated "Creating invoice..." screen — same dot-bounce pattern used by
-    // the PIN confirming screen so the UX language is consistent.
-    // 3 pre-HTTP frames × 120 ms = 360 ms, then createInvoice() blocks (~1-3 s).
-    tft.fillScreen(COL_BG);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_TEXT, COL_BG);
-    tft.setTextFont(FONT_SMALL);
-    tft.drawString("Creating", SCREEN_W / 2, 78);
-    tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(COL_MUTED, COL_BG);
-    tft.drawString("invoice...", SCREEN_W / 2, 114);
-    {
-        const int dotY = 155, dotR = 11, gap = 46, cx = SCREEN_W / 2;
-        for (int frame = 0; frame < 4; frame++) {
-            tft.fillRect(0, dotY - dotR - 8, SCREEN_W, (dotR + 8) * 2, COL_BG);
-            for (int i = 0; i < 3; i++) {
-                int  x   = cx + (i - 1) * gap;
-                bool lit = (i == frame % 3);
-                int  yOff = lit ? -5 : 0;
-                if (lit) tft.fillCircle(x, dotY + yOff, dotR, COL_ACCENT);
-                else     tft.drawCircle(x, dotY + yOff, dotR, COL_MUTED);
-            }
-            if (frame < 3) delay(120);   // animate 3 frames; frame 3 holds during HTTP
-        }
+    // Cancel: the cashier can always bail out while nothing exists yet.
+    int tx, ty;
+    if (readTouch(tx, ty) && PaymentScreen::handleTouch(tx, ty)) {
+        enterIdleAmount();
+        return;
+    }
+    if (createAttemptAt && !RicPolicy::due(millis(), createAttemptAt)) {
+        PinScreen::updateConfirming(tft);   // keep the dots moving while we wait
+        return;
     }
 
-    String err;
-    currentInvoice = BitposClient::createInvoice(currentAmountSats, err);
+    createAttempts++;
+    String err; bool transient = false;
+    esp_task_wdt_reset();
+    currentInvoice = BitposClient::createInvoice(currentAmountSats, err, transient);
 
     if (!err.isEmpty() || currentInvoice.bolt11.isEmpty()) {
-        lastError = err.isEmpty() ? "Failed to create invoice" : err;
+        if (transient || err.isEmpty()) {
+            // Network / wallet hiccup: same amount, try again after a pause.
+            createBackoffMs = createBackoffMs ? std::min(createBackoffMs * 2, CREATE_BACKOFF_MAX_MS) : 1500;
+            createAttemptAt = millis() + createBackoffMs;
+            Serial.printf("RIC invoice: retry %d in %lums (%s) heap=%u\n",
+                          createAttempts, (unsigned long)createBackoffMs, err.c_str(), ESP.getFreeHeap());
+            drawCreatingInvoice(true);
+            return;
+        }
+        // The server answered with a real rejection (e.g. wallet not
+        // configured). Retrying would not change the answer: show it.
+        lastError = err;
         ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Invoice failed");
         state = STATE_ERROR;
         return;
@@ -561,89 +584,175 @@ static void handleCreatingInvoice() {
     lnurlCallbackSent   = false;
     lnurlCallback       = "";
     lnurlK1             = "";
-    paymentInFlightAtTimeout = false;   // reset grace-period state for this invoice
-    invoiceTimeoutAt         = 0;
+    callbackRetryAt          = 0;
+    callbackAttempts         = 0;
     PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
     state = STATE_WAITING_PAYMENT;
 }
 
-static void handleWaitingPayment() {
-    // Timeout — with grace period for in-flight payments.
-    // If the LNURL callback has been sent, the customer's card was charged and
-    // the payment is in flight.  Returning to idle here would lose visibility of
-    // a settlement that arrives a few seconds late — the merchant wouldn't know
-    // the customer paid.  Instead, show a "still processing" screen and keep
-    // polling for up to PAYMENT_GRACE_MS (90 s) before giving up.
-    if (millis() - invoiceCreateTime > INVOICE_TIMEOUT_MS) {
-        if (lnurlCallbackSent && !paymentInFlightAtTimeout) {
-            paymentInFlightAtTimeout = true;
-            invoiceTimeoutAt         = millis();
-            DBG_PRINTLN("Invoice timed out but callback sent — entering grace period");
-            PinScreen::drawProcessing(tft, "Payment", "still processing...");
-        }
-        if (paymentInFlightAtTimeout) {
-            if (millis() - invoiceTimeoutAt > PAYMENT_GRACE_MS) {
-                DBG_PRINTLN("Grace period expired — payment status unknown");
-                lastError = "Payment may still be processing - check dashboard";
-                ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Payment timeout");
-                state = STATE_ERROR;
+// "Creating invoice" screen: same visual language as the confirming screen,
+// plus a Cancel button in the PaymentScreen's cancel zone so hit-testing is
+// shared. `retrying` swaps the subtitle so the cashier knows the link is slow,
+// not dead.
+static void drawCreatingInvoice(bool retrying) {
+    PinScreen::drawProcessing(tft, "Creating", retrying ? "invoice, retrying..." : "invoice...");
+    PaymentScreen::drawCancelButton(tft);
+}
+
+static void enterCreatingInvoice() {
+    state = STATE_CREATING_INVOICE;
+    createAttemptAt = 0; createBackoffMs = 0; createAttempts = 0;
+    drawCreatingInvoice(false);
+}
+
+// ── Card tap: one attempt to dispatch the payment for the CURRENT invoice ──
+// Shared by the no-PIN path (called right after the NDEF read) and the PIN
+// path. Never creates a new invoice. Returns to the waiting screen on any
+// outcome that leaves the invoice unpaid and undispatched, so the customer can
+// simply tap again. Only an ACCEPTED or AMBIGUOUS dispatch moves the flow to
+// "Confirming", and from there only the invoice status decides.
+static void dispatchCardPayment(const String& pin) {
+    esp_task_wdt_reset();
+    String detail;
+    callbackAttempts++;
+    auto outcome = BitposClient::callLnurlCallback(lnurlCallback, lnurlK1, currentInvoice.bolt11, pin, detail);
+    Serial.printf("RIC callback: attempt=%d outcome=%d detail=%s heap=%u largest=%u\n",
+                  callbackAttempts, (int)outcome, detail.c_str(), ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+
+    switch (outcome) {
+        case BitposClient::CallbackOutcome::Accepted:
+        case BitposClient::CallbackOutcome::Ambiguous:
+            // Either the wallet was asked to pay, or we cannot rule it out. From
+            // here the only truth is the invoice status: keep polling, hide the
+            // QR, and never let the customer tap this invoice again.
+            lnurlCallbackSent = true;
+            lastStatusPoll    = 0;               // poll immediately
+            currentPollInterval = POLL_INTERVAL_MS;
+            PinScreen::drawConfirming(tft);
+            state = STATE_WAITING_PAYMENT;
+            return;
+
+        case BitposClient::CallbackOutcome::NotSent:
+            // The request never left the device (TLS/TCP/DNS). Nothing happened
+            // on the server. Retry the identical request a few times while the
+            // customer keeps the card on the reader, then fall back to waiting.
+            if (callbackAttempts < CALLBACK_CONNECT_RETRIES) {
+                PinScreen::drawProcessing(tft, "Connecting", "retrying...");
+                callbackRetryAt = millis() + 800;
+                pendingCallbackPin = pin;
+                state = STATE_WAITING_PAYMENT;
                 return;
             }
-            // Continue polling during grace period (polling code below)
-        } else {
-            // No callback was sent — safe to return to idle immediately.
-            enterIdleAmount();
+            lnurlCallback = ""; lnurlK1 = "";
+            callbackAttempts = 0;
+            PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
+            PaymentScreen::setStage(tft, "No connection. Tap again");
+            nfcRetryHintAt = millis();
+            state = STATE_WAITING_PAYMENT;
             return;
-        }
+
+        case BitposClient::CallbackOutcome::Rejected:
+            // Definitive server answer: nothing was dispatched. PIN problems go
+            // back to the PIN screen; everything else returns to the waiting
+            // screen with the reason, same invoice, so the customer can retap
+            // or pay the QR instead.
+            if (!pin.isEmpty() && (detail.indexOf("PIN") >= 0 || detail.indexOf("pin") >= 0) &&
+                detail.indexOf("locked") < 0) {
+                PinScreen::draw(tft, currentCardUid);
+                PinScreen::setWrongPin(tft);
+                state = STATE_PIN_ENTRY;
+                return;
+            }
+            lnurlCallback = ""; lnurlK1 = "";
+            callbackAttempts = 0;
+            Buzzer::playError();
+            PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
+            PaymentScreen::setStage(tft, detail.isEmpty() ? "Card declined" : detail);
+            nfcRetryHintAt = millis();
+            state = STATE_WAITING_PAYMENT;
+            return;
+    }
+}
+
+static void handleWaitingPayment() {
+    const uint32_t now = millis();
+
+    // ── Presentation window ─────────────────────────────────────────────────
+    // Before any dispatch the QR/tap screen simply expires back to idle. Once a
+    // payment MAY be in flight (callback accepted or ambiguous) there is no
+    // timeout at all: the terminal keeps polling this invoice until the server
+    // says paid, expired or cancelled. A merchant can always leave via the
+    // dashboard; the device never invents a "failed" it cannot prove.
+    if (!lnurlCallbackSent && callbackRetryAt == 0 && now - invoiceCreateTime > INVOICE_TIMEOUT_MS) {
+        enterIdleAmount();
+        return;
     }
 
-    // Cancel button (only available while waiting; hidden once callback sent)
+    // ── Cancel button (only before a dispatch) ──────────────────────────────
     int tx, ty;
-    if (!lnurlCallbackSent && readTouch(tx, ty)) {
+    if (!lnurlCallbackSent && callbackRetryAt == 0 && readTouch(tx, ty)) {
         if (PaymentScreen::handleTouch(tx, ty)) {
             enterIdleAmount();
             return;
         }
     }
 
-    // Animate the appropriate waiting screen.
-    // After a PIN callback the QR is replaced by the confirming screen so the
-    // cashier never sees the payment screen a second time.
-    if (lnurlCallbackSent) {
-        PinScreen::updateConfirming(tft);
-    } else {
-        PaymentScreen::update(tft);
+    // ── Deferred callback retry (connect failed, card still present) ────────
+    if (callbackRetryAt) {
+        if (!RicPolicy::due(now, callbackRetryAt)) { PinScreen::updateConfirming(tft); return; }
+        callbackRetryAt = 0;
+        dispatchCardPayment(pendingCallbackPin);
+        pendingCallbackPin = "";
+        return;
     }
 
-    // Poll invoice status every 2 s — the authoritative settlement signal.
-    // This is the only path to STATE_SUCCESS; no shortcut after callback.
-    // The HTTPS status check is a blocking call (TLS handshake can take ~1-3 s on
-    // the dev URL). Measure the interval from poll END (not start) so the loop
-    // gets ~2 s of fast (~300 ms) iterations between polls where the countdown can
-    // tick every second, then refresh the timer the instant the poll returns —
-    // otherwise update() runs only once per slow iteration and the timer skips.
-    if (millis() - lastStatusPoll >= currentPollInterval) {
+    // ── Animate ─────────────────────────────────────────────────────────────
+    if (lnurlCallbackSent) PinScreen::updateConfirming(tft);
+    else {
+        PaymentScreen::update(tft);
+        // A transient hint ("tap again", a decline reason) reverts to the
+        // default prompt after a few seconds so the screen never looks stuck.
+        if (nfcRetryHintAt && RicPolicy::elapsed(now, nfcRetryHintAt, 4000)) {
+            nfcRetryHintAt = 0;
+            PaymentScreen::setStage(tft, "Ready to pay");
+        }
+    }
+
+    // ── Poll invoice status: the ONLY path to SUCCESS ───────────────────────
+    // The interval is measured from poll END so the UI gets ~2 s of fast
+    // iterations between blocking HTTPS calls. On "error" (no usable answer)
+    // back off up to 15 s and keep going forever: a network error says
+    // nothing about the invoice. There is no failure count any more.
+    if (now - lastStatusPoll >= currentPollInterval) {
         String status = BitposClient::pollInvoiceStatus(currentInvoice.paymentHash);
         if (status == "paid") {
             ResultScreen::draw(tft, RESULT_SUCCESS, currentAmountSats);
             state = STATE_SUCCESS;
             return;
         }
-        if (status == "expired") {
+        if (status == "expired" || status == "cancelled" || status == "unknown") {
+            // The server has closed this invoice. If a card was dispatched
+            // against it and it did not settle, the customer was not charged
+            // (the hold was never accepted); say so instead of a silent reset.
+            if (lnurlCallbackSent) {
+                lastError = status == "unknown" ? "Invoice no longer exists" : "Payment did not complete";
+                ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Not paid");
+                state = STATE_ERROR;
+                return;
+            }
             enterIdleAmount();
             return;
         }
         if (status == "error") {
-            if (++pollFailCount >= 5) {
-                lastError = "Network error - reset to retry";
-                ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Network error");
-                state = STATE_ERROR;
-                return;
+            pollFailCount++;
+            currentPollInterval = std::min((uint32_t)15000, std::max(POLL_INTERVAL_MS, currentPollInterval * 2));
+            if (pollFailCount == 3 && lnurlCallbackSent) {
+                // Tell the cashier the truth without changing the outcome.
+                PinScreen::drawProcessing(tft, "Confirming", "reconnecting...");
             }
-            // Exponential back-off: double the poll interval, cap at 30 s
-            currentPollInterval = min((uint32_t)30000, currentPollInterval * 2);
         } else {
-            // Server responded — reset failure streak and interval
+            // Server answered (pending / accepted / forwarding / forwarded).
+            if (pollFailCount >= 3 && lnurlCallbackSent) PinScreen::drawConfirming(tft);
             pollFailCount       = 0;
             currentPollInterval = POLL_INTERVAL_MS;
         }
@@ -651,54 +760,62 @@ static void handleWaitingPayment() {
         if (!lnurlCallbackSent) PaymentScreen::update(tft);  // QR countdown refresh
     }
 
-    // Skip NFC once the LNURL callback has been accepted — avoid re-tapping
+    // Skip NFC once a callback may have been dispatched — never retap this invoice.
     if (lnurlCallbackSent) return;
 
-    // Phase 1 — detect card (300ms RF window, non-blocking to outer loop)
+    // ── Phase 1: detect card (300 ms RF window, non-blocking to outer loop) ──
     String nfcUid;
     if (!NfcReader::detectCard(nfcUid)) return;
 
-    // Card in field — start continuous beep so user knows to hold the card
+    // Card in field — continuous beep so the customer knows to hold still.
     Buzzer::startBeep();
     PaymentScreen::showCardDetected(tft);
     currentCardUid = nfcUid;
 
-    // Phase 2 — read NDEF URL via ISO-DEP APDU (~300ms, card must stay still)
+    // ── Phase 2: read NDEF URL via ISO-DEP APDU (~300 ms, card must stay still) ──
+    // NfcReader retries with RF power-cycles internally. If it still fails the
+    // card moved: stay on THIS invoice and ask for another tap. Never restart
+    // the sale over a misread.
     String nfcUrl = NfcReader::readNdef();
-    Buzzer::stopBeep();  // card read done — cut the beep
+    Buzzer::stopBeep();
 
     if (nfcUrl.isEmpty()) {
-        lastError = "Card read failed - hold flat and try again";
-        ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Card read failed");
-        state = STATE_ERROR;
+        Buzzer::playError();
+        PaymentScreen::setStage(tft, "Hold card flat, tap again");
+        nfcRetryHintAt = millis();
         return;
     }
 
-    // Fetch LNURL-withdraw from the card's URL (no device token sent)
+    // ── Phase 3: fetch LNURL-withdraw from the card's URL (no device token) ──
+    // A transport failure here means nothing was dispatched: same invoice,
+    // tap again. A server ERROR is a real decline for this card.
+    PaymentScreen::setStage(tft, "Reading card...", false);
+    esp_task_wdt_reset();
     String lnErr;
     auto lw = BitposClient::fetchLnurl(nfcUrl, lnErr);
     if (!lnErr.isEmpty()) {
-        lastError = lnErr;
-        ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Card error");
-        state = STATE_ERROR;
+        Buzzer::playError();
+        bool transport = lnErr.indexOf("No response") >= 0 || lnErr.indexOf("Invalid JSON") >= 0;
+        PaymentScreen::setStage(tft, transport ? "No connection. Tap again" : lnErr);
+        nfcRetryHintAt = millis();
         return;
     }
 
     // Validate amount fits within the card's withdrawal limit
     long maxSats = lw.maxWithdrawable / 1000; // msats → sats
     if (currentAmountSats > maxSats) {
-        lastError = "Amount exceeds card limit";
-        ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Exceeds limit");
-        state = STATE_ERROR;
+        Buzzer::playError();
+        PaymentScreen::setStage(tft, "Exceeds card limit");
+        nfcRetryHintAt = millis();
         return;
     }
 
     // Store callback and k1 as separate values — never reconstruct from a URL
     lnurlCallback = lw.callback;
     lnurlK1       = lw.k1;
+    callbackAttempts = 0;
 
     // LUD-21: require PIN when pinLimitMsats is present AND amount >= threshold.
-    // Mirrors web POS: pinNeeded = (pinLimit !== undefined) && amountSats*1000 >= pinLimit
     bool needPin = (lw.pinLimitMsats >= 0) && (currentAmountSats * 1000 >= lw.pinLimitMsats);
     if (needPin) {
         PinScreen::draw(tft, nfcUid);
@@ -706,30 +823,10 @@ static void handleWaitingPayment() {
         return;
     }
 
-    // No PIN — call callback immediately (third-party host, no device token).
-    // Show a processing animation (no mention of PIN) so the customer sees
-    // immediate feedback: card tap → dots spin → confirming screen → settled.
+    // No PIN — dispatch immediately. fetchLnurl above was TLS call #1; the
+    // callback is TLS call #2, so feed the watchdog in between.
     PinScreen::drawProcessing(tft, "Processing", "payment...");
-
-    // Reset the watchdog before the second blocking TLS call in this iteration.
-    // fetchLnurl() above was TLS call #1 (up to 10 s); callLnurlCallback() is
-    // TLS call #2 (up to 10 s). Without this reset the combined ~20 s could
-    // exceed the 30 s WDT window on a slow network connection.
-    esp_task_wdt_reset();
-
-    String cbErr = BitposClient::callLnurlCallback(
-        lnurlCallback, lnurlK1, currentInvoice.bolt11);
-
-    if (cbErr.isEmpty()) {
-        // Callback accepted — show confirming animation and keep polling until settled.
-        // Mirrors the PIN path: QR is never shown again after card tap.
-        lnurlCallbackSent = true;
-        PinScreen::drawConfirming(tft);
-    } else {
-        lastError = cbErr;
-        ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Payment failed");
-        state = STATE_ERROR;
-    }
+    dispatchCardPayment("");
 }
 
 static void handlePinEntry() {
@@ -740,7 +837,7 @@ static void handlePinEntry() {
 
     char action = PinScreen::handleTouch(tft, tx, ty);
     if (action == 'C') {
-        // Cancel — return to WAITING_PAYMENT; NFC polling resumes
+        // Cancel — return to WAITING_PAYMENT; NFC polling resumes on the same invoice
         lnurlCallback = "";
         lnurlK1       = "";
         PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
@@ -748,29 +845,9 @@ static void handlePinEntry() {
         return;
     }
     if (action == 'O') {
-        // Show processing animation — blocks ~1-4 s while the HTTP call runs
+        // Show processing animation, then dispatch through the shared path.
         PinScreen::drawProcessing(tft);
-
-        String cbErr = BitposClient::callLnurlCallback(
-            lnurlCallback, lnurlK1, currentInvoice.bolt11, PinScreen::getPin());
-
-        if (cbErr.isEmpty()) {
-            // Callback accepted — keep polling until invoice settles.
-            // Draw the confirming screen instead of the QR payment screen so
-            // the cashier never sees the QR a second time after entering the PIN.
-            lnurlCallbackSent = true;
-            PinScreen::drawConfirming(tft);
-            state = STATE_WAITING_PAYMENT;
-        } else if (cbErr.indexOf("wrong") >= 0 || cbErr.indexOf("PIN") >= 0 ||
-                   cbErr.indexOf("pin") >= 0) {
-            // Wrong PIN — redraw the PIN screen (processing screen replaced it), then shake
-            PinScreen::draw(tft, currentCardUid);
-            PinScreen::setWrongPin(tft);
-        } else {
-            lastError = cbErr;
-            ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Payment failed");
-            state = STATE_ERROR;
-        }
+        dispatchCardPayment(PinScreen::getPin());
     }
 }
 
@@ -788,16 +865,11 @@ static void handleError() {
     int tx, ty;
     if (!readTouch(tx, ty)) return;
     if (ResultScreen::handleTouch(tx, ty)) {
-        if (paymentInterruptedByWifi) {
-            paymentInterruptedByWifi = false;
-            enterConnectingWifi();
-        } else {
-            // Reset send mode when returning to idle after an error
-            if (AmountScreen::isSendMode()) {
-                AmountScreen::setSendMode(false);
-            }
-            enterIdleAmount();
+        // Reset send mode when returning to idle after an error
+        if (AmountScreen::isSendMode()) {
+            AmountScreen::setSendMode(false);
         }
+        enterIdleAmount();
     }
 }
 
@@ -876,8 +948,12 @@ static void handleSendWaiting() {
         }
     }
 
-    // Animate NFC hint
+    // Animate NFC hint; a transient "tap again" hint reverts after a few seconds.
     PaymentScreen::update(tft);
+    if (nfcRetryHintAt && RicPolicy::elapsed(millis(), nfcRetryHintAt, 4000)) {
+        nfcRetryHintAt = 0;
+        PaymentScreen::setStage(tft, "Ready to pay");
+    }
 
     // Poll withdrawal status — if the QR was scanned and claimed, show success.
     // Same poll interval as invoice status (2s, growing with backoff).
@@ -902,7 +978,7 @@ static void handleSendWaiting() {
         lastStatusPoll = millis();
     }
 
-    // NFC polling — if a bitPOS card taps, send payment to card holder
+    // NFC polling — if an openLN card taps, send payment to card holder
     String nfcUid;
     if (!NfcReader::detectCard(nfcUid)) return;
 
@@ -912,9 +988,11 @@ static void handleSendWaiting() {
     String nfcUrl = NfcReader::readNdef();
     Buzzer::stopBeep();
     if (nfcUrl.isEmpty()) {
-        lastError = "Card read failed - hold flat and try again";
-        ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Card read failed");
-        state = STATE_ERROR;
+        // Same recovery as the receive path: the card moved before the NDEF
+        // read finished. Stay on THIS withdrawal, ask for another tap.
+        Buzzer::playError();
+        PaymentScreen::setStage(tft, "Hold card flat, tap again");
+        nfcRetryHintAt = millis();
         return;
     }
 
@@ -1396,7 +1474,13 @@ void loop() {
 
     // ── WiFi watchdog ──────────────────────────────────────────────────────
     // If the connection drops in any operational state, give the ESP32's
-    // auto-reconnect 5 s to recover on its own, then force a full reconnect.
+    // auto-reconnect 5 s to recover on its own, then force a reconnect.
+    //
+    // During a live transaction (waiting / PIN / confirming) the invoice is
+    // NOT abandoned: WiFi loss is a network event, not a payment outcome. The
+    // device keeps its invoice context, shows "reconnecting", and the
+    // waiting-state poll loop simply resumes when the link is back. If the
+    // customer's card was already dispatched, the poll will find "paid".
     if (state != STATE_PROVISIONING && state != STATE_CONNECTING_WIFI &&
         state != STATE_WIFI_SETUP && state != STATE_UPDATES && state != STATE_SEND_WAITING &&
         state != STATE_CARD_WRITE && state != STATE_CARD_WIPE &&
@@ -1404,27 +1488,46 @@ void loop() {
         if (WiFi.status() != WL_CONNECTED) {
             if (wifiLostAt == 0) {
                 wifiLostAt = millis();
-                DBG_PRINTLN("WiFi lost — waiting for auto-reconnect...");
-            } else if (millis() - wifiLostAt > 5000) {
-                if (state == STATE_WAITING_PAYMENT || state == STATE_PIN_ENTRY) {
-                    // WiFi dropped during a live transaction — don't silently abandon.
-                    // Show a clear warning so the cashier knows to check the dashboard.
-                    DBG_PRINTLN("WiFi lost during payment — showing warning");
-                    paymentInterruptedByWifi = true;
-                    lastError = "WiFi lost — check dashboard if payment completed";
-                    ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Server error");
-                    state = STATE_ERROR;
-                } else {
-                    DBG_PRINTLN("WiFi still down after 5 s — reconnecting");
-                    enterConnectingWifi();
+                Serial.printf("RIC wifi: lost state=%d rssi=%d\n", (int)state, WiFi.RSSI());
+                if (state == STATE_WAITING_PAYMENT || state == STATE_CREATING_INVOICE) {
+                    // Stop the RF beep if a card read was interrupted; tell the cashier.
+                    // (PIN entry keeps its keypad; the dispatch itself reports the link.)
+                    Buzzer::stopBeep();
+                    if (lnurlCallbackSent || state == STATE_CREATING_INVOICE) PinScreen::drawProcessing(tft, "Reconnecting", "WiFi lost, invoice kept");
+                    else PaymentScreen::setStage(tft, "WiFi lost, reconnecting");
                 }
+            } else if (millis() - wifiLostAt > 5000) {
+                if (state == STATE_WAITING_PAYMENT || state == STATE_PIN_ENTRY || state == STATE_CREATING_INVOICE) {
+                    // Kick the radio without leaving the transaction. Sockets are
+                    // dropped so the next HTTP call starts with a clean handshake.
+                    Serial.println("RIC wifi: reconnect in place (payment context kept)");
+                    DeviceLink::release();
+                    WiFi.disconnect(false);
+                    WiFi.begin(Config::ssid.c_str(), Config::pass.c_str());
+                    wifiLostAt = millis();          // re-arm: try again in 5 s if still down
+                    lastStatusPoll = millis();      // do not poll into a dead socket immediately
+                    esp_task_wdt_reset();
+                    return;
+                }
+                DBG_PRINTLN("WiFi still down after 5 s — reconnecting");
+                enterConnectingWifi();
                 wifiLostAt = 0;
                 return;
             }
         } else {
             if (wifiLostAt != 0) {
-                DBG_PRINTLN("WiFi restored");
+                Serial.printf("RIC wifi: restored rssi=%d ip=%s\n", WiFi.RSSI(), WiFi.localIP().toString().c_str());
                 wifiLostAt = 0;
+                if (state == STATE_WAITING_PAYMENT) {
+                    // Redraw the right screen for where the transaction is.
+                    if (lnurlCallbackSent) PinScreen::drawConfirming(tft);
+                    else PaymentScreen::setStage(tft, "Ready to pay");
+                    lastStatusPoll = 0;   // poll right away
+                    currentPollInterval = POLL_INTERVAL_MS;
+                } else if (state == STATE_CREATING_INVOICE) {
+                    createAttemptAt = 0;  // retry the invoice request now
+                    drawCreatingInvoice(true);
+                }
             }
         }
     }
@@ -1439,7 +1542,7 @@ void loop() {
     if (state == STATE_IDLE_AMOUNT) {
         // Management only when idle with no entered amount. Never during payments
         // or NFC write/wipe, and use jitter to avoid a fleet reconnect storm.
-        if(RicPolicy::managementAllowed(true,AmountScreen::hasInput(),paymentInFlightAtTimeout || paymentInterruptedByWifi) && WiFi.status()==WL_CONNECTED){
+        if(RicPolicy::managementAllowed(true,AmountScreen::hasInput(),lnurlCallbackSent) && WiFi.status()==WL_CONNECTED){
             if(millis()-lastHelloAt>300000){
                 auto result=DeviceLink::hello();lastHelloAt=millis();
                 serverAuthenticated=result==RicPolicy::AuthState::Accepted;

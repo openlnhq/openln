@@ -17,6 +17,13 @@ public:
     // Switch the NFC strip to "Card detected — hold still!" so the user
     // knows not to remove the card while APDU reading is in progress.
     static void showCardDetected(TFT_eSPI& tft);
+    // Change status without re-encoding or repainting the QR.
+    static void setStage(TFT_eSPI& tft, const String& label, bool canCancel = true);
+    static int remainingSec(uint32_t now);
+
+    // Draw (or re-enable) the Cancel button in its fixed zone. Also used by the
+    // "creating invoice" screen so cancel hit-testing is shared.
+    static void drawCancelButton(TFT_eSPI& tft);
 
     // Returns true if Cancel was tapped
     static bool handleTouch(int tx, int ty);
@@ -25,15 +32,14 @@ private:
     static uint32_t _lastPulse;
     static int      _pulsePhase;
 
-    // Invoice countdown (TTL) — the device has no synced wall-clock, so the
-    // deadline is a millis()-based window set once per invoice (keyed on bolt11)
-    // so PIN round-trips don't reset it. _ttlSec mirrors main's waiting timeout.
-    static uint32_t _deadlineMs;
+    // Rollover-safe monotonic deadline retained when the same invoice is redrawn.
+    static uint32_t _startedMs;
+    static String _stage;
+    static bool _canCancel;
     static String   _timedBolt11;
     static int      _lastShownSec;
     static int      _ttlSec;
 
-    static int  remainingSec(uint32_t now);
     static void drawAmountHeader(TFT_eSPI& tft, long amountSats, const String& fiatLabel);
     static void drawTimer(TFT_eSPI& tft, int rem);
     static void drawQR(TFT_eSPI& tft, const String& bolt11, int cx, int cy, int boxPx);

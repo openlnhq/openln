@@ -15,6 +15,11 @@ public:
     static String fiatLabel();
     static bool isSettingsTap(int tx, int ty);
 
+    // Currency chip (top-right): tap toggles fiat <-> sats entry.
+    static bool isCurrencyTap(int tx, int ty);
+    static bool isSatsMode();
+    static void toggleSatsMode(TFT_eSPI& tft);
+
     static bool isSendMode();
     static void setSendMode(bool enabled);
     static void setSendSatsPerUnit(float satsPerUnit);
@@ -42,6 +47,9 @@ private:
     static uint16_t _lastDotColor;
     static String   _lastRateStr;
 
+    // Entry mode: false = type fiat (default), true = type sats directly
+    static bool     _satsMode;
+
     // Send mode state
     static bool     _sendMode;
     static bool     _payHoldActive;
@@ -68,5 +76,7 @@ private:
     static double currentValue();
     static uint16_t dotColor();
     static String rateString();
+    static float  activeRate();
+    static String fiatEquivalent();
     static int    currencyDecimals(const String& code);
 };

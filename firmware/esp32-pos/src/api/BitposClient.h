@@ -17,10 +17,14 @@ public:
     // Must call init() after WiFi connects with token and server URL from NVS
     static void init(const String& serverUrl, const String& token);
 
-    // POST /api/pos/invoice — returns bolt11 or sets err on failure
-    static Invoice createInvoice(long amountSats, String& err);
+    // POST /api/pos/invoice — returns bolt11 or sets err on failure.
+    // transient=true means the failure was network/server-side and a retry
+    // with the same amount is safe and expected (no invoice was returned).
+    static Invoice createInvoice(long amountSats, String& err, bool& transient);
 
-    // GET /api/pos/invoice/:hash/status — returns "pending"|"paid"|"expired"
+    // GET /api/pos/invoice/:hash/status — returns "pending"|"paid"|"expired"|
+    // "cancelled"|"error". "error" = no usable answer (network); the invoice
+    // itself is unaffected and the caller must keep polling.
     static String pollInvoiceStatus(const String& paymentHash);
 
     // GET /api/price?vs_currency=xxx — returns sats per 1 fiat unit (0 on error)
@@ -29,6 +33,8 @@ public:
     // GET /api/pos/config — returns the merchant's display currency + send rate modifier.
     static String fetchCurrency(String& outRateModifier, String& outSendRateModifier);
 
+    // Split an https URL into host/port/path (used to separate connect from request).
+    static bool splitHttpsUrl(const char* url, String& host, uint16_t& port, String& path);
 
     // GET /api/healthz — returns true on 200 (no auth, just connectivity)
     static bool healthCheck();
@@ -48,12 +54,27 @@ public:
     };
     static LnurlWithdraw fetchLnurl(const String& url, String& err);
 
-    // Call LNURL-withdraw callback with a bolt11 (and optional PIN)
-    // Returns "" on success, error reason on failure
-    static String callLnurlCallback(const String& callbackUrl,
-                                    const String& k1,
-                                    const String& bolt11,
-                                    const String& pin = "");
+    // Call LNURL-withdraw callback with a bolt11 (and optional PIN).
+    //
+    // The distinction below is what keeps a flaky link from producing either a
+    // stuck terminal or a double charge:
+    //   Accepted     server answered {"status":"OK"}: the card wallet was asked
+    //                to pay. Settlement is confirmed ONLY by invoice status.
+    //   Rejected     server answered {"status":"ERROR"} (PIN, limits, replay).
+    //                Nothing was dispatched; the same invoice may be retapped.
+    //   NotSent      we never got a byte onto the wire (DNS/TCP/TLS failed).
+    //                Nothing reached the server; the caller may retry the SAME
+    //                request or return to waiting. Not ambiguous.
+    //   Ambiguous    the request was written but no valid reply came back
+    //                (timeout, reset mid-response, non-JSON). The wallet may
+    //                have been asked to pay. Never repeat the request; keep
+    //                polling the invoice for a settlement.
+    enum class CallbackOutcome { Accepted, Rejected, NotSent, Ambiguous };
+    static CallbackOutcome callLnurlCallback(const String& callbackUrl,
+                                             const String& k1,
+                                             const String& bolt11,
+                                             const String& pin,
+                                             String& detail);
 
     // POST /api/pos/withdraw — create a LNURL-W for the merchant to send sats outward.
     // Returns the LNURL-W string (for QR display) or sets err on failure.

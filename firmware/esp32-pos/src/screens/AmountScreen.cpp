@@ -19,6 +19,7 @@ uint16_t AmountScreen::_lastDotColor = 0xFFFF;
 String   AmountScreen::_lastRateStr  = "";
 
 bool     AmountScreen::_sendMode      = false;
+bool     AmountScreen::_satsMode      = false;
 bool     AmountScreen::_payHoldActive = false;
 uint32_t AmountScreen::_payHoldStart  = 0;
 int      AmountScreen::_payHoldTx     = 0;
@@ -55,13 +56,36 @@ double AmountScreen::currentValue() {
     return v;
 }
 
+float AmountScreen::activeRate() {
+    return (_sendMode && _sendSatsPerUnit > 0.0f) ? _sendSatsPerUnit : _satsPerUnit;
+}
+
 long AmountScreen::getAmountSats() {
-    float rate = (_sendMode && _sendSatsPerUnit > 0.0f) ? _sendSatsPerUnit : _satsPerUnit;
+    if (_satsMode) {
+        // Typed value IS sats; no rate needed, so sats mode works even when the
+        // price feed is down. Cap at the same ceiling as fiat mode.
+        long sats = _whole;
+        if (sats > 99000000L) sats = 99000000L;
+        return sats < 0 ? 0 : sats;
+    }
+    float rate = activeRate();
     if (rate <= 0.0f) return 0;
     double sats = currentValue() * (double)rate + 0.5;
     if (sats > 99000000.0) sats = 99000000.0;
     if (sats < 0.0) sats = 0.0;
     return (long)sats;
+}
+
+// Fiat equivalent of the current sats amount (sats mode only), formatted with
+// the currency's decimals. Empty when the rate is unknown.
+String AmountScreen::fiatEquivalent() {
+    float rate = activeRate();
+    if (rate <= 0.0f) return String();
+    double fiat = (double)getAmountSats() / (double)rate;
+    char buf[32];
+    snprintf(buf, sizeof(buf), _decimals == 0 ? "%.0f" : "%.2f", fiat);
+    String code = _currencyCode; code.toUpperCase();
+    return String(buf) + " " + code;
 }
 
 String AmountScreen::groupDigits(long v) {
@@ -84,16 +108,24 @@ String AmountScreen::amountString() {
 }
 
 String AmountScreen::fiatLabel() {
+    if (_satsMode) return groupDigits(getAmountSats()) + " sats";
     String code = _currencyCode; code.toUpperCase();
     return amountString() + " " + code;
 }
 
 String AmountScreen::rateString() {
-    float rate = (_sendMode && _sendSatsPerUnit > 0.0f) ? _sendSatsPerUnit : _satsPerUnit;
+    float rate = activeRate();
     if (rate <= 0.0f) return String("-");
     String code = _currencyCode; code.toUpperCase();
-    char buf[24];
-    snprintf(buf, sizeof(buf), rate >= 10.0f ? "%.0f sats/%s" : "%.1f sats/%s", rate, code.c_str());
+    char buf[28];
+    if (_satsMode) {
+        // Inverted: fiat per sat. Pick a precision that keeps 3 significant digits.
+        double perSat = 1.0 / (double)rate;
+        const char* fmt = perSat >= 1.0 ? "%.2f %s/sat" : perSat >= 0.1 ? "%.3f %s/sat" : perSat >= 0.01 ? "%.4f %s/sat" : "%.5f %s/sat";
+        snprintf(buf, sizeof(buf), fmt, perSat, code.c_str());
+    } else {
+        snprintf(buf, sizeof(buf), rate >= 10.0f ? "%.0f sats/%s" : "%.1f sats/%s", rate, code.c_str());
+    }
     return String(buf);
 }
 
@@ -140,11 +172,16 @@ void AmountScreen::drawHeader(TFT_eSPI& tft) {
         tft.drawString("SEND", header.badgeX+19, 10);
     }
 
-    // Currency badge — right
-    String badge = _currencyCode; badge.toUpperCase();
-    tft.setTextColor(COL_ACCENT, COL_BG2);
-    tft.setTextDatum(TR_DATUM);
-    tft.drawString(badge, SCREEN_W - 4, 3);
+    // Currency badge — right. Tapping it toggles fiat <-> sats entry.
+    // Drawn as a small chip so it reads as a control, not a label.
+    String badge = _satsMode ? String("SATS") : _currencyCode; badge.toUpperCase();
+    tft.setTextFont(FONT_SMALL);
+    const int bw = tft.textWidth(badge) + 10;
+    tft.fillRoundRect(SCREEN_W - 4 - bw, 2, bw, 16, 4, _satsMode ? COL_ACCENT : COL_BG2);
+    tft.drawRoundRect(SCREEN_W - 4 - bw, 2, bw, 16, 4, COL_ACCENT);
+    tft.setTextColor(_satsMode ? COL_ON_ACCENT : COL_ACCENT, _satsMode ? COL_ACCENT : COL_BG2);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString(badge, SCREEN_W - 4 - bw / 2, 10);
 
     _lastDotColor = 0xFFFF;
     _lastRateStr  = "";
@@ -158,7 +195,7 @@ void AmountScreen::updateHeader(TFT_eSPI& tft) {
     if (rs != _lastRateStr) {
         // Clear the center area only — leave currency badge intact
         int clearStart = header.clearStart;
-        int clearEnd = SCREEN_W - 40;
+        int clearEnd = SCREEN_W - 52;
         tft.fillRect(clearStart, 2, clearEnd - clearStart, 16, COL_BG2);
         tft.setTextFont(FONT_SMALL);
         tft.setTextColor(COL_MUTED, COL_BG2);
@@ -226,6 +263,18 @@ void AmountScreen::drawPayButton(TFT_eSPI& tft, bool enabled) {
     if (!hasInput()) {
         tft.setTextFont(FONT_MED);
         tft.drawString(verb, SCREEN_W / 2, btnY + btnH / 2);
+    } else if (_satsMode) {
+        // Primary line: the sats amount typed. Secondary: fiat equivalent.
+        char mainBuf[48];
+        snprintf(mainBuf, sizeof(mainBuf), "%s %s sats", verb, groupDigits(getAmountSats()).c_str());
+        tft.setTextFont(FONT_MED);
+        tft.setTextColor(fg, bg);
+        tft.drawString(mainBuf, SCREEN_W / 2, btnY + 14);
+
+        tft.setTextFont(FONT_SMALL);
+        tft.setTextColor(subfg, bg);
+        String eq = fiatEquivalent();
+        tft.drawString(eq.isEmpty() ? String("Price unavailable") : eq, SCREEN_W / 2, btnY + 32);
     } else {
         String code = _currencyCode; code.toUpperCase();
         char fiatBuf[48];
@@ -262,7 +311,7 @@ bool AmountScreen::handleTouch(TFT_eSPI& tft, int tx, int ty) {
             else              { _decimalMode = false; }
         } else { _whole /= 10; }
     } else if (key == '.') {
-        if (_decimals > 0 && !_decimalMode) _decimalMode = true;
+        if (!_satsMode && _decimals > 0 && !_decimalMode) _decimalMode = true;
     } else if (key >= '0' && key <= '9') {
         int d = key - '0';
         if (!_decimalMode) {
@@ -279,6 +328,42 @@ bool AmountScreen::handleTouch(TFT_eSPI& tft, int tx, int ty) {
 
 bool AmountScreen::isSettingsTap(int tx, int ty) {
     return (tx >= 0 && tx < 28 && ty >= 0 && ty < 24);
+}
+
+// Currency chip hit zone: right end of the header, generous for a thumb.
+bool AmountScreen::isCurrencyTap(int tx, int ty) {
+    return (tx >= SCREEN_W - 72 && tx < SCREEN_W && ty >= 0 && ty < 24);
+}
+
+bool AmountScreen::isSatsMode() { return _satsMode; }
+
+// Flip fiat <-> sats entry, carrying the current amount across so the
+// cashier never loses what was typed. Redraws header + pay button only.
+void AmountScreen::toggleSatsMode(TFT_eSPI& tft) {
+    const long sats = getAmountSats();
+    const float rate = activeRate();
+    _satsMode = !_satsMode;
+    _decimalMode = false; _frac = 0; _fracLen = 0;
+    if (_satsMode) {
+        _whole = sats;
+    } else {
+        // Convert sats back to fiat at the active rate; keep the currency's
+        // decimal places. With no rate the amount must be re-entered.
+        if (rate > 0.0f && sats > 0) {
+            double fiat = (double)sats / (double)rate;
+            _whole = (long)fiat;
+            if (_decimals > 0) {
+                double scale = 1.0; for (int i = 0; i < _decimals; i++) scale *= 10.0;
+                long frac = (long)((fiat - (double)_whole) * scale + 0.5);
+                if (frac >= (long)scale) { _whole += 1; frac = 0; }
+                if (frac > 0) { _frac = frac; _fracLen = _decimals; _decimalMode = true; }
+            }
+        } else {
+            _whole = 0;
+        }
+    }
+    drawHeader(tft);
+    drawPayButton(tft, getAmountSats() > 0);
 }
 
 extern float effectiveSatsPerUnit();

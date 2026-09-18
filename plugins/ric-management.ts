@@ -92,9 +92,30 @@ export async function handleRicFirmwareRoute(req: IncomingMessage, res: ServerRe
   catch { return json(req, res, 503, {error: "Firmware release unavailable"}); }
   if (version) return json(req, res, 200, release.firmware);
   if (immutable && immutable[1] !== release.firmware.sha256) return json(req, res, 404, {error: "Firmware image not found"});
-  res.writeHead(200, {"Content-Type": "application/octet-stream", "Content-Length": release.image.length,
+  const total = release.image.length;
+  const common = {"Content-Type": "application/octet-stream", "Accept-Ranges": "bytes",
     "Cache-Control": immutable ? "public, max-age=31536000, immutable, no-transform" : "no-store, no-transform",
-    "ETag": `"${release.firmware.sha256}"`, "Connection": "close", "X-Content-Type-Options": "nosniff"});
+    "ETag": `"${release.firmware.sha256}"`, "Connection": "close", "X-Content-Type-Options": "nosniff"};
+  // Resumable download. The RIC's TCP window is ~5.7 KB, so a 1.3 MB image
+  // over a 300 ms RTT link takes minutes and any stall used to restart from
+  // zero. With Range the device keeps what it has flashed and asks for the
+  // rest. Only the single-range form "bytes=<start>-[<end>]" is supported.
+  const range = req.headers.range;
+  if (typeof range === "string") {
+    const m = range.match(/^bytes=(\d+)-(\d*)$/);
+    const start = m ? Number(m[1]) : NaN;
+    const end = m && m[2] ? Math.min(Number(m[2]), total - 1) : total - 1;
+    if (!m || !Number.isSafeInteger(start) || start >= total || end < start) {
+      res.writeHead(416, {...common, "Content-Range": `bytes */${total}`, "Content-Length": 0});
+      res.end();
+      return true;
+    }
+    const chunk = release.image.subarray(start, end + 1);
+    res.writeHead(206, {...common, "Content-Length": chunk.length, "Content-Range": `bytes ${start}-${end}/${total}`});
+    res.end(req.method === "HEAD" ? undefined : chunk);
+    return true;
+  }
+  res.writeHead(200, {...common, "Content-Length": total});
   res.end(req.method === "HEAD" ? undefined : release.image);
   return true;
 }

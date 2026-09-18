@@ -23,8 +23,10 @@ public:
     static bool reinit();
 
     // Phase 1 — detect a card and capture its UID.
-    // Non-blocking relative to the main loop (300ms RF window).
-    // Returns true if a card entered the field. Must be followed by readNdef().
+    // Blocking I/O: 300ms library wait parameter, not a wall-clock deadline.
+    // Run on the NFC worker; classic ESP32 clock stretching can take longer.
+    // Returns true for a UID that fits the reader. Failure clears outUid.
+    // Follow with readNdef(), or use getNfc() for provisioning/wiping.
     static bool detectCard(String& outUid);
 
     // Phase 2 — read NDEF URL from the card detected in the last detectCard() call.
@@ -52,6 +54,9 @@ private:
 
     // UID bytes to hex string
     static String uidToHex(uint8_t* uid, uint8_t len);
+
+    // Stage the library's uint8_t-length output before copying into a UID buffer.
+    static bool readUid(uint8_t* uid, size_t capacity, uint8_t& len, uint16_t timeout);
 
     // Toggle PN532 RF field (RFConfiguration 0x32, CfgItem 0x01).
     // Used between ISOReadFile retries to hard-reset the card's internal state.

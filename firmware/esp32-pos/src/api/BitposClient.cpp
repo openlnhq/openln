@@ -158,7 +158,10 @@ String BitposClient::pollInvoiceStatus(const String& paymentHash) {
     DBG_PRINTF("GET %s → HTTP %d\n", _urlBuf, code);
     if (code != 200) {
         _authHttp.end();
-        if (code <= 0) _authClient.stop();
+        // Any non-200 (transport, 5xx, 401 during a token refresh, a proxy
+        // 502) is "no answer". It says nothing about the invoice. Drop the
+        // socket so the next poll starts with a clean handshake.
+        _authClient.stop();
         return "error";
     }
     _respBuf = _authHttp.getString();   // reuses pre-allocated buffer
@@ -166,11 +169,14 @@ String BitposClient::pollInvoiceStatus(const String& paymentHash) {
 
     JsonDocument doc;
     if (deserializeJson(doc, _respBuf)) return "error";
-    return doc["status"] | "pending";
+    const char* s = doc["status"] | "";
+    if (!*s) return "error";
+    return String(s);
 }
 
-Invoice BitposClient::createInvoice(long amountSats, String& err) {
+Invoice BitposClient::createInvoice(long amountSats, String& err, bool& transient) {
     Invoice inv;
+    transient = false;
     snprintf(_urlBuf, sizeof(_urlBuf), "%s/pos/invoice", _serverUrl.c_str());
     // Build request JSON in static buffer — no heap allocation
     snprintf(_postBody, sizeof(_postBody),
@@ -179,6 +185,7 @@ Invoice BitposClient::createInvoice(long amountSats, String& err) {
     if (!beginAuthRequest(_urlBuf)) {
         _authClient.stop();
         err = "Connection failed";
+        transient = true;
         return inv;
     }
     _authHttp.addHeader("Authorization", _authHeader);
@@ -188,14 +195,23 @@ Invoice BitposClient::createInvoice(long amountSats, String& err) {
     if (code <= 0) {
         _authHttp.end();
         _authClient.stop();
-        err = "Transport error";
+        err = "Connection failed";
+        transient = true;      // nothing usable came back; safe to ask again
         return inv;
     }
     _respBuf = _authHttp.getString();   // reuses pre-allocated buffer
     _authHttp.end();
+    if (code >= 500 || code == 429) {
+        // Server or upstream wallet hiccup (e.g. a wallet RPC timeout). The
+        // request itself was fine; a fresh attempt is the right move.
+        _authClient.stop();
+        err = "Server busy";
+        transient = true;
+        return inv;
+    }
 
     JsonDocument doc;
-    if (deserializeJson(doc, _respBuf)) { err = "Invalid JSON"; return inv; }
+    if (deserializeJson(doc, _respBuf)) { err = "Invalid JSON"; transient = true; return inv; }
 
     if (doc["error"].is<const char*>()) {
         err = doc["error"].as<String>();
@@ -209,6 +225,11 @@ Invoice BitposClient::createInvoice(long amountSats, String& err) {
     inv.paymentHash = doc["paymentHash"].as<String>();
     inv.amountSats  = doc["amountSats"].as<long>();
     inv.expiresAt   = doc["expiresAt"].as<String>();
+    if (inv.bolt11.isEmpty() || inv.paymentHash.length() != 64) {
+        inv = Invoice{};
+        err = "Invalid invoice";
+        transient = true;
+    }
     return inv;
 }
 
@@ -252,36 +273,95 @@ BitposClient::LnurlWithdraw BitposClient::fetchLnurl(const String& url, String& 
     return lw;
 }
 
-String BitposClient::callLnurlCallback(const String& callbackUrl,
-                                       const String& k1,
-                                       const String& bolt11,
-                                       const String& pin) {
+BitposClient::CallbackOutcome BitposClient::callLnurlCallback(const String& callbackUrl,
+                                                              const String& k1,
+                                                              const String& bolt11,
+                                                              const String& pin,
+                                                              String& detail) {
     // Build URL from components — avoids fragile string-slice reconstruction.
     // Use _urlBuf for the base; append directly since callback URL may already
-    // contain '?' — total length should stay well under 256 bytes.
-    snprintf(_urlBuf, sizeof(_urlBuf), "%s%sk1=%s&pr=%s%s%s",
+    // contain '?' — total length should stay well under 1024 bytes.
+    int n = snprintf(_urlBuf, sizeof(_urlBuf), "%s%sk1=%s&pr=%s%s%s",
              callbackUrl.c_str(),
              (callbackUrl.indexOf('?') < 0 ? "?" : "&"),
              k1.c_str(),
              bolt11.c_str(),
              (pin.isEmpty() ? "" : "&pin="),
              (pin.isEmpty() ? "" : pin.c_str()));
+    if (n < 0 || n >= (int)sizeof(_urlBuf)) {
+        detail = "Card request too long";
+        return CallbackOutcome::Rejected;    // never sent; nothing to reconcile
+    }
 
-    // Uses ephemeral pub client — third-party card server; must NOT send device token
-    if (!beginPubRequest(_urlBuf)) return "Connection failed";
+    // Uses ephemeral pub client — third-party card server; must NOT send device token.
+    if (!beginPubRequest(_urlBuf)) { detail = "Connection failed"; return CallbackOutcome::NotSent; }
+
+    // Connect (DNS + TCP + TLS) is separated from the request so a link that
+    // never came up is reported as NotSent, not as an ambiguous dispatch.
+    // HTTPClient::connect() is protected, so connect the client ourselves;
+    // HTTPClient reuses an already-connected client without reconnecting.
+    {
+        String host, path; uint16_t port = 443;
+        if (!splitHttpsUrl(_urlBuf, host, port, path)) { detail = "Invalid card URL"; return CallbackOutcome::Rejected; }
+        if (!_pubClient.connect(host.c_str(), port, 10000)) {
+            _pubClient.stop();
+            detail = "Connection failed";
+            return CallbackOutcome::NotSent;
+        }
+    }
+
+    // From here on the request may reach the wallet: every failure is Ambiguous.
     int code = _pubHttp.GET();
-    _respBuf = _pubHttp.getString();    // reuses pre-allocated buffer
+    _respBuf = (code > 0) ? _pubHttp.getString() : String();   // reuses pre-allocated buffer
     _pubHttp.end();
     _pubClient.stop();
 
-    if (code != 200) return "Server returned " + String(code);
+    if (code <= 0) {
+        detail = "No reply from card server";
+        return CallbackOutcome::Ambiguous;
+    }
+    if (code != 200) {
+        // A 4xx/5xx from the card server is a real answer, but LNURL only
+        // defines the JSON body as the contract. Treat as ambiguous to be safe:
+        // a proxy 502 can hide a request that already reached the wallet.
+        detail = "Server returned " + String(code);
+        return CallbackOutcome::Ambiguous;
+    }
 
     JsonDocument doc;
-    if (deserializeJson(doc, _respBuf)) return "Invalid response";
+    if (deserializeJson(doc, _respBuf)) { detail = "Invalid response"; return CallbackOutcome::Ambiguous; }
 
-    String status = doc["status"] | "ERROR";
-    if (status == "OK") return "";
-    return doc["reason"] | "Payment failed";
+    String status = doc["status"] | "";
+    if (status == "OK") { detail = ""; return CallbackOutcome::Accepted; }
+    if (status == "ERROR") {
+        detail = doc["reason"] | "Payment failed";
+        // The server explicitly says a previous tap is still in flight on this
+        // card. That is not a rejection of this invoice; do not retap.
+        if (detail.indexOf("still processing") >= 0) return CallbackOutcome::Ambiguous;
+        return CallbackOutcome::Rejected;
+    }
+    detail = "Invalid response";
+    return CallbackOutcome::Ambiguous;
+}
+
+// Split https://host[:port]/path... into parts. Returns false for non-https.
+bool BitposClient::splitHttpsUrl(const char* url, String& host, uint16_t& port, String& path) {
+    if (strncmp(url, "https://", 8) != 0) return false;
+    const char* p = url + 8;
+    const char* slash = strchr(p, '/');
+    String authority = slash ? String(p).substring(0, slash - p) : String(p);
+    path = slash ? String(slash) : String("/");
+    int colon = authority.indexOf(':');
+    port = 443;
+    if (colon >= 0) {
+        long v = authority.substring(colon + 1).toInt();
+        if (v <= 0 || v > 65535) return false;
+        port = (uint16_t)v;
+        host = authority.substring(0, colon);
+    } else {
+        host = authority;
+    }
+    return !host.isEmpty();
 }
 
 // ── Send mode: create a LNURL-W for outward payment ─────────────────────────

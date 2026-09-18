@@ -36,6 +36,12 @@ public:
     // Split an https URL into host/port/path (used to separate connect from request).
     static bool splitHttpsUrl(const char* url, String& host, uint16_t& port, String& path);
 
+    // POST /api/pos/invoice/:hash/cancel — tell the server the cashier cancelled
+    // this checkout so the hold is closed now instead of at expiry. Best effort:
+    // one attempt, short timeout, result ignored. The server also cleans up
+    // abandoned checkouts on its own, so a lost cancel costs nothing.
+    static void cancelInvoice(const String& paymentHash);
+
     // GET /api/healthz — returns true on 200 (no auth, just connectivity)
     static bool healthCheck();
 

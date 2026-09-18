@@ -8,7 +8,7 @@ import { createBuiltinRegistry } from "./plugins/builtin.js";
 import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
-import { createWrappedInvoice } from "./money/holdWrap.js";
+import { createWrappedInvoice, cancelWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
@@ -71,7 +71,7 @@ const server = createServer(async (req, res) => {
     // otherwise it can overwrite the merchant Send PIN or call wallet/pay.
     if(currentAccount && /^[0-9a-f]{64}$/.test(cardToken ?? "")) {
       const deviceAllowed = (req.method === "GET" && (/^\/api\/pos\/(config|invoice\/[^/]+\/status|withdraw\/[^/]+\/status|next-provision|wipe-keys\/[^/]+)$/.test(u.pathname) || u.pathname === "/api/price" || /^\/api\/firmware\//.test(u.pathname))) ||
-        (req.method === "POST" && (/^\/api\/pos\/(invoice|withdraw|send-to-card|mark-written\/[^/]+|mark-wiped\/[^/]+)$/.test(u.pathname) || ["/api/ric/hello","/api/ric/status"].includes(u.pathname)));
+        (req.method === "POST" && (/^\/api\/pos\/(invoice|invoice\/[^/]+\/cancel|withdraw|send-to-card|mark-written\/[^/]+|mark-wiped\/[^/]+)$/.test(u.pathname) || ["/api/ric/hello","/api/ric/status"].includes(u.pathname)));
       if(!deviceAllowed)return json(res,403,{error:"Device credential cannot access account settings or browser wallet operations"});
     }
     if(await handleCardsPreview(req,res,u))return;
@@ -324,6 +324,19 @@ const server = createServer(async (req, res) => {
       const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);
       await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
       return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
+    }
+    // Merchant cancelled the sale on the RIC or in the web POS. Closes a
+    // wrap that has not been accepted yet; never touches accepted or paid.
+    const posCancel = u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/cancel$/);
+    if (req.method === "POST" && posCancel) {
+      if(!currentAccount)return json(res,401,{error:"Authentication required"});
+      const paymentHash = decodeURIComponent(posCancel[1]);
+      const [invoice] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.paymentHash, paymentHash));
+      if (!invoice || invoice.accountId!==currentAccount.id) return json(res, 404, { status: "unknown", paymentHash });
+      if (invoice.paidAt || invoice.wrapStatus === "settled") return json(res, 200, { status: "paid", paymentHash });
+      if (!invoice.wrapStatus) return json(res, 200, { status: invoice.expiresAt < new Date() ? "expired" : "pending", paymentHash, note: "direct invoices expire on their own" });
+      const status = await cancelWrap(invoice as unknown as WrapRow, `merchant:${currentAccount.id}`);
+      return json(res, 200, { status: status === "settled" ? "paid" : status, paymentHash });
     }
     const posStatus = u.pathname.match(/^\/api\/pos\/invoice\/([^/]+)\/status$/);
     if (req.method === "GET" && posStatus) {

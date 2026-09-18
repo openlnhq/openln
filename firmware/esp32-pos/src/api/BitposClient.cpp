@@ -174,6 +174,20 @@ String BitposClient::pollInvoiceStatus(const String& paymentHash) {
     return String(s);
 }
 
+void BitposClient::cancelInvoice(const String& paymentHash) {
+    if (paymentHash.length() != 64) return;
+    snprintf(_urlBuf, sizeof(_urlBuf), "%s/pos/invoice/%s/cancel", _serverUrl.c_str(), paymentHash.c_str());
+    if (!beginAuthRequest(_urlBuf)) { _authClient.stop(); return; }
+    _authHttp.setTimeout(4000);            // never hold the cashier hostage
+    _authHttp.addHeader("Authorization", _authHeader);
+    _authHttp.addHeader("Content-Type", "application/json");
+    int code = _authHttp.POST((uint8_t*)"{}", 2);
+    Serial.printf("RIC cancel: hash=%.12s http=%d\n", paymentHash.c_str(), code);
+    if (code > 0) _respBuf = _authHttp.getString();
+    _authHttp.end();
+    if (code <= 0) _authClient.stop();
+}
+
 Invoice BitposClient::createInvoice(long amountSats, String& err, bool& transient) {
     Invoice inv;
     transient = false;

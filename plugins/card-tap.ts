@@ -18,8 +18,7 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { verifyCardPin } from "../core/auth/card-pin.js";
-import { db, pool } from "../core/db/index.js";
-import { extractPaymentHash } from "../core/money/lnAddress.js";
+import { db } from "../core/db/index.js";
 import { cardsTable, transactionsTable } from "../core/db/index.js";
 import { eq, and, gte, isNull, isNotNull, sql } from "drizzle-orm";
 import { decryptSunP, verifySunC, parseBolt11AmountSats, generateK1 } from "../core/money/boltcard.js";
@@ -29,11 +28,10 @@ import { settleInvoiceByPaymentHash } from "../core/money/invoiceMonitor.js";
 import { decrypt } from "../core/money/encrypt.js";
 import { logger } from "../core/money/logger.js";
 import { DOMAIN } from "../core/domain.js";
-import { claimCardPayment } from './ric-card-claim.js';
 
 type Request = { params: Record<string,string>; query: Record<string,string> };
 type Response = { json: (value: unknown) => void };
-const K1_TTL_MS = 10 * 60 * 1000; // Customer interaction window, independent of HTTP budgets
+const K1_TTL_MS = 5 * 60 * 1000; // k1 challenge expires after 5 minutes
 
 function resolveKey(encrypted: string): string {
   return decrypt(encrypted);
@@ -207,79 +205,6 @@ async function tap(req: Request, res: Response): Promise<void> {
   res.json(tapResp);
 }
 
-/** Only pre-dispatch PIN checks may restore a still-current challenge.
- * Lock and compare the SUN counter so a late rejection cannot overwrite a new tap.
- * Failure counting is under the same row lock, not a stale read/add/write.
- */
-async function rejectPinBeforeDispatch(cardId: string, counter: number, k1: string, expiresAt: Date | null, pinHash: string, wrong: boolean): Promise<Record<string, unknown>> {
-  return db.transaction(async tx => {
-    const [current] = await tx.select({counter:cardsTable.counter,pendingK1:cardsTable.pendingK1,pinHash:cardsTable.pinHash,pinFailCount:cardsTable.pinFailCount,pinLockedAt:cardsTable.pinLockedAt,status:cardsTable.status}).from(cardsTable).where(eq(cardsTable.id,cardId)).for("update");
-    const rejected = (code: string, reason: string) => ({status:"ERROR",code,dispatched:false,reason});
-    if (!current || current.status !== "active" || current.pinHash !== pinHash || current.counter !== counter || current.pendingK1 !== null) return rejected("CHALLENGE_REPLACED", "Card challenge changed. Tap the card again.");
-    if (current.pinLockedAt) return rejected("CARD_PIN_LOCKED", "Card is locked. Unlock it in the app.");
-    const failCount = current.pinFailCount + (wrong ? 1 : 0);
-    if (failCount >= 3) {
-      await tx.update(cardsTable).set({pinFailCount:failCount,pinLockedAt:new Date()}).where(eq(cardsTable.id,cardId));
-      return rejected("CARD_PIN_LOCKED", "Card is locked after three incorrect attempts. Unlock it in the app.");
-    }
-    if (!expiresAt || expiresAt.getTime() <= Date.now()) return rejected("CHALLENGE_EXPIRED", "Card challenge expired. Tap the card again.");
-    await tx.update(cardsTable).set({pendingK1:k1,pendingK1ExpiresAt:expiresAt,pinFailCount:failCount}).where(and(eq(cardsTable.id,cardId),eq(cardsTable.counter,counter),isNull(cardsTable.pendingK1)));
-    return rejected(wrong ? "PIN_INVALID" : "PIN_REQUIRED", wrong ? "Incorrect card PIN" : "Card PIN required");
-  });
-}
-
-/** Only the wallet's specific balance rejection is eligible for typed failure.
- * A timeout containing "insufficient", or insufficient routing information, is
- * not balance proof. The failed transaction below is also mandatory: feeEngine
- * may have lost its failure CAS to settlement, or failed to persist the outcome.
- */
-function isInsufficientBalance(reason: unknown): boolean {
-  return typeof reason === 'string' && /^insufficient (?:balance|funds)[.!]?$/i.test(reason.trim());
-}
-const cardFailure = () => ({code:'INSUFFICIENT_BALANCE' as const,paymentFailed:true as const,dispatched:true as const,reason:'Insufficient balance'});
-
-/** The existing failed send is the durable receipt, not an extra best-effort
- * log write. This survives a lost callback, response deadline, or process restart
- * after feeEngine finalizes. Never reuse a historical failed attempt if another
- * send or a newer claim exists for this invoice, even on another card/account.
- * The invoice remains unpaid/non-terminal: callers must REQUEST cancellation.
- */
-async function readCardFailure(paymentHash: string, merchantAccountId: string | null, attempt?: {cardId:string;accountId:string;bolt11:string;since:Date}): Promise<boolean> {
-  if (!/^[0-9a-f]{64}$/.test(paymentHash)) return false;
-  const result = await pool.query(`
-    SELECT t.failure_reason FROM transactions t
-    LEFT JOIN pending_invoices i ON i.payment_hash=t.payment_hash
-    WHERE t.payment_hash=$1 AND t.direction='out' AND t.type='send'
-      AND t.card_id IS NOT NULL AND t.status='failed'
-      AND ($2::uuid IS NULL OR i.account_id=$2)
-      AND ($3::uuid IS NULL OR t.card_id=$3)
-      AND ($4::uuid IS NULL OR t.account_id=$4)
-      AND ($5::text IS NULL OR t.bolt11=$5)
-      AND ($6::timestamptz IS NULL OR t.created_at >= $6)
-      AND (i.id IS NULL OR (i.bolt11=t.bolt11 AND i.created_at <= t.created_at
-        AND i.paid_at IS NULL AND (i.wrap_status IS NULL OR i.wrap_status='created')))
-      AND NOT EXISTS (SELECT 1 FROM transactions other
-        WHERE other.payment_hash=t.payment_hash AND other.direction='out' AND other.id<>t.id)
-      AND NOT EXISTS (SELECT 1 FROM ric_card_claims c
-        WHERE c.payment_hash=t.payment_hash AND (c.card_id<>t.card_id
-          OR c.account_id<>t.account_id OR c.created_at > t.created_at))
-    LIMIT 1`, [paymentHash,merchantAccountId,attempt?.cardId??null,attempt?.accountId??null,attempt?.bolt11??null,attempt?.since??null]);
-  return isInsufficientBalance(result.rows[0]?.failure_reason);
-}
-
-/** Authenticated merchant status extension, scoped to the exact owned invoice.
- * No card identifiers, card wallet data, or k1 challenges cross this boundary.
- * Existing paid/accepted/forwarding/cancelled views must retain precedence.
- */
-export async function getRicCardFailure(accountId:string,paymentHash:string) {
-  try {
-    if (await readCardFailure(paymentHash,accountId)) return {status:'card_failed',paymentHash,...cardFailure()};
-  } catch (err) {
-    logger.warn({paymentHash,err},'Card failure proof unavailable; keeping invoice pending');
-  }
-  return undefined;
-}
-
 // ── Callback: GET /card/:cardId/callback?k1=<challenge>&pr=<bolt11> ──────────
 async function callback(req: Request, res: Response): Promise<void> {
   // Anchor the response deadline to request arrival. The POS device aborts its
@@ -299,7 +224,7 @@ async function callback(req: Request, res: Response): Promise<void> {
 
   // ── Pre-check frozen status (non-atomic, safe - k1 consumption below is still atomic) ──
   const [cardRow] = await db
-    .select({ status: cardsTable.status, name: cardsTable.name, note: cardsTable.note, pendingK1ExpiresAt: cardsTable.pendingK1ExpiresAt })
+    .select({ status: cardsTable.status, name: cardsTable.name, note: cardsTable.note })
     .from(cardsTable)
     .where(eq(cardsTable.id, cardId));
 
@@ -333,7 +258,7 @@ async function callback(req: Request, res: Response): Promise<void> {
       dailyLimitSats: cardsTable.dailyLimitSats,
       pinHash: cardsTable.pinHash,
       pinLimitMsats: cardsTable.pinLimitMsats,
-      counter: cardsTable.counter,
+      pinFailCount: cardsTable.pinFailCount,
     });
 
   if (!consumed) {
@@ -341,7 +266,7 @@ async function callback(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const { accountId: cardAccountId, perTapLimitSats, dailyLimitSats, pinHash, pinLimitMsats, counter } = consumed;
+  const { accountId: cardAccountId, perTapLimitSats, dailyLimitSats, pinHash, pinLimitMsats, pinFailCount } = consumed;
   const cardShortId = cardId.replace(/-/g, "").slice(-8).replace(/(.{4})(.{4})/, "$1 $2");
   const cardLabel = cardRow?.name ?? cardShortId;
 
@@ -392,11 +317,28 @@ async function callback(req: Request, res: Response): Promise<void> {
 
     if (pinRequired) {
       if (!pinParam) {
-        res.json(await rejectPinBeforeDispatch(cardId, counter, k1, cardRow?.pendingK1ExpiresAt ?? null, pinHash, false));
+        res.json({ status: "ERROR", reason: "PIN required" });
         return;
       }
-      if (!await verifyCardPin(pinParam, pinHash)) {
-        res.json(await rejectPinBeforeDispatch(cardId, counter, k1, cardRow?.pendingK1ExpiresAt ?? null, pinHash, true));
+
+      const pinMatch = await verifyCardPin(pinParam, pinHash);
+      if (!pinMatch) {
+        const newFailCount = pinFailCount + 1;
+        if (newFailCount >= 3) {
+          await db
+            .update(cardsTable)
+            .set({ pinFailCount: newFailCount, pinLockedAt: new Date() })
+            .where(eq(cardsTable.id, cardId));
+          logger.warn({ cardId }, "Card PIN locked after 3 failed attempts");
+          res.json({ status: "ERROR", reason: "Incorrect PIN. Card is now locked - unlock it in the app." });
+        } else {
+          await db
+            .update(cardsTable)
+            .set({ pinFailCount: newFailCount })
+            .where(eq(cardsTable.id, cardId));
+          logger.warn({ cardId, failCount: newFailCount }, "Card PIN mismatch");
+          res.json({ status: "ERROR", reason: `Incorrect PIN. ${3 - newFailCount} attempt(s) remaining.` });
+        }
         return;
       }
 
@@ -412,7 +354,9 @@ async function callback(req: Request, res: Response): Promise<void> {
   // A pending send on this card means a previous tap's outcome is still
   // unresolved (ambiguous relay timeout). Paying again now is exactly how the
   // triple-charge incident happened - block until it resolves. The background
-  // reconciler resolves pending sends from wallet proof. Age never clears it.
+  // reconciler finalizes pending sends within minutes, and the window bounds
+  // the block even if it cannot.
+  const guardCutoff = new Date(Date.now() - 15 * 60 * 1000);
   const [inflightTx] = await db
     .select({ id: transactionsTable.id })
     .from(transactionsTable)
@@ -421,6 +365,7 @@ async function callback(req: Request, res: Response): Promise<void> {
         eq(transactionsTable.cardId, cardId),
         eq(transactionsTable.direction, "out"),
         eq(transactionsTable.status, "pending"),
+        gte(transactionsTable.createdAt, guardCutoff),
       ),
     )
     .limit(1);
@@ -459,7 +404,7 @@ async function callback(req: Request, res: Response): Promise<void> {
   // callback stalls (production incident: 72s hold). If the budget expires,
   // respond "still processing" and let the work finish in the background -
   // the DB row is finalized either way and the in-flight guard clears.
-  const executePayment = async (): Promise<{ status: "OK" } | { status: "ERROR"; reason: string } | ({status:'ERROR';k1:string} & ReturnType<typeof cardFailure>)> => {
+  const executePayment = async (): Promise<{ status: "OK" } | { status: "ERROR"; reason: string }> => {
     try {
       const { paymentHash, feeSats } = await processExternalPayment(
         cardAccountId,
@@ -524,23 +469,10 @@ async function callback(req: Request, res: Response): Promise<void> {
         return { status: "OK" };
       }
       logger.error({ cardId, accountId: cardAccountId, amountSats, err }, "Bolt Card payment failed");
-      if (/^[0-9a-f]{64}$/.test(k1) && isInsufficientBalance(err instanceof Error ? err.message : String(err))) {
-        try {
-          if (await readCardFailure(extractPaymentHash(pr),null,{cardId,accountId:cardAccountId,bolt11:pr,since:new Date(requestStart)})) {
-            return {status:'ERROR',k1,...cardFailure()};
-          }
-        } catch (proofErr) {
-          logger.warn({cardId,proofErr},'Card failure proof unavailable; retaining ambiguous device recovery');
-        }
-      }
       return { status: "ERROR", reason: payFailureReason(err) };
     }
   };
 
-  if(!await claimCardPayment(cardId,cardAccountId,pr,amountSats)) {
-    res.json({status:'ERROR',code:'CARD_PAYMENT_PENDING',dispatched:false,reason:'Card payment or spending-limit reservation is unresolved. Check the account.'});
-    return;
-  }
   const work = executePayment();
   // Remaining time before the POS device's HTTP deadline, measured from request
   // arrival so slow prechecks (e.g. a stalled balance read) do not eat into the
@@ -589,11 +521,11 @@ async function callback(req: Request, res: Response): Promise<void> {
 // we answer OK ("payment on the way") and finish in the background. The POS
 // confirms via its own invoice settlement, so answering early is safe and never
 // shows a false "paid".
-const CARD_TAP_GLOBAL_DEADLINE_MS = 1_500;
+const CARD_TAP_GLOBAL_DEADLINE_MS = 6_000;
 
 // Minimum window the payment step always gets, even if prior steps ran slow, so
 // a fast in-network settlement can still confirm within the same tap.
-const CARD_TAP_MIN_PAYMENT_WINDOW_MS = 250;
+const CARD_TAP_MIN_PAYMENT_WINDOW_MS = 1_500;
 
 /** Map definitive pay failures to actionable messages; generic otherwise. */
 function payFailureReason(err: unknown): string {

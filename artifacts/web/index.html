@@ -1511,7 +1511,6 @@ async function admRenderList(silent){
     const T=data.treasury;
     body.innerHTML=`
       ${T?admTreasuryBlock(T):''}
-      <p class="dim" style="font-size:12px;margin-top:14px">To cancel a stuck payment, select its row and choose <strong>Cancel payment</strong>.</p>
       <div class="admfilters">
         <input class="input mono" id="admSearch" placeholder="hash · handle · memo · uuid" value="${esc(ADM_Q)}">
         <select id="admKind">
@@ -1602,10 +1601,9 @@ async function admRenderDetail(id,silent){
   const body=$('#admDetailBody'); if(!body) return;
   const noteVal=silent?($('#admNote')?.value??''):'';
   try{
-    const d=await api(`/api/admin/payments/${encodeURIComponent(id)}?live=0`);
+    const d=await api(`/api/admin/payments/${encodeURIComponent(id)}`);
     const amt=d.invoice?d.invoice.amountSats:(d.transaction?d.transaction.amountSats:0);
-    const checkoutStatus=typeof d.checkoutStatus==='string'?d.checkoutStatus:d.checkoutStatus?.status;
-    const statusLabel=checkoutStatus==='cancelled'?'Checkout cancelled':checkoutStatus==='expired'?'Expired':d.invoice?.wrapStatus?(d.statusMeta?.label||d.invoice.wrapStatus):(d.transaction?.status||checkoutStatus||'pending');
+    const statusLabel=d.invoice?.wrapStatus?(d.statusMeta?.label||d.invoice.wrapStatus):(d.transaction?.status||'');
     const statusColor=d.statusMeta?.color||(d.transaction?.status==='completed'?'green':d.transaction?.status==='failed'?'red':'amber');
     body.innerHTML=`
       <div class="card">
@@ -1635,7 +1633,6 @@ async function admRenderDetail(id,silent){
         <div class="admactions">
           ${d.actions?.canAdvance?'<button class="btn teal sm" data-adm-act="advance">Advance wrap</button>':''}
           ${d.actions?.canLookup?'<button class="btn ghost sm" data-adm-act="lookup">Live NWC lookup</button>':''}
-          ${d.actions?.canCancelPayment&&!['cancelled','expired','paid'].includes(checkoutStatus)?'<button class="btn ghost sm dangerText" data-adm-act="cancel">Cancel payment</button>':''}
           ${d.actions?.canRemediateTx?'<button class="btn ghost sm" data-adm-act="remediate">Remediate tx</button>':''}
           ${d.actions?.canRemediateTx?'<button class="btn ghost sm dangerText" data-adm-act="force-remediate">Force remediate</button>':''}
         </div>
@@ -1655,7 +1652,6 @@ async function admRenderDetail(id,silent){
     const showMsg=(txt)=>{msgBox.style.display='block';msgBox.textContent=displayText(txt)};
     body.querySelectorAll('[data-adm-act]').forEach(b=>b.onclick=async()=>{
       const act=b.dataset.admAct;
-      if(act==='cancel'){admCancelPayment(d);return;}
       try{
         let out;
         if(act==='advance') out=await api(`/api/admin/payments/${encodeURIComponent(id)}/advance`,{method:'POST',body:JSON.stringify({})});
@@ -1672,31 +1668,6 @@ async function admRenderDetail(id,silent){
       catch(e){ showMsg(e.message); }
     };
   }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
-}
-function admCancelPayment(d){
-  const inv=d.invoice;if(!inv?.id||!inv?.paymentHash)return;
-  const m=modal(`<div class="modalhead"><h2>Cancel payment</h2><button class="xbtn" aria-label="Close cancellation">×</button></div>
-    <p style="font-size:14px"><strong>${fmt(inv.amountSats)} sats</strong>${d.handle?' · @'+esc(d.handle):''}</p>
-    <p class="mono dim" style="font-size:11px;overflow-wrap:anywhere;margin:8px 0 14px">${esc(inv.paymentHash)}</p>
-    <p class="muted" style="font-size:13px;line-height:1.6">Stop this checkout and release the RIC when safe. Payment records stay in the ledger. A cancelled checkout is not a refund confirmation; any held funds are tracked until wallet cleanup completes. Settled or forwarding payments cannot be cancelled.</p>
-    <label class="field" style="margin-top:16px"><span>Cancellation reason</span><input class="input" id="admCancelReason" maxlength="500" placeholder="Customer abandoned checkout" autocomplete="off"></label>
-    <div id="admCancelStatus" role="status" aria-live="polite" style="font-size:13px;line-height:1.6;margin:12px 0;overflow-wrap:anywhere"></div>
-    <button class="btn ghost dangerText" id="admCancelConfirm" style="width:100%">Confirm cancellation</button>`);
-  const reason=m.querySelector('#admCancelReason'),button=m.querySelector('#admCancelConfirm'),status=m.querySelector('#admCancelStatus');
-  let submitted=false;
-  button.onclick=async()=>{
-    if(submitted||button.disabled)return;
-    const text=reason.value.trim();if(!text){status.textContent='Enter a cancellation reason.';reason.focus();return;}
-    button.disabled=true;status.textContent='Requesting cancellation...';
-    try{
-      const out=await api(`/api/admin/payments/${encodeURIComponent(inv.id)}/cancel`,{method:'POST',body:JSON.stringify({paymentHash:inv.paymentHash,reason:text})});
-      submitted=true;
-      status.textContent=out.message||(out.status==='cancelled'||out.status==='expired'?'Checkout closed. RIC can continue.':'Cancellation requested. Checking payment status.');
-      button.textContent=out.status==='cancelled'||out.status==='expired'?'Checkout closed':'Cancellation requested';
-      if(ADM_ID===inv.id)await admRenderDetail(inv.id,true);
-    }catch(e){status.textContent=displayText(e.message)+' Check this payment status before trying again.';button.disabled=false;}
-  };
-  reason.focus();
 }
 function admKv(label,value){
   if(value===null||value===undefined||value==='') return '';

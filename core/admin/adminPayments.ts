@@ -31,12 +31,8 @@ import {
 import { finalizePendingSend, checkOwnSettlementProof } from "../money/feeEngine.js";
 import { extractPaymentHash } from "../money/lnAddress.js";
 import { recordPaymentEventSync } from "../money/paymentLog.js";
-import { adminCancelRicInvoice } from "./ricCancel.js";
-import { ricInvoiceView } from "../ric-reconcile.js";
 
 type SessionAccount = { id: string; handle: string; createdAt: string } | undefined;
-const PAYMENT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PAYMENT_HASH_RE = /^[0-9a-f]{64}$/;
 
 const json = (r: ServerResponse, s: number, b: unknown): true => {
   r.writeHead(s, { "content-type": "application/json" });
@@ -594,20 +590,15 @@ export async function handleAdminPaymentsRoute(
   // ── GET /api/admin/payments/:id ─────────────────────────────────────────
   const detailMatch = u.pathname.match(/^\/api\/admin\/payments\/([^/]+)$/);
   if (req.method === "GET" && detailMatch) {
-    let id: string;
     try {
-      id = decodeURIComponent(detailMatch[1]);
-    } catch {
-      return json(res, 400, { error: "Invalid payment reference" });
-    }
-    const isUuid = PAYMENT_ID_RE.test(id);
-    if (!isUuid && !PAYMENT_HASH_RE.test(id)) return json(res, 400, { error: "Expected a payment UUID or lowercase payment hash" });
-    try {
+      const id = decodeURIComponent(detailMatch[1]);
+
       const [inv] = await db
         .select()
         .from(pendingInvoicesTable)
         .where(
-          isUuid ? eq(pendingInvoicesTable.id, id) : or(
+          or(
+            eq(pendingInvoicesTable.id, id),
             eq(pendingInvoicesTable.paymentHash, id),
             eq(pendingInvoicesTable.merchantPaymentHash, id),
           ),
@@ -617,7 +608,7 @@ export async function handleAdminPaymentsRoute(
       const [tx] = await db
         .select()
         .from(transactionsTable)
-        .where(isUuid ? eq(transactionsTable.id, id) : eq(transactionsTable.paymentHash, id))
+        .where(or(eq(transactionsTable.id, id), eq(transactionsTable.paymentHash, id)))
         .limit(1);
 
       let handle: string | null = null;
@@ -727,7 +718,7 @@ export async function handleAdminPaymentsRoute(
       timeline.sort((a, b) => String(a.at).localeCompare(String(b.at)));
 
       let live: Record<string, unknown> | null = null;
-      if (u.searchParams.get("live") !== "0" && inv?.wrapStatus && PLATFORM_NWC_URL) {
+      if (inv?.wrapStatus && PLATFORM_NWC_URL) {
         try {
           const hold = await lookupInvoice(inv.paymentHash, PLATFORM_NWC_URL);
           let merchant: unknown = null;
@@ -758,7 +749,6 @@ export async function handleAdminPaymentsRoute(
 
       return json(res, 200, {
         invoice: stripSecrets(inv as unknown as Record<string, unknown>),
-        checkoutStatus: inv ? ricInvoiceView(inv).status : null,
         transaction: tx ? { ...tx, bolt11: tx.bolt11 ? `${tx.bolt11.slice(0, 24)}…` : null } : null,
         handle,
         businessName,
@@ -795,8 +785,6 @@ export async function handleAdminPaymentsRoute(
         timeline,
         live,
         actions: {
-          canCancelPayment: !!(inv && !inv.paidAt && !inv.ricExpiryConfirmedAt && !inv.ricCheckoutClosedAt &&
-            (!inv.wrapStatus || ["created", "cancelling", "cancel_pending"].includes(inv.wrapStatus))),
           canAdvance: !!(inv?.wrapStatus && !["settled", "cancelled"].includes(inv.wrapStatus)),
           canLookup: !!(inv || tx),
           canRemediateTx: !!(tx && tx.direction === "out" && tx.status !== "completed"),
@@ -808,57 +796,6 @@ export async function handleAdminPaymentsRoute(
       });
     } catch (err) {
       return json(res, 500, { error: "Failed to load payment" });
-    }
-  }
-
-  // POST /api/admin/payments/:id/cancel
-  const cancelMatch = u.pathname.match(/^\/api\/admin\/payments\/([^/]+)\/cancel$/);
-  if (req.method === "POST" && cancelMatch) {
-    let id: string;
-    let b: Record<string, unknown>;
-    try {
-      id = decodeURIComponent(cancelMatch[1]);
-      b = await body(req);
-    } catch {
-      return json(res, 400, { error: "Invalid invoice ID or JSON body" });
-    }
-    if (!PAYMENT_ID_RE.test(id)) return json(res, 400, { error: "Invoice ID must be a UUID" });
-    if (!b || Array.isArray(b) || typeof b.reason !== "string" || !b.reason.trim() || b.reason.length > 500) {
-      return json(res, 400, { error: "A nonempty cancellation reason of at most 500 characters is required" });
-    }
-    if (typeof b.paymentHash !== "string" || !PAYMENT_HASH_RE.test(b.paymentHash)) {
-      return json(res, 400, { error: "The exact 64-character lowercase payment hash is required" });
-    }
-    try {
-      const [inv] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.id, id)).limit(1);
-      if (!inv) return json(res, 404, { error: "Invoice not found" });
-      if (b.paymentHash !== inv.paymentHash) {
-        return json(res, 409, { error: "Payment hash does not match the selected invoice" });
-      }
-      let result = await adminCancelRicInvoice(inv.accountId, inv.paymentHash, {
-        actor: adminSecretOk(req) ? "admin_secret" : `session:${sessionAccount!.id}:${sessionAccount!.handle}`,
-        reason: b.reason,
-      });
-      // Read back the exact invoice. A concurrently persisted payment always wins.
-      const [current] = await db.select().from(pendingInvoicesTable).where(eq(pendingInvoicesTable.id, inv.id)).limit(1);
-      if (current && ricInvoiceView(current).status === "paid") result = ricInvoiceView(current);
-      const statusCode = result.status === "paid" ? 409 : result.status === "not_found" ? 404 :
-        ["cancelled", "expired", "closed"].includes(result.status) ? 200 : 202;
-      const message = result.status === "paid" ? "Payment is already paid and cannot be cancelled." :
-        result.status === "not_found" ? "Invoice not found." :
-        result.status === "expired" ? "Invoice expiry is confirmed. RIC can continue." :
-        result.status === "closed" ? "Checkout closed. RIC can continue. Payment remains tracked; do not repeat a payment that may already have been sent." :
-        result.status === "cancelled" ? (result.cleanupPending
-          ? "Checkout cancelled. RIC can continue. Wallet hold cleanup remains pending; this is not a refund confirmation."
-          : "Payment cancelled.") :
-        "Cancellation is pending confirmation. Do not retry the payment.";
-      return json(res, statusCode, {
-        ...result,
-        message,
-        ...(statusCode >= 400 ? { error: message } : {}),
-      });
-    } catch {
-      return json(res, 500, { error: "Unable to request payment cancellation" });
     }
   }
 

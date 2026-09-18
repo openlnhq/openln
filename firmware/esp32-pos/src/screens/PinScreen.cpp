@@ -205,18 +205,65 @@ void PinScreen::updateConfirming(TFT_eSPI& tft) {
     }
 }
 
-// Network progress is indeterminate, never a made-up completion percentage.
-// Return immediately. The UI task calls updateConfirming while I/O is pending.
-void PinScreen::drawProcessing(TFT_eSPI& tft,const char* title,const char* subtitle) {
-    _confirmAnimFrame=0;
-    _confirmAnimLast=millis()-450U;
+// ── Processing animation ──────────────────────────────────────────────────────
+// Shown immediately after the user taps Confirm so the screen doesn't appear
+// frozen during the blocking HTTPS call (~1-4 s).
+//
+// Layout (320×240 landscape):
+//   "Verifying"  — FONT_SMALL, white, y=72
+//   "PIN..."     — FONT_SMALL, muted, y=108
+//   3 bouncing dots — y≈155, accent colour, one lit per frame
+//   Progress bar — y=193, sweeps from 20% → 80% over 3 frames
+//
+// Timing: 3 pre-HTTP frames × 140 ms = 420 ms of animation, then the last
+// frame is held on-screen while the network call completes.
+void PinScreen::drawProcessing(TFT_eSPI& tft,
+                               const char* title,
+                               const char* subtitle) {
     tft.fillScreen(COL_BG);
+
+    // Title
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_TEXT,COL_BG);
-    tft.setTextFont(FONT_MED);
-    tft.drawString(title,SCREEN_W/2,75);
+    tft.setTextColor(COL_TEXT, COL_BG);
     tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(COL_MUTED,COL_BG);
-    tft.drawString(subtitle,SCREEN_W/2,111);
-    updateConfirming(tft);
+    tft.drawString(title, SCREEN_W / 2, 72);
+    tft.setTextFont(FONT_SMALL);
+    tft.setTextColor(COL_MUTED, COL_BG);
+    tft.drawString(subtitle, SCREEN_W / 2, 108);
+
+    // 3-frame bounce: dot i lights up and jumps 4 px when it is frame % 3
+    const int dotY  = 155;
+    const int dotR  = 11;
+    const int gap   = 46;           // centre-to-centre spacing
+    const int cx    = SCREEN_W / 2;
+
+    // Progress bar geometry
+    const int barX   = 28;
+    const int barY   = 193;
+    const int barH   = 6;
+    const int barMaxW = SCREEN_W - 56;
+
+    for (int frame = 0; frame < 4; frame++) {
+        // Clear dot row (extra margin for the bounce offset)
+        tft.fillRect(0, dotY - dotR - 6, SCREEN_W, (dotR + 6) * 2 + 2, COL_BG);
+
+        for (int i = 0; i < 3; i++) {
+            int x      = cx + (i - 1) * gap;
+            bool lit   = (i == frame % 3);
+            int  yOff  = lit ? -5 : 0;          // bounce up when active
+            if (lit) {
+                tft.fillCircle(x, dotY + yOff, dotR, COL_ACCENT);
+            } else {
+                tft.drawCircle(x, dotY + yOff, dotR, COL_MUTED);
+            }
+        }
+
+        // Progress bar: 20 % → 40 % → 60 % → 80 % (holds at 80 during HTTP)
+        int fillW = barMaxW * (frame + 1) / 5;
+        tft.fillRect(barX,          barY, barMaxW, barH, COL_CARD);
+        tft.fillRect(barX,          barY, fillW,   barH, COL_ACCENT);
+        tft.drawRect(barX - 1,      barY - 1, barMaxW + 2, barH + 2, COL_BORDER);
+
+        if (frame < 3) delay(140);   // animate frames 0-2; frame 3 holds for HTTP call
+    }
 }

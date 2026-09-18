@@ -62,42 +62,67 @@ public:
   DeviceLink::report("downloading","started",targetVersion);
   display(tft,String("Updating to v")+targetVersion,"Do not disconnect power");
   Serial.printf("RIC OTA: download target=%s bytes=%u slot=%s heap=%u largest=%u\n",targetVersion.c_str(),expected,next->label,ESP.getFreeHeap(),ESP.getMaxAllocHeap());
-  DeviceLink::release();WiFiClientSecure client;HTTPClient http;DeviceLink::configure(client,http);
-  if(!http.begin(client,url)){client.stop();return fail(tft,"download_begin",true,targetVersion);}
-  const char* keys[]={"Content-Encoding"};http.collectHeaders(keys,1);http.addHeader("Accept-Encoding","identity");
-  code=http.GET();
-  if(code!=200 || http.header("Content-Encoding").length() || !RicPolicy::validImage(expected,http.getSize(),next->size)){
-   http.end();client.stop();return fail(tft,"download_headers_"+String(code),true,targetVersion);
-  }
-  if(!Update.begin(expected,U_FLASH)){http.end();client.stop();return fail(tft,"flash_begin_"+String(Update.getError()),true,targetVersion);}
+  if(!Update.begin(expected,U_FLASH))return fail(tft,"flash_begin_"+String(Update.getError()),true,targetVersion);
   mbedtls_sha256_context hash;mbedtls_sha256_init(&hash);mbedtls_sha256_starts_ret(&hash,0);
-  WiFiClient* stream=http.getStreamPtr();uint8_t buffer[1024];uint32_t written=0,lastData=millis(),start=lastData;int lastPercent=-1;
-  String error;
+  // Resumable download in bounded chunks (HTTP Range). Field links here are
+  // ~300 ms RTT with a small TCP window: the whole 1.3 MB image in one GET
+  // took minutes and any hiccup restarted from zero (the 2026-09-18 "stuck at
+  // 0%" incident). Per chunk: fresh TLS session, one Range request, verify
+  // the 206 window, write to flash, hash. A stall costs one chunk, not the
+  // update. The full-image SHA-256 is still checked before the slot switch.
+  const uint32_t CHUNK=131072;const int MAX_CHUNK_RETRIES=6;const uint32_t TOTAL_DEADLINE_MS=15UL*60UL*1000UL;
+  uint8_t buffer[1024];uint32_t written=0,start=millis();int lastPercent=-1;int retries=0;String error;
   while(written<expected){
-   esp_task_wdt_reset();int available=stream->available();
-   if(available>0){
-    const size_t amount=written==0 ? std::min(sizeof(buffer),static_cast<size_t>(expected)) : std::min(static_cast<size_t>(available),std::min(sizeof(buffer),static_cast<size_t>(expected-written)));
-    int received=stream->readBytes(buffer,amount);
-    if(received<=0){error="read_failed";break;}
-    if(written==0 && (received<14 || buffer[0]!=0xe9 || buffer[12]!=0 || buffer[13]!=0)){error="invalid_image";break;}
-    if(Update.write(buffer,received)!=static_cast<size_t>(received)){error="flash_write_"+String(Update.getError());break;}
-    mbedtls_sha256_update_ret(&hash,buffer,received);written+=received;lastData=millis();
-    int percent=static_cast<int>((uint64_t(written)*100)/expected);
-    if(percent/10!=lastPercent/10 || lastPercent<0){
-     Serial.printf("RIC OTA: progress=%d written=%u/%u\n",percent,written,expected);
-     tft.fillRect(16,SCREEN_H/2+54,SCREEN_W-32,22,COL_BG);tft.setTextDatum(MC_DATUM);tft.setTextColor(COL_TEXT,COL_BG);tft.setTextFont(FONT_SMALL);
-     tft.drawString(String(percent)+"%",SCREEN_W/2,SCREEN_H/2+64);lastPercent=percent;
-    }
-   }else{
-    if(!http.connected()){error="download_truncated";break;}
-    if(millis()-lastData>15000){error="download_stalled";break;}
-    delay(5);
+   if(millis()-start>TOTAL_DEADLINE_MS){error="download_timeout";break;}
+   const uint32_t rangeEnd=std::min(expected-1,written+CHUNK-1);
+   DeviceLink::release();WiFiClientSecure client;HTTPClient http;DeviceLink::configure(client,http);
+   if(!http.begin(client,url)){client.stop();if(++retries>MAX_CHUNK_RETRIES){error="download_begin";break;}delay(1000*retries);continue;}
+   const char* keys[]={"Content-Encoding","Content-Range"};http.collectHeaders(keys,2);
+   http.addHeader("Accept-Encoding","identity");http.addHeader("Range",String("bytes=")+written+"-"+rangeEnd);
+   code=http.GET();
+   char want[64];snprintf(want,sizeof(want),"bytes %u-%u/%u",written,rangeEnd,expected);
+   const uint32_t chunkLen=rangeEnd-written+1;
+   if(code!=206 || http.header("Content-Encoding").length() || http.header("Content-Range")!=want || http.getSize()!=static_cast<int>(chunkLen)){
+    http.end();client.stop();
+    Serial.printf("RIC OTA: chunk headers http=%d range=%s retry=%d\n",code,http.header("Content-Range").c_str(),retries+1);
+    if(code==200 || code==416 || code==404){error="download_headers_"+String(code);break;}   // server does not do ranges / image changed
+    if(++retries>MAX_CHUNK_RETRIES){error="download_headers_"+String(code);break;}
+    delay(1000*retries);continue;
    }
-   if(millis()-start>180000){error="download_timeout";break;}
+   WiFiClient* stream=http.getStreamPtr();uint32_t got=0,lastData=millis();bool chunkFailed=false;
+   while(got<chunkLen){
+    esp_task_wdt_reset();int available=stream->available();
+    if(available>0){
+     const size_t amount=std::min(static_cast<size_t>(available),std::min(sizeof(buffer),static_cast<size_t>(chunkLen-got)));
+     int received=stream->readBytes(buffer,amount);
+     if(received<=0){chunkFailed=true;break;}
+     if(written==0 && got==0 && (received<14 || buffer[0]!=0xe9 || buffer[12]!=0 || buffer[13]!=0)){error="invalid_image";break;}
+     if(Update.write(buffer,received)!=static_cast<size_t>(received)){error="flash_write_"+String(Update.getError());break;}
+     mbedtls_sha256_update_ret(&hash,buffer,received);got+=received;written+=received;lastData=millis();
+     int percent=static_cast<int>((uint64_t(written)*100)/expected);
+     if(percent/5!=lastPercent/5 || lastPercent<0){
+      Serial.printf("RIC OTA: progress=%d written=%u/%u heap=%u\n",percent,written,expected,ESP.getFreeHeap());
+      tft.fillRect(16,SCREEN_H/2+54,SCREEN_W-32,22,COL_BG);tft.setTextDatum(MC_DATUM);tft.setTextColor(COL_TEXT,COL_BG);tft.setTextFont(FONT_SMALL);
+      tft.drawString(String(percent)+"%",SCREEN_W/2,SCREEN_H/2+64);lastPercent=percent;
+     }
+    }else{
+     if(!http.connected() || millis()-lastData>12000){chunkFailed=true;break;}
+     delay(5);
+    }
+   }
+   http.end();client.stop();
+   if(error.length())break;
+   if(chunkFailed){
+    // Partial chunk: bytes already written and hashed are kept; resume from
+    // `written`. Give the link a moment before asking again.
+    Serial.printf("RIC OTA: chunk stalled at %u/%u retry=%d\n",written,expected,retries+1);
+    if(++retries>MAX_CHUNK_RETRIES){error="download_stalled";break;}
+    delay(1500*retries);continue;
+   }
+   retries=0;
   }
   uint8_t digest[32];mbedtls_sha256_finish_ret(&hash,digest);mbedtls_sha256_free(&hash);
   char actual[65];for(int i=0;i<32;i++)snprintf(actual+2*i,3,"%02x",digest[i]);actual[64]=0;
-  http.end();client.stop();
   if(error.isEmpty() && (written!=expected || expectedSha!=actual))error="digest_mismatch";
   if(error.length()){Update.abort();return fail(tft,error,true,targetVersion);}
   Preferences prefs;

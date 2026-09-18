@@ -25,6 +25,9 @@ public:
     // Returns true if begin() has been called and BLE stack is active
     static bool isActive() { return _statusChar != nullptr; }
 
+    // Advertised name, e.g. "RIC-B2F2" (unique per unit). Valid after begin().
+    static const String& deviceName() { return _deviceName; }
+
     // Values set by BLE writes
     static String ssid;
     static String pass;
@@ -36,6 +39,7 @@ public:
     static void checkComplete();
 
 private:
+    static String                _deviceName;
     static NimBLEServer*         _server;
     static NimBLECharacteristic* _statusChar;
     static bool _ssidSet, _passSet, _tokenSet, _urlSet, _currencySet;

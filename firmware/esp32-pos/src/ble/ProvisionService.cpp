@@ -37,11 +37,25 @@ private:
 
 // ──────────────────────────────────────────────────────────────────
 
+String ProvisionService::_deviceName = "RIC";
+
 void ProvisionService::begin() {
     _ssidSet = _passSet = _tokenSet = _urlSet = _currencySet = false;
 
+    // Unique per unit: "RIC-XXXX" from the last two bytes of the BLE address.
+    // A room full of terminals (partner workshop, shop with several tills)
+    // must let the person linking pick THIS one from the phone's chooser.
+    // The web app matches namePrefix "RIC", so "RIC" (older firmware) and
+    // "RIC-XXXX" both pair. Init name is a placeholder; the real one follows.
     NimBLEDevice::init("RIC");
     NimBLEDevice::setPower(9);  // 9 dBm — NimBLE 2.x takes dBm directly
+    {
+        const std::string addr = NimBLEDevice::getAddress().toString(); // "14:2b:2f:eb:b2:f2"
+        std::string tail;
+        for (char c : addr) if (c != ':') tail += (char)toupper((unsigned char)c);
+        _deviceName = String("RIC-") + (tail.size() >= 4 ? tail.substr(tail.size() - 4).c_str() : "0000");
+        NimBLEDevice::setDeviceName(_deviceName.c_str());
+    }
 
     _server = NimBLEDevice::createServer();
 
@@ -67,10 +81,14 @@ void ProvisionService::begin() {
 
     NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
     adv->addServiceUUID(BLE_SERVICE_UUID);
-    adv->setName("RIC");
-    adv->start();
+    adv->setName(_deviceName.c_str());
+    const bool started = adv->start();
 
-    DBG_PRINTLN("BLE: advertising as 'RIC'");
+    // Always on serial (not DBG_): provisioning is the one moment a field
+    // partner is staring at a terminal wondering why the phone sees nothing.
+    Serial.printf("RIC ble: advertising=%s name=%s addr=%s power=%d heap=%u\n",
+                  started ? "on" : "FAILED", _deviceName.c_str(), NimBLEDevice::getAddress().toString().c_str(),
+                  NimBLEDevice::getPower(), ESP.getFreeHeap());
 }
 
 void ProvisionService::stop() {

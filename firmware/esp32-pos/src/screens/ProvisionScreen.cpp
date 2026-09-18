@@ -1,5 +1,6 @@
 #include "ProvisionScreen.h"
 #include "../ui/Theme.h"
+#include "../ble/ProvisionService.h"
 
 uint32_t ProvisionScreen::_lastPulse = 0;
 int      ProvisionScreen::_pulsePhase = 0;
@@ -23,12 +24,18 @@ void ProvisionScreen::draw(TFT_eSPI& tft) {
     // BLE icon (simplified: three arcs represented as filled circles)
     tft.fillCircle(cx, cy, 8, COL_ACCENT);
 
+    // This unit's Bluetooth name, large, so it can be picked out of a chooser
+    // that lists every terminal in range.
+    tft.setTextFont(FONT_MED);
+    tft.setTextColor(COL_ACCENT, COL_BG);
+    tft.setTextDatum(TC_DATUM);
+    tft.drawString(ProvisionService::deviceName(), SCREEN_W / 2, SCREEN_H / 2 + 52);
+
     // Instructions
     tft.setTextFont(FONT_SMALL);
     tft.setTextColor(COL_MUTED, COL_BG);
-    tft.setTextDatum(TC_DATUM);
-    tft.drawString("Open the openLN app to", SCREEN_W / 2, SCREEN_H / 2 + 65);
-    tft.drawString("link this device", SCREEN_W / 2, SCREEN_H / 2 + 85);
+    tft.drawString("Open openln.com/app, Link device,", SCREEN_W / 2, SCREEN_H / 2 + 84);
+    tft.drawString("and choose this name", SCREEN_W / 2, SCREEN_H / 2 + 100);
 
     _lastPulse = millis();
     _pulsePhase = 0;

@@ -4,14 +4,14 @@
   "chip": "ESP32",
   "kind": "factory",
   "address": 0,
-  "bytes": 1495040,
-  "sha256": "7e7c644e7fe27e2fc080a1777f2758bb7fa853979cabf68e5da6c62b3bc4506f",
+  "bytes": 1495280,
+  "sha256": "b1ed6bc94ab88bcd6f83df236055c646b293478783b6e4b876c53a6c4a284d2a",
   "url": "/api/posbox/firmware",
   "note": "ESP32-2432S028R Only.",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "partitionLayout": "ric-ab-v1",
   "ota": {
-    "bytes": 1363968,
-    "sha256": "d85da62853c8f623b59ddc9cb5afd1e3fe17f5d63e6f9ed70fa02bedb5b5c8b8"
+    "bytes": 1364208,
+    "sha256": "f1537e8180650f9003a3656166dbdf31a9fb8fe4948ccbb9739d9ef2efa7a675"
   }
 }

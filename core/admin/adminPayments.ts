@@ -722,20 +722,35 @@ export async function handleAdminPaymentsRoute(
       if (inv?.wrapStatus && PLATFORM_NWC_URL) {
         try {
           const hold = await lookupInvoice(inv.paymentHash, PLATFORM_NWC_URL);
+          // The merchant invoice is issued by the MERCHANT's wallet, so the
+          // platform node can only see it once we PAID it (as an outgoing
+          // payment). Before the forward it is "not found" by design; that is
+          // not a failure. Say what the state means instead of "lookup failed".
           let merchant: unknown = null;
           if (inv.merchantPaymentHash) {
-            try {
-              merchant = await lookupInvoice(inv.merchantPaymentHash, PLATFORM_NWC_URL);
-            } catch {
-              merchant = { error: "lookup failed" };
+            const forwarded = ["forwarding", "forwarded", "settled"].includes(inv.wrapStatus);
+            if (!forwarded) {
+              merchant = { state: "not_started", note: "Forward has not been sent; the merchant invoice exists only on the merchant's wallet until then." };
+            } else {
+              try {
+                const out = await lookupInvoice(inv.merchantPaymentHash, PLATFORM_NWC_URL);
+                merchant = { state: out.state, type: out.type, paidAt: out.paidAt ?? null, paid: out.paid };
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                merchant = /not found/i.test(msg)
+                  ? { state: "unknown", note: "Platform node has no record of this outgoing payment yet." }
+                  : { state: "unavailable", note: `Relay error while looking up: ${msg}` };
+              }
             }
           }
           live = {
             hold: { state: hold.state, type: hold.type, paidAt: hold.paidAt ?? null, paid: hold.paid },
             merchantOutgoing: merchant,
+            holdExpired: inv.expiresAt ? inv.expiresAt.getTime() < Date.now() : null,
           };
         } catch (err) {
-          live = { error: err instanceof Error ? err.message : String(err) };
+          const msg = err instanceof Error ? err.message : String(err);
+          live = { error: /not found/i.test(msg) ? "Hold not found on the platform node (expired or never created there)" : `Relay error: ${msg}` };
         }
       }
 

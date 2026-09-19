@@ -333,6 +333,9 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .field{display:block;margin-bottom:12px}
 .field span{display:block;font-size:12px;font-weight:510;color:var(--text2);margin-bottom:6px}
 .input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 13px;font-size:14px;color:var(--text);transition:.15s}
+/* Chrome paints <option> with its own default (white) background and ignores the select's colours; Firefox inherits. Style options explicitly everywhere. */
+select.input,select.input option,select.input optgroup{background:var(--bg2);color:var(--text)}
+select.input{color-scheme:dark}
 .input:focus{outline:none;border-color:var(--teal-line);background:var(--surface2)}
 .input.mono{font-family:'JetBrains Mono',monospace;font-size:12.5px}
 

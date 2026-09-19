@@ -110,13 +110,19 @@ async function drive(reason: "sweep" | "kick"): Promise<void> {
 
     const now = Date.now();
     // Abandoned checkouts: created, nobody polling, older than the window.
+    // Also: a created hold past its own expiry can never be paid (the node
+    // already dropped it), so close the row even while a device keeps polling.
+    // Seen 2026-09-19 on dev: a relay outage hid two unpaid duplicates; one
+    // was abandoned by the cleanup, the other stayed "created" because the
+    // RIC never stopped polling it.
     for (const r of rows) {
       if (r.wrapStatus !== "created" || inFlight.has(r.paymentHash)) continue;
       const interest = lastInterest.get(r.paymentHash) ?? r.createdAt.getTime();
-      if (now - interest < ABANDON_AFTER_MS) continue;
+      const expired = r.expiresAt.getTime() < now;
+      if (!expired && now - interest < ABANDON_AFTER_MS) continue;
       inFlight.add(r.paymentHash);
       try {
-        const status = await cancelWrap(r as unknown as WrapRow, "abandoned");
+        const status = await cancelWrap(r as unknown as WrapRow, expired ? "expired" : "abandoned");
         if (status === "cancelled") { lastPass.delete(r.paymentHash); lastInterest.delete(r.paymentHash); }
       } catch (err) {
         logger.warn({ paymentHash: r.paymentHash, err: err instanceof Error ? err.message : String(err) }, "wrap driver: abandon cleanup failed");

@@ -119,6 +119,9 @@ static String   lnurlK1;         // k1 value from LNURL-withdraw response
 // Set true once callLnurlCallback() succeeds; stops NFC polling,
 // continues invoice-status polling until paid/expired/timeout.
 static bool lnurlCallbackSent = false;
+// Set once the server reports the hold accepted/forwarding: the sale is
+// committed and no further card reads happen on this invoice.
+static bool holdCommitted     = false;
 
 // Price cache
 static float    satsPerUnit       = 0.0f;   // currently displayed sats per unit
@@ -593,6 +596,7 @@ static void handleCreatingInvoice() {
     pollFailCount       = 0;
     currentPollInterval = POLL_INTERVAL_MS;
     lnurlCallbackSent   = false;
+    holdCommitted       = false;
     lnurlCallback       = "";
     lnurlK1             = "";
     callbackRetryAt          = 0;
@@ -772,6 +776,20 @@ static void handleWaitingPayment() {
             if (pollFailCount >= 3 && lnurlCallbackSent) PinScreen::drawConfirming(tft);
             pollFailCount       = 0;
             currentPollInterval = POLL_INTERVAL_MS;
+            // The customer's funds are locked on the hold: the sale is
+            // committed, only the merchant forward + settle remain (which can
+            // take minutes when the relay is slow). Say so and stop reading
+            // cards on this invoice, otherwise a cashier watching a QR that
+            // never changes taps again and mints duplicate invoices
+            // (2026-09-19 dev: two unpaid 12,285-sat duplicates during a
+            // relay outage). The invoice is never abandoned here.
+            if (!holdCommitted && (status == "accepted" || status == "forwarding" || status == "forwarded")) {
+                holdCommitted = true;
+                lnurlCallbackSent = true;   // no second tap against this invoice
+                Buzzer::playTap();
+                PinScreen::drawProcessing(tft, "Payment received", "finishing up, do not tap again");
+                Serial.printf("RIC pay: hold %s hash=%.12s\n", status.c_str(), currentInvoice.paymentHash.c_str());
+            }
         }
         lastStatusPoll = millis();   // restart window from poll completion
         if (!lnurlCallbackSent) PaymentScreen::update(tft);  // QR countdown refresh

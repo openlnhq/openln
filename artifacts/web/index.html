@@ -157,6 +157,23 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .rowtx .t2{font-size:11.5px;color:var(--text3);margin-top:2px}
 .rowtx .amt{font-family:'JetBrains Mono',monospace;font-size:13.5px;font-weight:500;white-space:nowrap}
 .rowtx .amt.in{color:var(--ok)}
+.rowtx .amt small{display:block;font-size:10.5px;font-weight:400;color:var(--text2);text-align:right;margin-top:2px}
+.txcls{display:inline-block;font-family:'Inter',sans-serif;font-size:10px;font-weight:600;letter-spacing:.02em;padding:1px 6px;border-radius:999px;border:1px solid var(--line);color:var(--text2);vertical-align:1px;margin-left:4px}
+.txcls.sale{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.txcls.top_up,.txcls.transfer_out{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.txcls.other{color:var(--warn,#e0a83a);border-color:color-mix(in srgb,var(--warn,#e0a83a) 40%,transparent)}
+.books-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+.books-kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.books-kpi .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text2)}
+.books-kpi .v{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;margin-top:4px}
+.books-kpi .s{font-size:11px;color:var(--text2);margin-top:2px}
+.books-filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.books-filters .full{grid-column:1/-1}
+.books-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.books-tbl th{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text2);text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+.books-tbl td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.books-tbl td.n,.books-tbl th.n{text-align:right;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.books-tbl tr{cursor:pointer}.books-tbl tr:hover td{background:var(--surface)}
 .badge{display:inline-block;font-size:10.5px;font-weight:590;padding:2.5px 8px;border-radius:999px;letter-spacing:.02em}
 .badge.ok{background:rgba(52,211,153,.11);color:var(--ok)}
 .badge.pend{background:var(--surface3);color:var(--text2)}
@@ -463,13 +480,13 @@ async function probeAdmin(){
   try{ await api('/api/admin/payments/treasury'); IS_ADMIN=true; }
   catch(e){ IS_ADMIN=false; }
 }
-const NAV_ICONS={wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 8h18m-5 5h5m-5 0v3h5"/>',ric:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 6h6M9 10h6m-6 5h1m4 0h1m-6 3h1m4 0h1"/>',cards:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20m-16 5h4"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>'};
+const NAV_ICONS={wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 8h18m-5 5h5m-5 0v3h5"/>',ric:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 6h6M9 10h6m-6 5h1m4 0h1m-6 3h1m4 0h1"/>',cards:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20m-16 5h4"/>',books:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 0-3 3V4z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6m-6 4h4"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>'};
 const navIcon=name=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[name]||NAV_ICONS.wallet}</svg>`;
 let activeDrawer=null;
 function closeDrawer(restoreFocus=true){if(activeDrawer)activeDrawer(restoreFocus)}
 function navigate(view){
   closeDrawer(false);document.querySelectorAll('.toast').forEach(t=>t.remove());
-  VIEW=['wallet','ric','cards','settings','partner','adminpayments'].includes(view)?view:'wallet';
+  VIEW=['wallet','ric','cards','books','settings','partner','adminpayments'].includes(view)?view:'wallet';
   history.replaceState(null,'','#'+VIEW);
   window.scrollTo(0,0);
   return render();
@@ -487,7 +504,7 @@ function openDrawer(){
   el.innerHTML=`<aside class="drawer" role="dialog" aria-modal="true" aria-label="openLN menu">
     <div class="drawer-head"><a class="brand" href="#wallet" id="drawerHome">${MARK}<span>open<em>LN</em></span></a><button class="xbtn" id="closeDrawer" aria-label="Close menu">✕</button></div>
     <nav class="drawer-nav" aria-label="Your account">
-      ${[['wallet','Wallet','Your connected balance'],['ric','RIC','Your counter devices'],['cards','Cards','Your tap-to-pay cards']].map(([v,label,hint])=>`<button class="drawer-link ${VIEW===v?'on':''}" data-drawer-view="${v}" ${VIEW===v?'aria-current="page"':''}>${navIcon(v)}<span class="drawer-label">${label}<small>${hint}</small></span><span class="arrow">›</span></button>`).join('')}
+      ${[['wallet','Wallet','Your connected balance'],['ric','RIC','Your counter devices'],['cards','Cards','Your tap-to-pay cards'],['books','Books','Statements for your accountant']].map(([v,label,hint])=>`<button class="drawer-link ${VIEW===v?'on':''}" data-drawer-view="${v}" ${VIEW===v?'aria-current="page"':''}>${navIcon(v)}<span class="drawer-label">${label}<small>${hint}</small></span><span class="arrow">›</span></button>`).join('')}
       <div class="drawer-divider"></div>
       <button class="drawer-link ${VIEW==='settings'?'on':''}" id="drawerSettings">${navIcon('settings')}<span class="drawer-label">Settings</span><span class="arrow">›</span></button>
       ${IS_ADMIN?'<button class="drawer-link" data-drawer-view="adminpayments"><span class="drawer-label">Treasury</span><span class="arrow">›</span></button>':''}
@@ -626,6 +643,7 @@ async function render(){
       await vWallet(st,bal,version);
     }
     else if(view==='cards')await vCards();
+    else if(view==='books')await vBooks();
     else if(view==='ric')await vRic();
     else if(view==='settings')await vSettings(version);
     else if(view==='partner')await vPartner();
@@ -682,12 +700,17 @@ async function vWallet(st,bal,version=renderVersion){
     document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
   };
 }
+const CLASS_LABEL={sale:'Sale',top_up:'Top-up',transfer_out:'Transfer to own wallet',spend:'Spend',refund:'Refund',fee:'Fee',other:'Needs review'};
+const ORIGIN_LABEL={ric:'RIC terminal',web_pos:'Web POS',ln_address:'Lightning address',wallet:'Wallet',card:'Card',internal:'openLN user',shop:'Shop'};
+const fmtFiat=(v,cur)=>v==null||v===''?'':Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+' '+String(cur||'').toUpperCase();
 function txRow(t){
   const inb=(t.direction??'in')==='in';
+  const cls=t.class||'';
+  const fiat=t.fiatAmount!=null&&t.fiatCurrency?fmtFiat(t.fiatAmount,t.fiatCurrency):'';
   return `<button class="rowtx" data-tx="${esc(t.id||t.payment_hash||t.paymentHash||'')}" style="width:100%;text-align:left;border-top:1px solid var(--line);border-radius:0">
     <div class="ico ${inb?'in':''}">${inb?'↓':'↑'}</div>
-    <div class="meta"><div class="t1">${prose(t.memo||t.type||'Payment')}</div><div class="t2">${ago(t.createdAt||t.created_at)} · <span class="mono" style="font-size:10.5px">${esc((t.paymentHash||t.payment_hash||'').slice(0,14))}</span>${t.feeSats||t.fee_sats?` · fee ${fmt(t.feeSats??t.fee_sats)}`:''}</div></div>
-    <div class="amt ${inb?'in':''}">${inb?'+':'−'}${fmt(t.amountSats??t.amount_sats)}</div>
+    <div class="meta"><div class="t1">${prose(t.memo||t.type||'Payment')}${cls?` <span class="txcls ${esc(cls)}">${esc(CLASS_LABEL[cls]||cls)}</span>`:''}</div><div class="t2">${ago(t.createdAt||t.created_at)}${t.origin?` · ${esc(ORIGIN_LABEL[t.origin]||t.origin)}`:''}${t.feeSats||t.fee_sats?` · fee ${fmt(t.feeSats??t.fee_sats)}`:''}</div></div>
+    <div class="amt ${inb?'in':''}">${inb?'+':'−'}${fmt(t.amountSats??t.amount_sats)}${fiat?`<small>${inb?'':'−'}${esc(fiat)}</small>`:''}</div>
   </button>`;
 }
 function txDetail(t){
@@ -695,20 +718,46 @@ function txDetail(t){
   const kv=(k,v,mono)=>v?`<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid var(--line)"><span class="dim" style="font-size:12px;flex-shrink:0">${k}</span><span class="${mono?'mono':''}" style="font-size:12px;text-align:right;word-break:break-all;overflow-wrap:anywhere;min-width:0">${esc(v)}</span></div>`:'';
   const amt=Number(t.amountSats??t.amount_sats??0), fee=Number(t.feeSats??t.fee_sats??0);
   const dt=t.createdAt||t.created_at?new Date(t.createdAt||t.created_at).toLocaleString():'';
-  modal(`<div class="modalhead"><h2>${prose(t.memo||t.type||'Payment')}</h2><button class="xbtn">✕</button></div>
+  const cur=(t.fiatCurrency||'').toUpperCase();
+  const fiat=t.fiatAmount!=null&&cur?fmtFiat(t.fiatAmount,cur):'';
+  const rate=t.fiatEffectiveRate?Number(t.fiatEffectiveRate).toLocaleString(undefined,{maximumFractionDigits:2})+' '+cur+' / BTC':'';
+  const baseRate=t.fiatBaseRate&&t.fiatBaseRate!==t.fiatEffectiveRate?Number(t.fiatBaseRate).toLocaleString(undefined,{maximumFractionDigits:2})+' '+cur+' / BTC':'';
+  const satsPer=t.fiatEffectiveRate?(1e8/Number(t.fiatEffectiveRate)).toLocaleString(undefined,{maximumFractionDigits:2})+' sats / '+cur:'';
+  const rateAt=t.fiatRateAt?new Date(t.fiatRateAt).toLocaleString():'';
+  const cls=t.class||'other';
+  const m=modal(`<div class="modalhead"><h2>${prose(t.memo||t.type||'Payment')}</h2><button class="xbtn">✕</button></div>
   <div style="text-align:center;padding:8px 0 16px">
     <div class="mono" style="font-size:30px;font-weight:600;letter-spacing:-1px;color:${inb?'var(--ok)':'var(--text)'}">${inb?'+':'−'}${fmt(amt)}<span style="font-size:13px;color:var(--text2);letter-spacing:0"> sats</span></div>
+    ${fiat?`<div class="mono" style="font-size:16px;margin-top:4px;color:var(--text2)">${inb?'':'−'}${esc(fiat)}</div>`:''}
     <span class="badge ${t.status==='completed'?'ok':'pend'}" style="margin-top:9px">${esc(t.status||'pending')}</span>
   </div>
+  <div style="border-top:1px solid var(--line);padding:10px 0">
+    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><span class="dim" style="font-size:12px">Books</span>
+      <select class="input" id="txcls" style="max-width:220px;font-size:12px;padding:6px 8px">${Object.entries(CLASS_LABEL).map(([k,v])=>`<option value="${k}" ${k===cls?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div class="hint" style="margin-top:6px">${t.classSource==='user'?'Set by you.':'Set automatically from where the payment came from.'} Sales are income. Top-ups and transfers to your own wallet are your money moving, not income. Change it if it is wrong; the report follows.</div>
+    <div style="display:flex;gap:8px;margin-top:8px"><input class="input" id="txref" placeholder="Receipt or invoice no." value="${esc(t.reference||'')}" style="font-size:12px;flex:1"><input class="input" id="txnote" placeholder="Note for your accountant" value="${esc(t.note||'')}" style="font-size:12px;flex:2"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn ghost sm" id="txsave">Save</button></div>
+  </div>
+  ${kv('Source',ORIGIN_LABEL[t.origin]||t.origin||'')}
+  ${kv('Value at the time',fiat)}
+  ${kv('Rate used',rate,'mono')}
+  ${kv('Market rate',baseRate,'mono')}
+  ${kv('Your modifier',t.fiatModifier||'')}
+  ${kv('Sats per '+(cur||'unit'),satsPer,'mono')}
+  ${kv('Rate source',t.fiatRateSource?t.fiatRateSource+(rateAt?' at '+rateAt:''):'')}
+  ${!fiat&&t.status==='completed'?kv('Value at the time','Not recorded: account was set to sats, or the rate feed was down'):''}
   ${kv('Type',t.type)}
   ${kv('Direction',t.direction==='out'?'outgoing':'incoming')}
   ${kv('Date',dt)}
   ${kv('Payment hash',t.paymentHash||t.payment_hash,'mono')}
   ${kv(inb?'Service fee':'Routing fee',fee?fmt(fee)+' sats':'','mono')}
   ${kv('Counterparty',t.counterpartHandle||t.counterpart_handle||t.counterpartLnAddress||'')}
+  ${kv('Ledger id',t.id,'mono')}
   ${t.bolt11?`<div style="margin-top:12px"><button class="btn ghost sm" id="txcopy">Copy invoice</button></div>`:''}`);
-  const c=document.querySelector('#txcopy');
+  const c=m.querySelector('#txcopy');
   if(c)c.onclick=()=>{navigator.clipboard.writeText(t.bolt11);toast('Invoice copied')};
+  const sv=m.querySelector('#txsave');
+  if(sv&&t.id)sv.onclick=async()=>{sv.disabled=true;try{const r=await api('/api/books/transactions/'+t.id,{method:'PATCH',body:JSON.stringify({class:m.querySelector('#txcls').value,reference:m.querySelector('#txref').value,note:m.querySelector('#txnote').value})});Object.assign(t,r.transaction);toast('Saved to your books');render()}catch(x){toast(x.message||'Could not save')}finally{sv.disabled=false}};
 }
 const emptyTx=()=>`<div style="padding:34px 0;text-align:center"><div class="dim" style="font-size:13px">No payments yet.<br>Your wallet activity appears here.</div></div>`;
 const extGlyph=id=>({cards:'◧',pos:'▦',reports:'▤',posbox:'▣',shop:'⌂',stripe:'₿',satora:'◈'}[id]||'◆');
@@ -723,6 +772,7 @@ function receiveModal(){
     <div class="amtfield"><input name="amountSats" type="number" min="1" placeholder="0" inputmode="numeric" required autofocus><span class="suffix">sats</span></div>
     <div class="amtchips"><button type="button" data-amt="100">100</button><button type="button" data-amt="500">500</button><button type="button" data-amt="1000">1k</button><button type="button" data-amt="10000">10k</button></div>
     <label class="field" style="margin-top:14px"><span>Memo <span class="dim">optional</span></span><input class="input" name="memo" placeholder="Payment for..."></label>
+    <label class="field" style="margin-top:10px"><span>Books</span><select class="input" name="purpose"><option value="top_up">Top-up: my own funds, not income</option><option value="sale">Sale: a customer is paying me</option></select></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:12px;margin-top:4px">Create invoice</button>
   </form><div id="rres"></div>`);
   api('/api/me').then(me=>{
@@ -737,7 +787,7 @@ function receiveModal(){
   m.querySelector('#rf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     m.querySelector('#rres').innerHTML=`<div style="text-align:center;padding:18px"><span class="spin"></span></div>`;
     try{
-      const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:Number(b.amountSats),memo:b.memo||'Payment'})});
+      const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:Number(b.amountSats),memo:b.memo||'Payment',purpose:b.purpose||'top_up'})});
       const fee=inv.feeSats??0;
       m.querySelector('#rf').style.display='none';
       m.querySelector('#rres').innerHTML=`
@@ -758,13 +808,14 @@ function sendModal(){
   const m=modal(`<div class="modalhead"><h2>Send sats</h2><button class="xbtn">✕</button></div>
   <form id="sf">
     <label class="field"><span>BOLT11 invoice</span><input class="input mono" name="bolt11" placeholder="lnbc…" required autofocus style="font-size:11px"></label>
+    <label class="field" style="margin-top:10px"><span>Books</span><select class="input" name="purpose"><option value="spend">Spend: paying for something</option><option value="transfer_out">Transfer: to a wallet I own</option><option value="refund">Refund: returning money to a customer</option></select></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Pay invoice</button>
   </form><div id="sres"></div>`);
   m.querySelector('#sf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     const payButton=m.querySelector('#sf').querySelector('button[type=submit],button');if(payButton.disabled)return;payButton.disabled=true;
     m.querySelector('#sres').innerHTML=`<div style="text-align:center;padding:18px"><span class="spin"></span></div>`;
     try{
-      const r=await api('/api/wallet/pay',{method:'POST',body:JSON.stringify({bolt11:b.bolt11})});
+      const r=await api('/api/wallet/pay',{method:'POST',body:JSON.stringify({bolt11:b.bolt11,purpose:b.purpose||'spend'})});
       m.querySelector('#sf').style.display='none';
       if(r.status!=='completed'){
         m.querySelector('#sres').innerHTML='<div class="invstatus wait">Payment processing</div><p class="muted" style="font-size:13px;margin-top:12px">Do not pay again or retry. Check History for the final result.</p>';
@@ -823,6 +874,91 @@ function showIssuedCard(out, keyText=''){
 function cardsConfigModal(){ VIEW='cards'; render(); }
 /* ---- CARDS (full management view) ---- */
 let CARD_ACCOUNT_ID=null;
+/* ---- BOOKS ---- */
+const BOOKS=JSON.parse(localStorage.getItem('openln_books_filter')||'null')||{preset:'month',cls:'',origin:'',dir:'',q:''};
+function booksRange(f){
+  const now=new Date();const d=(y,m,day)=>new Date(Date.UTC(y,m,day));
+  const y=now.getUTCFullYear(),m=now.getUTCMonth();
+  if(f.preset==='month')return[d(y,m,1),null];
+  if(f.preset==='last_month')return[d(y,m-1,1),new Date(d(y,m,1).getTime()-1)];
+  if(f.preset==='quarter'){const q=Math.floor(m/3)*3;return[d(y,q,1),null]}
+  if(f.preset==='year')return[d(y,0,1),null];
+  if(f.preset==='last_year')return[d(y-1,0,1),new Date(d(y,0,1).getTime()-1)];
+  if(f.preset==='custom')return[f.from?new Date(f.from):null,f.to?new Date(f.to+'T23:59:59.999Z'):null];
+  return[null,null];
+}
+function booksQuery(f,extra){
+  const [from,to]=booksRange(f);const p=new URLSearchParams();
+  if(from)p.set('from',from.toISOString());if(to)p.set('to',to.toISOString());
+  if(f.cls)p.set('class',f.cls);if(f.origin)p.set('origin',f.origin);if(f.dir)p.set('direction',f.dir);if(f.q)p.set('q',f.q);
+  Object.entries(extra||{}).forEach(([k,v])=>p.set(k,v));
+  return p.toString();
+}
+async function vBooks(){
+  const el=$('#view');
+  el.innerHTML=`<div class="view-loading"><span class="spin"></span></div>`;
+  const [meta,prof]=await Promise.all([api('/api/books/meta'),api('/api/books/profile').catch(()=>({profile:null}))]);
+  const f=BOOKS;const save=()=>localStorage.setItem('openln_books_filter',JSON.stringify(f));
+  const sel=(name,val,opts)=>`<select class="input" data-f="${name}" style="font-size:12.5px">${opts.map(([v,l])=>`<option value="${v}" ${v===val?'selected':''}>${l}</option>`).join('')}</select>`;
+  el.innerHTML=`<section class="panel">
+    <div class="panelhead"><h2 style="margin:0">Books</h2><button class="btn ghost sm" id="bkProfile">${prof.profile&&(prof.profile.legalName||prof.profile.tradingName)?'Business details':'Add business details'}</button></div>
+    <p class="hint" style="margin-top:6px">Bitcoin is money. Every sale is valued at the rate recorded when it settled, like a cash sale on the day. Later price moves do not change these figures. Check that top-ups and transfers to your own wallet are marked as such; they are your money moving, not income.</p>
+    <div class="books-filters">
+      ${sel('preset',f.preset,[['month','This month'],['last_month','Last month'],['quarter','This quarter'],['year','This year'],['last_year','Last year'],['all','All time'],['custom','Custom dates']])}
+      ${sel('cls',f.cls,[['','All classes'],...meta.classes.map(c=>[c.id,c.label])])}
+      ${sel('origin',f.origin,[['','All sources'],...meta.origins.map(o=>[o.id,o.label])])}
+      ${sel('dir',f.dir,[['','In and out'],['in','Incoming'],['out','Outgoing']])}
+      <div class="full" id="bkCustom" style="display:${f.preset==='custom'?'grid':'none'};grid-template-columns:1fr 1fr;gap:8px"><input class="input" type="date" data-f="from" value="${esc(f.from||'')}"><input class="input" type="date" data-f="to" value="${esc(f.to||'')}"></div>
+      <input class="input full" data-f="q" placeholder="Search memo, note, reference, counterparty, payment hash" value="${esc(f.q||'')}" style="font-size:12.5px">
+    </div>
+    <div id="bkSummary"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <a class="btn gold sm" id="bkStatement" target="_blank" rel="noopener">Open statement (PDF)</a>
+      <a class="btn ghost sm" id="bkCsv">Download CSV</a>
+    </div>
+    <div id="bkList" style="margin-top:14px"></div>
+  </section>`;
+  el.querySelectorAll('[data-f]').forEach(inp=>inp.oninput=inp.onchange=()=>{f[inp.dataset.f]=inp.value;if(inp.dataset.f==='preset')$('#bkCustom').style.display=f.preset==='custom'?'grid':'none';save();load()});
+  $('#bkProfile').onclick=()=>businessProfileModal(prof.profile,p=>{prof.profile=p;$('#bkProfile').textContent='Business details'});
+  let seq=0;
+  async function load(){
+    const my=++seq;const qs=booksQuery(f);
+    $('#bkStatement').href='/api/books/statement?'+qs+'&token='+encodeURIComponent(localStorage.getItem('openln_token')||'');
+    $('#bkCsv').href='/api/books/export.csv?'+qs+'&token='+encodeURIComponent(localStorage.getItem('openln_token')||'');
+    const [sum,list]=await Promise.all([api('/api/books/summary?'+qs),api('/api/books/transactions?'+booksQuery(f,{limit:200}))]);
+    if(my!==seq)return;
+    const cur=sum.currency;const fv=v=>cur?fmtFiat(v||'0',cur):'';
+    const cnt=c=>(sum.totals.find(t=>t.class===c)||{}).count||0;
+    $('#bkSummary').innerHTML=(cur?`<div class="books-kpis">
+      <div class="books-kpi"><div class="l">Sales</div><div class="v">${esc(fv(sum.salesFiat))}</div><div class="s">${cnt('sale')} transactions</div></div>
+      <div class="books-kpi"><div class="l">Net sales</div><div class="v">${esc(fv(sum.netSalesFiat))}</div><div class="s">after ${cnt('refund')} refund${cnt('refund')===1?'':'s'}</div></div>
+      <div class="books-kpi"><div class="l">Spend</div><div class="v">${esc(fv(sum.spendFiat))}</div><div class="s">${cnt('spend')} transactions</div></div>
+      <div class="books-kpi"><div class="l">Sats in / out</div><div class="v" style="font-size:14px">+${fmt(sum.inSats)}<br>−${fmt(sum.outSats)}</div><div class="s">${sum.rows} rows, fees ${fmt(sum.feesSats)}</div></div>
+    </div>`:`<div class="books-kpis"><div class="books-kpi"><div class="l">Received</div><div class="v">+${fmt(sum.inSats)}</div><div class="s">${sum.rows} rows</div></div><div class="books-kpi"><div class="l">Sent</div><div class="v">−${fmt(sum.outSats)}</div><div class="s">fees ${fmt(sum.feesSats)}</div></div></div><p class="hint">Your account is set to sats, so no fiat value is recorded. Choose a currency in Settings to book sales at their fiat value.</p>`)
+      +(cnt('other')?`<p class="hint" style="color:var(--warn,#e0a83a)">${cnt('other')} transaction${cnt('other')===1?'':'s'} need${cnt('other')===1?'s':''} review: open each one and pick a class so the statement is complete.</p>`:'');
+    const rows=list.transactions||[];
+    $('#bkList').innerHTML=rows.length?`<table class="books-tbl"><thead><tr><th>Date</th><th>Class</th><th>Description</th><th class="n">Sats</th>${cur?'<th class="n">'+esc(cur.toUpperCase())+'</th>':''}</tr></thead><tbody>${rows.map(t=>{const inb=t.direction==='in';return`<tr data-tx="${esc(t.id)}"><td class="mono" style="white-space:nowrap">${esc(new Date(t.createdAt).toISOString().slice(0,10))}</td><td><span class="txcls ${esc(t.class||'other')}">${esc(CLASS_LABEL[t.class]||'Needs review')}</span></td><td>${prose(t.memo||t.type||'Payment')}${t.note?`<div class="dim" style="font-size:11px">${esc(t.note)}</div>`:''}</td><td class="n" style="color:${inb?'var(--ok)':'inherit'}">${inb?'+':'−'}${fmt(t.amountSats)}</td>${cur?`<td class="n">${t.fiatAmount!=null?(inb?'':'−')+esc(fmtFiat(t.fiatAmount,t.fiatCurrency||cur)):'<span class="dim">n/a</span>'}</td>`:''}</tr>`}).join('')}</tbody></table>${list.total>rows.length?`<p class="hint">Showing ${rows.length} of ${list.total}. The CSV and statement include everything in the period.</p>`:''}`
+      :`<div style="padding:26px;text-align:center"><span class="dim" style="font-size:13px">No transactions match.</span></div>`;
+    $('#bkList').querySelectorAll('tr[data-tx]').forEach(tr=>tr.onclick=()=>{const t=rows.find(r=>r.id===tr.dataset.tx);if(t)txDetail(t)});
+  }
+  await load();
+}
+function businessProfileModal(p,onSaved){
+  p=p||{};
+  const m=modal(`<div class="modalhead"><h2>Business details</h2><button class="xbtn">✕</button></div>
+  <p class="hint" style="margin-bottom:12px">Printed on the letterhead of every statement. All fields optional.</p>
+  <form id="bpf">
+    <label class="field"><span>Legal name</span><input class="input" name="legalName" value="${esc(p.legalName||'')}"></label>
+    <label class="field"><span>Trading name</span><input class="input" name="tradingName" value="${esc(p.tradingName||'')}"></label>
+    <label class="field"><span>Tax ID</span><input class="input" name="taxId" value="${esc(p.taxId||'')}"></label>
+    <label class="field"><span>Address</span><input class="input" name="address" value="${esc(p.address||'')}"></label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="field"><span>City</span><input class="input" name="city" value="${esc(p.city||'')}"></label><label class="field"><span>Country</span><input class="input" name="country" value="${esc(p.country||'')}"></label></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="field"><span>Email</span><input class="input" name="email" value="${esc(p.email||'')}"></label><label class="field"><span>Phone</span><input class="input" name="phone" value="${esc(p.phone||'')}"></label></div>
+    <label class="field"><span>Fiscal year starts</span><select class="input" name="fiscalYearStartMonth">${['January','February','March','April','May','June','July','August','September','October','November','December'].map((n,i)=>`<option value="${i+1}" ${(p.fiscalYearStartMonth||1)===i+1?'selected':''}>${n}</option>`).join('')}</select></label>
+    <button class="btn gold" style="width:100%;justify-content:center;padding:11px;margin-top:6px">Save</button>
+  </form>`);
+  m.querySelector('#bpf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));try{const r=await api('/api/books/profile',{method:'PUT',body:JSON.stringify(b)});toast('Business details saved');onSaved&&onSaved(r.profile);m.querySelector('.xbtn').click()}catch(x){toast(x.message||'Could not save')}};
+}
 async function vCards(){
   $('#view').innerHTML=`<div style="margin-top:30px" id="cardsRoot">
     <div class="overline">Cards</div>

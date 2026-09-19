@@ -15,6 +15,22 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "swap_refund",
   "fee",
 ]);
+// Bookkeeping class. Bitcoin is money: a sale is booked at its fiat value at the
+// moment of the sale, like cash, and that value never changes. Everything that
+// is NOT a sale (owner top-ups, transfers to the owner's own wallet, purchases,
+// refunds, fees) is classified so an accountant never taxes it as revenue.
+export const transactionClassEnum = pgEnum("transaction_class", [
+  "sale",
+  "top_up",
+  "transfer_out",
+  "spend",
+  "refund",
+  "fee",
+  "other",
+]);
+export type TransactionClass = (typeof transactionClassEnum.enumValues)[number];
+export const TRANSACTION_CLASSES = transactionClassEnum.enumValues;
+
 export const transactionStatusEnum = pgEnum("transaction_status", [
   "pending",
   "completed",
@@ -46,10 +62,21 @@ export const transactionsTable = pgTable("transactions", {
   fiatRateSource: text("fiat_rate_source"),
   fiatRateDirection: text("fiat_rate_direction"),
   fiatRateAt: timestamp("fiat_rate_at", { withTimezone: true }),
+  // Books (migration 0011). class is set by the code path that writes the row
+  // (class_source = system) and may be corrected by the account holder
+  // (class_source = user). origin says which surface produced the movement.
+  class: transactionClassEnum("class"),
+  classSource: text("class_source"),
+  origin: text("origin"),
+  note: text("note"),
+  reference: text("reference"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("transactions_account_id_created_at_idx").on(table.accountId, table.createdAt),
+  index("transactions_account_class_created_idx").on(table.accountId, table.class, table.createdAt),
 ]);
+
+export type TransactionOrigin = "ric" | "web_pos" | "ln_address" | "wallet" | "card" | "internal" | "shop";
 
 export const insertTransactionSchema = createInsertSchema(transactionsTable).omit({
   id: true,

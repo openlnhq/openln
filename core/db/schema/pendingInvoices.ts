@@ -13,6 +13,9 @@ export const pendingInvoicesTable = pgTable("pending_invoices", {
   nwcUrlEncrypted: text("nwc_url_encrypted"),
   cardOrderId: uuid("card_order_id"),
   posboxDeviceId: uuid("posbox_device_id"),
+  // Which surface created this invoice: ric | web_pos | ln_address | wallet | shop.
+  // Settlement copies it to the transaction row and derives the bookkeeping class.
+  origin: text("origin"),
   // Hold-invoice wrap (1% incoming fee engine). Null wrapStatus = direct invoice.
   // bolt11 above is the customer-facing invoice (the wrapped hold invoice when wrapped);
   // merchantBolt11 is the merchant's real invoice for amount minus fee.

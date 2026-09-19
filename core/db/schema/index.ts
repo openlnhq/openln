@@ -1,6 +1,7 @@
 export * from './entities.js';
 export * from './accounts.js';
 export * from './transactions.js';
+export * from './businessProfiles.js';
 export * from './pendingInvoices.js';
 export * from './paymentEvents.js';
 export * from './cards.js';

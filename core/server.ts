@@ -8,6 +8,7 @@ import { createBuiltinRegistry } from "./plugins/builtin.js";
 import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
+import { captureFiatSnapshot } from "./money/fiatSnapshot.js";
 import { createWrappedInvoice, cancelWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource } from "./money/walletSource.js";
@@ -288,7 +289,10 @@ const server = createServer(async (req, res) => {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const bolt11 = String(v.bolt11 ?? "").trim();
       if (!bolt11 || !/^ln(bc|tb|bcrt)/i.test(bolt11)) return json(res, 400, { error: "Invalid BOLT11 invoice" });
-      try { const { parseBolt11AmountSats } = await import("./money/boltcard.js"); const { processExternalPayment, AmbiguousPaymentError } = await import("./money/feeEngine.js"); const amountSats = parseBolt11AmountSats(bolt11); if (!amountSats) return json(res, 400, { error: "Invoice has no valid amount" }); const result = await processExternalPayment(account.id, bolt11, amountSats, undefined, "openLN send"); return json(res, 200, { status: "completed", ...result }); } catch (e) { if (e instanceof AmbiguousPaymentError) return json(res, 202, { status: "pending", pendingTxId: e.pendingTxId, error: "Payment outcome is unknown; check Activity before retrying" }); return json(res, 400, { error: e instanceof Error ? e.message : "Payment failed" }); }
+      try { const { parseBolt11AmountSats } = await import("./money/boltcard.js"); const { processExternalPayment, AmbiguousPaymentError } = await import("./money/feeEngine.js"); const amountSats = parseBolt11AmountSats(bolt11); if (!amountSats) return json(res, 400, { error: "Invoice has no valid amount" }); const result = await processExternalPayment(account.id, bolt11, amountSats, undefined, typeof v.memo === "string" ? v.memo.slice(0, 140) : "openLN send", undefined, undefined, "wallet");
+        // Books: the sender declared what this payment is (spend / transfer to own wallet / refund). Stored as a user classification on the row.
+        const purpose = String(v.purpose ?? ""); if (["spend", "transfer_out", "refund"].includes(purpose) && result.paymentHash) { await db.update(transactionsTable).set({ class: purpose as "spend" | "transfer_out" | "refund", classSource: "user" }).where(and(eq(transactionsTable.accountId, account.id), eq(transactionsTable.paymentHash, result.paymentHash), eq(transactionsTable.direction, "out"))).catch(() => {}); }
+        return json(res, 200, { status: "completed", ...result }); } catch (e) { if (e instanceof AmbiguousPaymentError) return json(res, 202, { status: "pending", pendingTxId: e.pendingTxId, error: "Payment outcome is unknown; check Activity before retrying" }); return json(res, 400, { error: e instanceof Error ? e.message : "Payment failed" }); }
     }
 
     // POS invoice endpoint uses the identical wrapped hold path. The device
@@ -303,9 +307,17 @@ const server = createServer(async (req, res) => {
       const source = await resolveWalletSource(account.id);
       if (source.kind !== "nwc") return json(res, 400, { error: "Wallet not configured for NWC" });
       const memo = typeof v.memo === "string" ? v.memo.slice(0, 140) : "POS payment";
+      // Books: a POS invoice is a sale. RIC requests carry a device token / deviceId; the browser POS does not.
+      const fromRic = typeof v.deviceId === "string" || (req.headers["user-agent"] ?? "").toString().startsWith("openLN-RIC");
+      // The wallet's own Receive screen declares purpose "top_up" (owner funding the wallet:
+      // not income). Anything else on this route is a sale: RIC, or the browser POS.
+      const posOrigin = fromRic ? "ric" : v.purpose === "top_up" ? "wallet" : "web_pos";
+      // NOTE: the RIC (hardware) is always a sale; the browser Receive screen defaults to top_up
+      // and the user flips it to "sale" when a customer is paying at the counter without a RIC.
+      const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "receive");
       const wrap = await createWrappedInvoice(amountSats, memo, source.nwcUrl);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, origin: posOrigin, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt, ...(fiatSnapshot ?? {}) });
         recordPaymentEvent({
           paymentId: wrap.paymentHash,
           accountId: account.id,
@@ -322,7 +334,7 @@ const server = createServer(async (req, res) => {
         return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, feeSats:wrap.feeSats, merchantAmountSats:amountSats-wrap.feeSats, expiresAt: wrap.expiresAt });
       }
       const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);
-      await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
+      await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
       return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
     }
     // Merchant cancelled the sale on the RIC or in the web POS. Closes a
@@ -366,13 +378,15 @@ const server = createServer(async (req, res) => {
       // Use the same wrapped hold-invoice path as POS: customer pays the
       // platform hold, then status polling forwards merchant sats and settles
       // the hold, recording the 1% fee in the core ledger.
+      // Books: a payment to the Lightning address is a sale at today's rate.
+      const lnFiat = await captureFiatSnapshot(account.id, sats, "receive");
       const wrap = await createWrappedInvoice(sats, "openLN payment", source.nwcUrl);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), origin: "ln_address", expiresAt: wrap.expiresAt, ...(lnFiat ?? {}) });
         return json(res, 200, { pr: wrap.bolt11, routes: [] });
       }
       const invoice = await makeInvoice(sats, "openLN payment", 3600, source.nwcUrl);
-      await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), expiresAt: invoice.expiresAt });
+      await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
       return json(res, 200, { pr: invoice.bolt11, routes: [] });
     }
     // Wrapped invoice status is request-driven: each poll advances the

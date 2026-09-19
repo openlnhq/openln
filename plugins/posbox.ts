@@ -89,7 +89,7 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   const k1 = generateK1();
   const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "send");
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-  await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: "", paymentHash: k1, amountSats, memo: WITHDRAW_MEMO, expiresAt, ...(fiatSnapshot ?? {}) });
+  await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: "", paymentHash: k1, amountSats, memo: WITHDRAW_MEMO, origin: "ric", expiresAt, ...(fiatSnapshot ?? {}) });
   const callbackUrl = `https://${DOMAIN}/api/pos/withdraw/callback`;
   const lnurlw = encodeLnurl(`${callbackUrl}?k1=${k1}`);
   logger.info({ accountId: account.id, amountSats, k1 }, "RIC send: LNURL-W created");
@@ -119,7 +119,7 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   if (!pr) return json(res, 200, { tag: "withdrawRequest", callback: `https://${DOMAIN}/api/pos/withdraw/callback`, k1, defaultDescription: "openLN send", minWithdrawable: pending.amountSats * 1000, maxWithdrawable: pending.amountSats * 1000 });
   if (pending.paidAt) return json(res, 200, { status: "ERROR", reason: "Withdrawal already claimed" });
   try {
-   const { paymentHash, feeSats } = await processExternalPayment(pending.accountId, pr, pending.amountSats, undefined, WITHDRAW_MEMO);
+   const { paymentHash, feeSats } = await processExternalPayment(pending.accountId, pr, pending.amountSats, undefined, WITHDRAW_MEMO, undefined, undefined, "ric");
    logger.info({ accountId: pending.accountId, amountSats: pending.amountSats, feeSats, paymentHash }, "RIC send: payment sent via QR");
    await db.update(pendingInvoicesTable).set({ paidAt: new Date(), bolt11: pr }).where(eq(pendingInvoicesTable.id, pending.id));
    return json(res, 200, { status: "OK" });
@@ -168,9 +168,9 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   if (!merchantNwcUrl) return json(res, 400, { error: "Merchant wallet not available" });
   try {
    const invoice = await makeInvoice(amountSats, "openLN send from merchant", 300, cardNwcUrl);
-   const { paymentHash, feeSats } = await processExternalPayment(merchantAccountId, invoice.bolt11, amountSats, undefined, "RIC send to card", merchantNwcUrl);
+   const { paymentHash, feeSats } = await processExternalPayment(merchantAccountId, invoice.bolt11, amountSats, undefined, "RIC send to card", merchantNwcUrl, undefined, "ric");
    logger.info({ cardId, merchantAccountId, cardAccountId, amountSats, feeSats, paymentHash }, "RIC send: payment sent to card holder");
-   await db.insert(transactionsTable).values({ cardId, accountId: cardAccountId, amountSats, direction: "in", type: "receive", status: "completed", bolt11: invoice.bolt11, paymentHash, memo: "openLN send to card" });
+   await db.insert(transactionsTable).values({ cardId, accountId: cardAccountId, amountSats, direction: "in", type: "receive", status: "completed", bolt11: invoice.bolt11, paymentHash, memo: "openLN send to card", origin: "card", class: "top_up", classSource: "system", ...((await captureFiatSnapshot(cardAccountId, amountSats, "receive").catch(() => null)) ?? {}) });
    return json(res, 200, { status: "OK" });
   } catch (err) {
    logger.error({ cardId, merchantAccountId, cardAccountId, err }, "RIC send to card failed");

@@ -216,6 +216,7 @@ static bool readTouch(int& tx, int& ty) {
 // State transitions
 // ──────────────────────────────────────────────────────────────────────────────
 static void enterIdleAmount(); // forward declaration — defined after handleConnectingWifi
+static void enterIdleAmountKeepAmount();
 static void enterProvisioning() {
     state = STATE_PROVISIONING;
     Config::clear();
@@ -450,6 +451,16 @@ static void enterIdleAmount() {
     ledcWrite(0, 255);          // backlight on — may be no-op if already on
     AmountScreen::cancelPayHold();  // clear any stale hold state
     AmountScreen::draw(tft);
+    state = STATE_IDLE_AMOUNT;
+}
+
+// Same, but the typed amount survives (used after a rejected send PIN).
+static void enterIdleAmountKeepAmount() {
+    screenOff      = false;
+    lastActivityMs = millis();
+    ledcWrite(0, 255);
+    AmountScreen::cancelPayHold();
+    AmountScreen::draw(tft, true);
     state = STATE_IDLE_AMOUNT;
 }
 
@@ -888,6 +899,7 @@ static String sendLnurlw;    // LNURL-W string for QR display
 static String sendK1;        // k1 challenge for status polling
 static String sendCardUrl;   // card URL captured from NFC tap
 static String sendPin;       // merchant PIN captured at entry, used for send-to-card
+static int    sendPinFailures = 0;  // consecutive wrong send PINs on this pad
 static bool  sendQrShown = false;
 
 static void handleSendPinEntry() {
@@ -913,11 +925,29 @@ static void handleSendPinEntry() {
         String lnurlw = BitposClient::createWithdraw(currentAmountSats, pin, err, k1);
 
         if (!err.isEmpty() || lnurlw.isEmpty()) {
+            // Wrong PIN: shake and let the cashier retry on the same pad. Three
+            // strikes returns to the amount screen (amount kept). The server
+            // locks the account after 5 fails / 15 min, so this is bounded.
+            const bool wrongPin = err.indexOf("Invalid PIN") >= 0 || err.indexOf("PIN required") >= 0;
+            if (wrongPin && ++sendPinFailures < 3) {
+                Serial.printf("RIC send: wrong PIN attempt %d\n", sendPinFailures);
+                PinScreen::draw(tft, "", 6);
+                PinScreen::setWrongPin(tft);
+                return;
+            }
+            sendPinFailures = 0;
+            if (wrongPin) {
+                // Three wrong: back to the amount pad, still in send mode.
+                Buzzer::playError();
+                enterIdleAmountKeepAmount();
+                return;
+            }
             lastError = err.isEmpty() ? "Failed to create withdrawal" : err;
             ResultScreen::draw(tft, RESULT_ERROR, 0, lastError, false, "Send failed");
             state = STATE_ERROR;
             return;
         }
+        sendPinFailures = 0;
 
         sendLnurlw = lnurlw;
         sendK1 = k1;  // save for status polling
@@ -932,6 +962,7 @@ static void handleSendPinEntry() {
         tft.fillScreen(COL_BG);
         PaymentScreen::draw(tft, sendLnurlw, currentAmountSats, fiatLabel,
                            INVOICE_TIMEOUT_MS / 1000);
+        PaymentScreen::setStage(tft, "Ready to send");
         state = STATE_SEND_WAITING;
     }
 }
@@ -958,7 +989,7 @@ static void handleSendWaiting() {
     PaymentScreen::update(tft);
     if (nfcRetryHintAt && RicPolicy::elapsed(millis(), nfcRetryHintAt, 4000)) {
         nfcRetryHintAt = 0;
-        PaymentScreen::setStage(tft, "Ready to pay");
+        PaymentScreen::setStage(tft, "Ready to send");
     }
 
     // Poll withdrawal status — if the QR was scanned and claimed, show success.

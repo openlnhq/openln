@@ -27,6 +27,7 @@ import { getAccountNwcUrl } from "../core/money/nwc.js";
 import { settleInvoiceByPaymentHash } from "../core/money/invoiceMonitor.js";
 import { decrypt } from "../core/money/encrypt.js";
 import { logger } from "../core/money/logger.js";
+import { humanizeFailure } from "../core/money/failureText.js";
 import { DOMAIN } from "../core/domain.js";
 
 type Request = { params: Record<string,string>; query: Record<string,string> };
@@ -529,11 +530,10 @@ const CARD_TAP_MIN_PAYMENT_WINDOW_MS = 1_500;
 
 /** Map definitive pay failures to actionable messages; generic otherwise. */
 function payFailureReason(err: unknown): string {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (/insufficient/i.test(msg)) return "Insufficient balance";
-  if (/expired/i.test(msg)) return "Invoice expired - generate a new invoice and tap again";
-  if (/no.?route|route not found/i.test(msg)) return "No route to destination - please try again";
-  return "Payment failed. Please try again.";
+  // Raw node text (channel ids, "layer auto.localchans" ...) stays in the
+  // failed transaction's failure_reason for the Treasury; the device and the
+  // LNURL reply get the human line.
+  return humanizeFailure(err).message;
 }
 
 /** Router adapter only. Payment/check/timeout behavior above is the bitPOS port. */

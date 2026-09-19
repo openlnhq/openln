@@ -136,12 +136,12 @@ uint16_t AmountScreen::dotColor() {
     return COL_SUCCESS;
 }
 
-void AmountScreen::draw(TFT_eSPI& tft) {
-    _whole = 0; _frac = 0; _fracLen = 0; _decimalMode = false;
+void AmountScreen::draw(TFT_eSPI& tft, bool keepAmount) {
+    if (!keepAmount) { _whole = 0; _frac = 0; _fracLen = 0; _decimalMode = false; }
     tft.fillScreen(COL_BG);
     drawHeader(tft);
     _numpad.draw(tft, NUMPAD_Y, NUMPAD_AMOUNT, NUMPAD_KH, _sendMode);
-    drawPayButton(tft, false);
+    drawPayButton(tft, keepAmount && getAmountSats() > 0);
 }
 
 void AmountScreen::drawHeader(TFT_eSPI& tft) {

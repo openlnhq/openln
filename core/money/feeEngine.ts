@@ -1,3 +1,6 @@
+import { classifyMovement } from "./bookkeeping.js";
+import type { TransactionOrigin } from "../db/schema/transactions.js";
+import { captureFiatSnapshot } from "./fiatSnapshot.js";
 import { db } from "../db/index.js";
 import { transactionsTable, pendingInvoicesTable } from "../db/index.js";
 import { and, eq, isNotNull, or, inArray } from "drizzle-orm";
@@ -50,7 +53,12 @@ export async function processExternalPayment(
   memo?: string,
   nwcUrl?: string,
   cardId?: string,
+  // Books: which surface is paying. card = card tap (spend), wallet = Pay screen (spend),
+  // ric = RIC send (transfer to own wallet). Defaults from cardId for old callers.
+  origin?: TransactionOrigin,
 ): Promise<{ paymentHash: string; feeSats: number }> {
+  const bookOrigin: TransactionOrigin = origin ?? (cardId ? "card" : "wallet");
+  const fiat = await captureFiatSnapshot(accountId, amountSats, "send").catch(() => null);
   const walletUrl = nwcUrl ?? await getAccountNwcUrl(accountId);
   if (!walletUrl) throw new Error("No wallet configured for this account");
 
@@ -78,6 +86,10 @@ export async function processExternalPayment(
       status: "pending",
       memo,
       cardId: cardId ?? null,
+      origin: bookOrigin,
+      class: classifyMovement(bookOrigin, "out"),
+      classSource: "system",
+      ...(fiat ?? {}),
     })
     .returning({ id: transactionsTable.id });
 
@@ -426,6 +438,10 @@ export async function processInternalPayment(
       counterpartHandle: receiverHandle,
       status: "pending",
       memo,
+      origin: "internal",
+      class: classifyMovement("internal", "out"),
+      classSource: "system",
+      ...((await captureFiatSnapshot(senderAccountId, amountSats, "send").catch(() => null)) ?? {}),
     })
     .returning({ id: transactionsTable.id });
 
@@ -452,6 +468,10 @@ export async function processInternalPayment(
       paymentHash: payResult.paymentHash,
       bolt11: invoiceResult.bolt11,
       memo,
+      origin: "internal",
+      class: classifyMovement("internal", "in"),
+      classSource: "system",
+      ...((await captureFiatSnapshot(receiverAccountId, amountSats, "receive").catch(() => null)) ?? {}),
     });
 
     logger.info({ senderAccountId, receiverAccountId, amountSats }, "Internal payment settled via Veil");

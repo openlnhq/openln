@@ -1,3 +1,4 @@
+import { classifyMovement } from "./bookkeeping.js";
 // @ts-nocheck
 //
 import cron from "node-cron";
@@ -45,6 +46,15 @@ type PendingInvoiceRow = {
   holdPreimage: string | null;
   lnurlVerifyUrl: string | null;
   wrapUpdatedAt: Date | null;
+  origin?: string | null;
+  fiatCurrency?: string | null;
+  fiatAmount?: string | null;
+  fiatBaseRate?: string | null;
+  fiatEffectiveRate?: string | null;
+  fiatModifier?: string | null;
+  fiatRateSource?: string | null;
+  fiatRateDirection?: string | null;
+  fiatRateAt?: Date | null;
 };
 
 export async function settleInvoiceByPaymentHash(paymentHash: string, paidAt: Date): Promise<boolean> {
@@ -103,6 +113,9 @@ async function settleInvoice(invoice: PendingInvoiceRow, paidAt: Date): Promise<
       bolt11: invoice.bolt11,
       status: "completed",
       memo: invoice.memo ?? undefined,
+      origin: invoice.origin ?? undefined,
+      class: classifyMovement(invoice.origin, "in"),
+      classSource: "system",
       fiatCurrency: invoice.fiatCurrency ?? undefined, fiatAmount: invoice.fiatAmount ?? undefined, fiatBaseRate: invoice.fiatBaseRate ?? undefined, fiatEffectiveRate: invoice.fiatEffectiveRate ?? undefined, fiatModifier: invoice.fiatModifier ?? undefined, fiatRateSource: invoice.fiatRateSource ?? undefined, fiatRateDirection: invoice.fiatRateDirection ?? undefined, fiatRateAt: invoice.fiatRateAt ?? undefined,
     });
   });

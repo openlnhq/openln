@@ -1,3 +1,4 @@
+import { classifyMovement } from "./bookkeeping.js";
 /**
  * Incoming-fee wrap engine (1% in, 0% out).
  *
@@ -303,7 +304,7 @@ export type WrapRow = {
   fiatRateSource: string | null;
   fiatRateDirection: string | null;
   fiatRateAt: Date | null;
-
+  origin?: string | null; // ric | web_pos | ln_address | wallet | shop (books)
 };
 
 function isDefinitivePayFailure(err: unknown): boolean {
@@ -463,6 +464,9 @@ async function finalizeSettled(row: WrapRow): Promise<void> {
       bolt11: row.merchantBolt11 ?? row.bolt11,
       status: "completed",
       memo: row.memo ?? undefined,
+      origin: row.origin ?? undefined,
+      class: classifyMovement(row.origin, "in"),
+      classSource: "system",
       fiatCurrency: row.fiatCurrency ?? undefined, fiatAmount: row.fiatAmount ?? undefined, fiatBaseRate: row.fiatBaseRate ?? undefined, fiatEffectiveRate: row.fiatEffectiveRate ?? undefined, fiatModifier: row.fiatModifier ?? undefined, fiatRateSource: row.fiatRateSource ?? undefined, fiatRateDirection: row.fiatRateDirection ?? undefined, fiatRateAt: row.fiatRateAt ?? undefined,
     });
   });

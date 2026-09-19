@@ -415,6 +415,7 @@ async function callback(req: Request, res: Response): Promise<void> {
         `Bolt Card payment (${cardLabel})`,
         nwcUrl,
         cardId,
+        "card",
       );
       logger.info({ cardId, accountId: cardAccountId, amountSats, feeSats, paymentHash }, "Bolt Card payment completed via Veil");
 

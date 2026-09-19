@@ -704,7 +704,7 @@ function txDetail(t){
   ${kv('Direction',t.direction==='out'?'outgoing':'incoming')}
   ${kv('Date',dt)}
   ${kv('Payment hash',t.paymentHash||t.payment_hash,'mono')}
-  ${kv('Fee',fee?fmt(fee)+' sats':'','mono')}
+  ${kv(inb?'Service fee':'Routing fee',fee?fmt(fee)+' sats':'','mono')}
   ${kv('Counterparty',t.counterpartHandle||t.counterpart_handle||t.counterpartLnAddress||'')}
   ${t.bolt11?`<div style="margin-top:12px"><button class="btn ghost sm" id="txcopy">Copy invoice</button></div>`:''}`);
   const c=document.querySelector('#txcopy');
@@ -1212,11 +1212,23 @@ function ricLinkModal(){
               }catch(e){ settle(()=>reject(e)); }
             })();
           });
-          const seen=await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens');
-          const reachedServer=seen.some(d=>d.id===issuedTokenId && d.lastUsedAt);
-          const confirmed=deviceConfirmed && reachedServer;
-          setStep(3,confirmed?'done':'active');slot(3).innerHTML=confirmed?`<p style="color:var(--ok);font-size:13px;font-weight:590">RIC connected</p><p class="hint">The device confirmed WiFi and authenticated with openLN.</p>`:`<p class="muted" style="font-size:13px;font-weight:590">Credentials saved · waiting for RIC</p><p class="hint">Bluetooth disconnects when the device restarts. Check its screen and the linked-device status before taking a payment. The saved token has been kept.</p>`;
-          renderRicDevices();
+          // The device restarts the moment it stores the credentials, so the
+          // BLE "connected" notify usually never arrives. The real proof is the
+          // token's first authenticated call: poll for it and turn the step
+          // green the second it lands, instead of leaving the user guessing.
+          const tokenSeen=async()=>{ try{ const seen=await api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens'); return seen.some(d=>d.id===issuedTokenId && d.lastUsedAt); }catch{ return false; } };
+          const showConnected=()=>{ setStep(3,'done'); slot(3).innerHTML=`<div style="display:flex;align-items:center;gap:10px"><span style="display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--ok);color:#052e16;align-items:center;justify-content:center;font-weight:700;font-size:16px">✓</span><div><p style="color:var(--ok);font-size:13px;font-weight:590;margin:0">RIC linked to your account</p><p class="hint" style="margin:2px 0 0">${esc(deviceName||'RIC')} is on WiFi and authenticated with openLN. It is ready to take payments.</p></div></div>`; renderRicDevices(); };
+          if(deviceConfirmed || await tokenSeen()){ showConnected(); }
+          else {
+            slot(3).innerHTML=`<p class="muted" style="font-size:13px;font-weight:590"><span class="spin" style="width:12px;height:12px;vertical-align:-2px;margin-right:6px"></span>Credentials saved · waiting for the RIC to come online</p><p class="hint" id="ricWaitHint">The device is restarting and joining WiFi. This usually takes 10 to 30 seconds.</p>`;
+            renderRicDevices();
+            const started=Date.now();
+            const poll=setInterval(async()=>{
+              if(!m.isConnected){ clearInterval(poll); return; }
+              if(await tokenSeen()){ clearInterval(poll); showConnected(); return; }
+              if(Date.now()-started>120000){ clearInterval(poll); const h=m.querySelector('#ricWaitHint'); if(h)h.textContent='Still not seen after 2 minutes. Check the WiFi name and password on the device screen. The saved token has been kept; re-link if it shows the pairing screen again.'; }
+            },3000);
+          }
         }catch(e){
           if(issuedTokenId && !tokenWritten){ api('/api/accounts/'+RIC_ACCOUNT_ID+'/device-tokens/'+issuedTokenId,{method:'DELETE'}).catch(()=>{}); }
           setStep(3,'error'); slot(3).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Provisioning failed')}</p><button class="btn ghost sm" id="ricRetryLink" style="margin-top:8px">Try again</button>`;

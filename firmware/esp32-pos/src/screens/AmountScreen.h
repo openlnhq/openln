@@ -4,7 +4,9 @@
 
 class AmountScreen {
 public:
-    static void draw(TFT_eSPI& tft);
+    // keepAmount=true redraws with the typed amount intact (e.g. after a
+    // failed PIN so the cashier does not retype the sale).
+    static void draw(TFT_eSPI& tft, bool keepAmount = false);
     static bool handleTouch(TFT_eSPI& tft, int tx, int ty);
     static long getAmountSats();
     static bool hasInput();

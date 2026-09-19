@@ -11,6 +11,7 @@
  * requireAdmin (adminSecretOk() checked first, then session+handle).
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { humanizeFailure } from "../money/failureText.js";
 import {
   db,
   pendingInvoicesTable,
@@ -977,6 +978,7 @@ export async function handleAdminPaymentsRoute(
           paymentHash,
           status: tx.status,
           failureReason: tx.failureReason,
+          failureSummary: tx.failureReason ? humanizeFailure(tx.failureReason).message : null,
         });
       }
 

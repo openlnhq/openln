@@ -654,6 +654,7 @@ async function vWallet(st,bal,version=renderVersion){
       <div class="wos-fiat">${bal.connected?'Live balance · held in your wallet':st.connected?'Unable to read your balance. Your wallet still holds your funds.':'Your wallet funds your cards and RIC.'}</div>
       ${!st.connected?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">Coinos, Primal, Alby, or another NWC wallet</p>':''}
     </div>
+    <div id="pinNudge"></div>
     <div class="wos-latest" id="txlist">${latest?txRow(latest):emptyTx()}</div>
     <button class="wos-hist" id="bhist" aria-expanded="false">▾ History</button>
     <div class="wos-spacer"></div>
@@ -663,6 +664,11 @@ async function vWallet(st,bal,version=renderVersion){
     </div>
   </div>`;
   $('#connectWalletHome')?.addEventListener('click',walletModal);
+  // One-time nudge (per browser) until the 6-digit send PIN exists. The RIC
+  // and Send need it; asking here beats the first failed send on a device.
+  if(st.connected && !localStorage.getItem('openln_pin_nudge_dismissed')){
+    api('/api/account/send-pin').then(p=>{const n=$('#pinNudge');if(!n||p.set||VIEW!=='wallet')return;n.innerHTML=`<div class="card" style="margin:0 16px 10px;padding:12px 14px;border-color:var(--accent);display:flex;gap:10px;align-items:center"><div style="flex:1"><b style="font-size:13px">Set your 6-digit send PIN</b><div class="dim" style="font-size:12px;margin-top:2px">Needed before your RIC or this wallet can send sats.</div></div><button class="btn teal sm" id="pinNudgeGo">Set</button><button class="xbtn" id="pinNudgeX" title="Later">✕</button></div>`;$('#pinNudgeGo').onclick=()=>navigate('settings');$('#pinNudgeX').onclick=()=>{localStorage.setItem('openln_pin_nudge_dismissed','1');n.innerHTML='';};}).catch(()=>{});
+  }
   $('#brecv').onclick=st.connected?receiveModal:walletModal;
   $('#bsend').onclick=st.connected?sendModal:walletModal;
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
@@ -1034,12 +1040,16 @@ async function vRic(){
       <button class="rictile" id="ricLinkTile"><div class="rictile-ico">${navIcon('ric')}</div><div class="rictile-label">Link your RIC</div><div class="rictile-sub">Already flashed? Pair over Bluetooth and connect it to WiFi.</div></button>
       <button class="rictile" id="ricFlashTile"><div class="rictile-ico">${navIcon('settings')}</div><div class="rictile-label">Install firmware</div><div class="rictile-sub">For a new, unflashed device. USB · CYD ESP32-2432S028R Board.</div></button>
     </div>
+    <div id="ricPinGate"></div>
     <div class="ricrates" id="ricRateSummary">Loading your counter settings…</div>
     <div class="overline" style="margin-top:28px;margin-bottom:10px">Linked devices</div>
     <div id="ricDevices"><div style="padding:24px 0;text-align:center"><span class="spin"></span></div></div>
   </div>`;
   $('#ricFlashTile').onclick=()=>ricFlashModal();
   $('#ricLinkTile').onclick=()=>ricLinkModal();
+  // Proactive: a RIC cannot send (QR or card tap) until the account has a
+  // 6-digit send PIN. Ask for it here, before the first device error does.
+  api('/api/account/send-pin').then(p=>{const g=$('#ricPinGate');if(!g||p.set)return;g.innerHTML=`<div class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Set your 6-digit send PIN</b><p class="dim" style="font-size:12.5px;margin-top:6px">Receiving works without it. Sending sats from the RIC (Send mode QR or tapping a card) is refused until this PIN exists. Set it once now so the device is ready.</p><button class="btn teal sm" id="ricSetPinNow" style="margin-top:10px">Set send PIN</button></div>`;$('#ricSetPinNow').onclick=()=>navigate('settings');}).catch(()=>{});
   api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(s.rateModifier||'Market rate')}</b><br>Sell / Send: <b>${esc(s.sendRateModifier||'Market rate')}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><p class="hint">Sending sats from the RIC (QR or card tap) requires your 6-digit send PIN. Set it under Security in Settings.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>navigate('settings')}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
   await renderRicDevices();
 }
@@ -1624,7 +1634,8 @@ async function admRenderDetail(id,silent){
           ${admKv('Updated',d.invoice?.wrapUpdatedAt)}
           ${admKv('Paid at',d.invoice?.paidAt)}
           ${admKv('Preimages',d.invoice?`hold=${d.invoice.hasHoldPreimage?'yes':'no'} m=${d.invoice.hasPreimage?'yes':'no'}`:null)}
-          ${admKv('Failure',d.transaction?.failureReason)}
+          ${admKv('Failure',d.transaction?.failureSummary||d.transaction?.failureReason)}
+          ${d.transaction?.failureSummary&&d.transaction?.failureReason&&d.transaction.failureSummary!==d.transaction.failureReason?admKv('Technical reason',d.transaction.failureReason):''}
         </div>
         ${(d.counterparts&&d.counterparts.length)?`<div style="margin-top:10px"><div class="overline">Legs on this hash</div><div class="admlegs">${d.counterparts.map(c=>`<button type="button" class="admleg" data-adm-id="${esc(c.id)}">${esc(c.direction)} @${esc(c.handle||'?')} · ${esc(c.status)} · ${fmt(c.amountSats)}</button>`).join('')}</div></div>`:''}
       </div>

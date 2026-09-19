@@ -51,27 +51,61 @@ async function onNotification(n: Notification): Promise<void> {
   }
 }
 
-export async function startWrapNotifications(): Promise<() => void> {
-  if (!PLATFORM_NWC_URL) { logger.warn("wrap notifications: no platform wallet configured"); return () => {}; }
-  if (unsubscribe) return unsubscribe;
+// A failed subscribe used to stay failed until the next process restart: one
+// relay timeout at boot meant a whole day of sweep-only wraps. Now we keep
+// trying with backoff (5 s .. 5 min) until subscribed, and re-arm the retry
+// whenever the subscription is lost. The wrapDriver sweep covers every gap.
+let retryTimer: NodeJS.Timeout | undefined;
+let retryMs = 5_000;
+let stopped = false;
+let attempts = 0;
+
+async function subscribeOnce(): Promise<boolean> {
   // Dedicated client: the request client in nwc.ts is evicted/recreated on
   // transient errors, which would silently drop a subscription hung on it.
-  client = new NWCClient({ nostrWalletConnectUrl: PLATFORM_NWC_URL });
+  const c = new NWCClient({ nostrWalletConnectUrl: PLATFORM_NWC_URL! });
+  attempts++;
   try {
-    const info = await client.getInfo();
+    const info = await c.getInfo();
     const supported = (info as { notifications?: string[] }).notifications ?? [];
     if (!supported.includes("hold_invoice_accepted")) {
       logger.warn({ supported }, "wrap notifications: wallet does not advertise hold_invoice_accepted; driver sweep only");
     }
-    const unsub = await client.subscribeNotifications((n) => void onNotification(n as Notification));
-    unsubscribe = () => { try { unsub(); } catch { /* ignore */ } try { client?.close(); } catch { /* ignore */ } unsubscribe = undefined; };
-    logger.info({ supported }, "wrap notifications subscribed");
-    return unsubscribe;
+    const unsub = await c.subscribeNotifications((n) => void onNotification(n as Notification));
+    client = c;
+    unsubscribe = () => { try { unsub(); } catch { /* ignore */ } try { c.close(); } catch { /* ignore */ } unsubscribe = undefined; };
+    retryMs = 5_000;
+    logger.info({ supported, attempts }, "wrap notifications subscribed");
+    return true;
   } catch (err) {
-    logger.warn({ err: err instanceof Error ? err.message : String(err) }, "wrap notifications: subscribe failed; driver sweep only");
-    try { client.close(); } catch { /* ignore */ }
-    return () => {};
+    logger.warn({ err: err instanceof Error ? err.message : String(err), attempts, nextRetryMs: retryMs }, "wrap notifications: subscribe failed; driver sweep only, will retry");
+    try { c.close(); } catch { /* ignore */ }
+    return false;
   }
 }
 
-export function wrapNotificationStats() { return { ...stats, subscribed: !!unsubscribe }; }
+function scheduleRetry(): void {
+  if (stopped || retryTimer) return;
+  retryTimer = setTimeout(async () => {
+    retryTimer = undefined;
+    if (stopped || unsubscribe) return;
+    const ok = await subscribeOnce();
+    if (!ok) { retryMs = Math.min(retryMs * 2, 5 * 60_000); scheduleRetry(); }
+  }, retryMs);
+}
+
+export async function startWrapNotifications(): Promise<() => void> {
+  if (!PLATFORM_NWC_URL) { logger.warn("wrap notifications: no platform wallet configured"); return () => {}; }
+  if (unsubscribe) return unsubscribe;
+  stopped = false;
+  const ok = await subscribeOnce();
+  if (!ok) scheduleRetry();
+  return () => {
+    stopped = true;
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = undefined; }
+    unsubscribe?.();
+  };
+}
+
+// Health surfaces both the live state and how hard we have been trying.
+export function wrapNotificationStats() { return { ...stats, subscribed: !!unsubscribe, attempts, retryInMs: retryTimer ? retryMs : 0 }; }

@@ -837,9 +837,9 @@ function walletModalModes(){return {
   nwc:{tab:'NWC',label:'NWC connection string',ph:'nostr+walletconnect://…',
     hint:'Full wallet: receive, send, and card funding. In Coinos, Primal, Alby, or another compatible wallet, create a Nostr Wallet Connect connection and paste it here.'},
   blink:{tab:'Blink',label:'Blink API key',ph:'blink_…',
-    hint:'Full wallet for your Blink account. In Blink, open API Keys (dashboard.blink.sv) and create a key with Read + Receive to accept payments and show your balance, plus Write to send from openLN. Paste it here.'},
+    hint:'Full wallet for custodial Blink accounts. In Blink, open API Keys (dashboard.blink.sv) and create a key with Read + Receive to accept payments and show your balance, plus Write to send from openLN. Non-custodial Blink accounts have no API - connect those with the Lightning Address tab instead.'},
   lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',
-    hint:'Receive-only, and it works with any wallet whose Lightning Address supports payment confirmation (LUD-21): Blink, Wallet of Satoshi, and others. We verify it when you connect, and your balance stays in that wallet.'},
+    hint:'Receive-only, and it works with any wallet whose Lightning Address supports payment confirmation (LUD-21), such as Blink. We verify it when you connect, and your balance stays in that wallet.'},
 };}
 function walletModal(){
   const WM=walletModalModes();let mode=Object.keys(WM)[0];

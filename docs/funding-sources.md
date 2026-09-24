@@ -75,6 +75,16 @@ works (RIC + browser POS) exactly like NWC accounts.
 
 ## Tests
 
+Live verification (2026-09-24, server1): a complete wrapped sale ran against a
+migrated non-custodial Blink account (`richardrjs59@blink.sv`) through the
+Lightning Address lane on the QA stack: customer paid 100 sats -> hold
+accepted -> merchant invoice paid (98 sats to the Blink address) -> hold
+settled, fee 2 sats captured; hub record shows the outgoing `settled` with
+0.248 sats routing, and the merchant books recorded a 98-sat receive. The
+custodial API key for the same account returns HTTP 401 after migration
+(Blink: "API will not be available"), which is why the address lane is the
+non-custodial path.
+
 The Blink send lane has its own integration coverage in
 `tests/funding-sources.integration.mjs`: Write-scope success (row booked
 `completed` with the payment hash), a definitive `FAILURE` (400 to the caller,

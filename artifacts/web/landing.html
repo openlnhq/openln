@@ -294,12 +294,59 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   .fin h2{font-size:clamp(44px,13vw,72px)}
   .fin .row .btn{flex:1;justify-content:center}
 }
+
+/* network / btcmap */
+.network{padding:120px 0;background:var(--bg)}
+.mapstats{display:flex;flex-wrap:wrap;gap:10px;margin:44px 0 26px}
+.mstat{display:inline-flex;align-items:baseline;gap:8px;border:1px solid var(--line2);border-radius:999px;padding:9px 16px;font:500 12.5px/1 var(--mono);letter-spacing:.05em;color:var(--mute)}
+.mstat b{color:var(--ink);font-weight:600}
+.mstat .dot{width:7px;height:7px;border-radius:50%;background:var(--teal-b);box-shadow:0 0 0 3px var(--teal-wash);align-self:center}
+.mapframe{position:relative;border:1px solid var(--line2);border-radius:14px;background:var(--bg2);overflow:hidden;box-shadow:0 80px 110px -60px rgba(0,0,0,.95),0 24px 48px -28px rgba(0,0,0,.7)}
+.mapbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);font:500 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.mapbar .live{display:inline-flex;align-items:center;gap:9px;color:var(--ink2)}
+.mapbar .dot{width:7px;height:7px;border-radius:50%;background:var(--teal-b);box-shadow:0 0 0 3px var(--teal-wash);animation:lpulse 2.2s infinite}
+@keyframes lpulse{50%{opacity:.35}}
+.mapbar .fl{color:var(--dim);letter-spacing:.08em}
+.mapbar a{color:var(--teal-b)}
+.mapbar a:hover{color:var(--ink)}
+.mapbody{position:relative;aspect-ratio:16/9;background:#07100f}
+.mapbody iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.mapfoot{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 18px;border-top:1px solid var(--line);font:400 12px/1.5 var(--sans);color:var(--dim)}
+.mapfoot a{color:var(--ink2)}
+.mapfoot a:hover{color:var(--teal-b)}
+.mapfoot .hint{font:500 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.promise{margin-top:44px;display:grid;grid-template-columns:1.35fr auto;gap:28px;align-items:center;border:1px solid var(--line2);border-radius:14px;padding:32px 34px;background:linear-gradient(180deg,rgba(14,131,136,.10),rgba(14,131,136,0) 65%)}
+.promise h3{font:600 27px/1.15 var(--sans);letter-spacing:-.02em}
+.promise h3 .g{color:var(--teal-b)}
+.promise p{margin-top:10px;color:var(--mute);font-size:15px;max-width:600px}
+.promise p b{color:var(--ink2);font-weight:600}
+.promise .pctas{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:1040px){
+  .mapbody{aspect-ratio:16/10}
+  .promise{grid-template-columns:1fr;gap:22px}
+  .promise .pctas{justify-content:flex-start}
+}
+@media(max-width:760px){
+  .network{padding:80px 0}
+  .mapstats{gap:8px;margin:34px 0 20px}
+  .mstat{padding:8px 12px;font-size:11.5px;letter-spacing:.03em}
+  .mapstats{display:grid;grid-template-columns:1fr 1fr}
+  .mapbar{padding:12px 14px;font-size:11px}
+  .mapbar .fl{display:none}
+  .mapbody{aspect-ratio:auto;height:min(64vh,500px)}
+  .mapfoot{flex-direction:column;align-items:flex-start;gap:5px;padding:12px 14px}
+  .promise{padding:24px 22px;margin-top:34px}
+  .promise h3{font-size:22px}
+  .promise .pctas{width:100%}
+  .promise .pctas .btn{flex:1;justify-content:center}
+}
+
 </style>
 </head><body>
 
 <header class="top" id="top"><div class="wrap topin">
   <a class="brand" href="/" aria-label="openLN home"><svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="40" fill="#0e8388"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/></svg>open<em>LN</em></a>
-  <nav class="navl" aria-label="Sections"><a href="#ric">The RIC</a><a href="#cards">Cards</a><a href="#money">Cashflow</a><a href="#verify">Verify</a><a href="#partners">Partners</a></nav>
+  <nav class="navl" aria-label="Sections"><a href="#ric">The RIC</a><a href="#cards">Cards</a><a href="#money">Cashflow</a><a href="#verify">Verify</a><a href="#network">Network</a><a href="#partners">Partners</a></nav>
   <div class="navr"><a class="btn btn-ghost" href="/app">Enter <span class="ar">→</span></a></div>
 </div></header>
 
@@ -441,6 +488,48 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   </div>
 </div></section>
 
+
+<!-- NETWORK / BTC MAP -->
+<section class="network" id="network"><div class="wrap">
+  <div class="sechead rv">
+    <span class="lbl teal">The network</span>
+    <h2 class="sec">Bitcoin is already<br><span class="g">everywhere.</span></h2>
+    <p class="sub">This is the live BTC Map: every pin is a real business that takes bitcoin. Thousands of counters worldwide, most of them on Lightning. Drag it, search your town, find who already takes sats.</p>
+  </div>
+  <div class="mapstats rv">
+    <span class="mstat"><span class="dot"></span><b>29,000+</b> places listed</span>
+    <span class="mstat"><b>23,000+</b> take Lightning</span>
+    <span class="mstat"><b>3,600+</b> tap-to-pay NFC</span>
+    <span class="mstat"><b>680+</b> local communities</span>
+  </div>
+  <div class="mapcard rv">
+    <div class="mapframe">
+      <div class="mapbar">
+        <span class="live"><span class="dot"></span>Live · BTC Map</span>
+        <span class="fl" aria-hidden="true">All pins shown take Lightning · tap one</span>
+        <a href="https://btcmap.org/map" target="_blank" rel="noopener">Open full map &#8599;</a>
+      </div>
+      <div class="mapbody">
+        <iframe id="btcmapFrame" title="BTC Map - live world map of businesses accepting bitcoin" src="https://btcmap.org/map?lightning#2.2/22/-30" loading="lazy" allow="geolocation" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
+      <div class="mapfoot">
+        <span>Live data from <a href="https://btcmap.org" target="_blank" rel="noopener">btcmap.org</a> · &copy; OpenStreetMap contributors</span>
+        <span class="hint">Drag · zoom · search your town</span>
+      </div>
+    </div>
+  </div>
+  <div class="promise rv">
+    <div>
+      <h3>Get your counter <span class="g">on the map.</span></h3>
+      <p>When you take payments with a RIC at your shop, <b>our team adds your business to BTC Map for free</b>. Bitcoiners nearby find you, spend sats, and come back.</p>
+    </div>
+    <div class="pctas">
+      <a class="btn btn-teal" href="https://cards.openln.com/shop/">Get the RIC <span class="ar">&#8594;</span></a>
+      <a class="btn btn-ghost" href="/app">Open the wallet <span class="ar">&#8594;</span></a>
+    </div>
+  </div>
+</div></section>
+
 <!-- PARTNERS -->
 <section class="partners" id="partners"><div class="wrap">
   <div class="sechead rv">
@@ -480,6 +569,15 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 <script>
 (function(){
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // BTC Map embed: tune initial world view to the viewport so mobile shows a fuller world
+  (function(){
+    var f = document.getElementById('btcmapFrame');
+    if(!f) return;
+    var mobile = matchMedia('(max-width: 760px)').matches;
+    var base = 'https://btcmap.org/map?lightning';
+    f.src = base + (mobile ? '#1.8/28/10' : '#2.2/22/-30');
+  })();
 
   var top=document.getElementById('top');
   function onScroll(){ top.classList.toggle('solid', scrollY>40); }

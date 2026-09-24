@@ -3,8 +3,8 @@
  * account receive and spend?".
  *
  *   - kind 'nwc'       : Veil or custom NWC wallet (receive + spend + balance)
- *   - kind 'blink'     : Blink API wallet (receive + balance; sending needs
- *                        the Write scope and the openLN send-path wiring)
+ *   - kind 'blink'     : Blink API wallet (receive + spend + balance; spending
+ *                        needs the API key's Write scope)
  *   - kind 'lnaddress' : lightning address (receive-only via LNURL-pay/verify)
  *   - kind 'none'      : wallet setup not completed
  */

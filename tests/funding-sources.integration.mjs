@@ -14,13 +14,13 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 // Structurally valid bolt11: the openLN parser reads the p-tag; the checksum
 // is skipped, so a synthetic invoice round-trips without signing keys.
-function mkBolt11(hashHex){
+function mkBolt11(hashHex,sats=null){
   const words=[0,0,0,0,0,0,0];
   const hw=[];let acc=0,bits=0;
   for(const b of Buffer.from(hashHex,'hex')){acc=(acc<<8)|b;bits+=8;while(bits>=5){bits-=5;hw.push((acc>>bits)&31);}}
   if(bits)hw.push((acc<<(5-bits))&31);
   words.push(1,hw.length>>5,hw.length&31,...hw);
-  return 'lnbc1'+words.map(w=>CHARSET[w]).join('')+'qqqqqq';
+  return (sats?'lnbc'+(sats*10)+'n':'lnbc')+'1'+words.map(w=>CHARSET[w]).join('')+'qqqqqq';
 }
 const randomHash=()=>createHash('sha256').update(randomBytes(16)).digest('hex');
 const json=(obj,status=200)=>new Response(JSON.stringify(obj),{status,headers:{'content-type':'application/json'}});
@@ -30,6 +30,10 @@ const BLINK_KEY='blink_openln_qa_0123456789abcdef';
 let verifySettled=false;
 let blinkStatus='PENDING';
 let blinkHash=null;
+let blinkPayResult='SUCCESS';
+let blinkPayErrors=[];
+let blinkTxStatus=null;
+let blinkPayCalls=0;
 
 const realFetch=globalThis.fetch;
 globalThis.fetch=async (input,init)=>{
@@ -54,6 +58,8 @@ globalThis.fetch=async (input,init)=>{
     if(q.includes('OpenLnMe'))return json({data:{me:{defaultAccount:{wallets:[{id:'wbtc-openln-test',walletCurrency:'BTC',balance:21000}]}}}});
     if(q.includes('OpenLnInvoiceCreate')){blinkHash=randomHash();return json({data:{lnInvoiceCreate:{errors:[],invoice:{paymentRequest:mkBolt11(blinkHash),paymentHash:blinkHash,satoshis:body.variables?.input?.amount}}}});}
     if(q.includes('OpenLnStatus'))return json({data:{lnInvoicePaymentStatusByPaymentRequest:{status:blinkStatus,paymentHash:blinkHash}}});
+    if(q.includes('OpenLnPay')){blinkPayCalls++;return json({data:{lnInvoicePaymentSend:{status:blinkPayResult,errors:blinkPayErrors}}});}
+    if(q.includes('OpenLnTxLookup'))return json({data:{me:{defaultAccount:{wallets:[{id:'wbtc-openln-test',transactionsByPaymentHash:blinkTxStatus?[{status:blinkTxStatus}]:[]}]}}}});
     return json({errors:[{message:'unknown operation'}]});
   }
   throw new Error('blocked host '+u.hostname);
@@ -149,7 +155,7 @@ test('blink: wrong key fails validation, good key connects, POS invoice settles 
   assert.equal(row.blink_wallet_currency,'BTC');assert.equal(row.has_key,true);
 
   const sj=await (await fetch(base+'/api/wallet/status',{headers:auth(a.token)})).json();
-  assert.equal(sj.walletMode,'blink');assert.equal(sj.connected,true);assert.equal(sj.canSend,false);
+  assert.equal(sj.walletMode,'blink');assert.equal(sj.connected,true);assert.equal(sj.canSend,true);
 
   blinkStatus='PENDING';
   const inv=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({amountSats:700,memo:'qa blink'})});
@@ -169,4 +175,74 @@ test('blink: wrong key fails validation, good key connects, POS invoice settles 
   assert.ok(row.paid_at instanceof Date,'invoice settled via Blink API status');
   const {rows:[tx]}=await q('SELECT direction, status FROM transactions WHERE payment_hash=$1',[ij.paymentHash]);
   assert.equal(tx.direction,'in');assert.equal(tx.status,'completed');
+});
+
+test('blink send: Write scope pays the invoice and books the debit',async()=>{
+  const a=await register();
+  assert.equal((await connect(a.token,BLINK_KEY)).status,200);
+  blinkPayResult='SUCCESS';blinkPayErrors=[];blinkPayCalls=0;
+  const H=randomHash();
+  const r=await fetch(base+'/api/wallet/pay',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({bolt11:mkBolt11(H,1500)})});
+  assert.equal(r.status,200);
+  assert.equal((await r.json()).status,'completed');
+  assert.ok(blinkPayCalls>0,'lnInvoicePaymentSend was called on the Blink API');
+  const {rows:[tx]}=await q('SELECT direction, status, amount_sats::int AS a, payment_hash FROM transactions WHERE account_id=$1',[a.account.id]);
+  assert.equal(tx.direction,'out');assert.equal(tx.status,'completed');assert.equal(tx.a,1500);assert.equal(tx.payment_hash,H);
+});
+
+test('blink send: a definitive failure is surfaced and booked as failed',async()=>{
+  const a=await register();
+  assert.equal((await connect(a.token,BLINK_KEY)).status,200);
+  blinkPayResult='FAILURE';blinkPayErrors=[{message:'Insufficient balance'}];
+  const r=await fetch(base+'/api/wallet/pay',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({bolt11:mkBolt11(randomHash(),120)})});
+  assert.equal(r.status,400);
+  assert.match((await r.json()).error,/Insufficient balance/);
+  const {rows:[tx]}=await q('SELECT status FROM transactions WHERE account_id=$1',[a.account.id]);
+  assert.equal(tx.status,'failed');
+});
+
+test('blink send: an ambiguous reply stays pending until the ledger makes it final',async()=>{
+  const a=await register();
+  assert.equal((await connect(a.token,BLINK_KEY)).status,200);
+  blinkPayResult='PENDING';blinkPayErrors=[];blinkTxStatus=null;
+  const H=randomHash();
+  const r=await fetch(base+'/api/wallet/pay',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({bolt11:mkBolt11(H,250)})});
+  assert.equal(r.status,202);
+  assert.equal((await r.json()).status,'pending');
+  let {rows:[tx]}=await q('SELECT id, status, failure_reason FROM transactions WHERE account_id=$1',[a.account.id]);
+  assert.equal(tx.status,'pending');
+  assert.match(String(tx.failure_reason),/outcome unknown/i);
+
+  // No ledger record yet: the reconciler must leave it pending.
+  await q(`UPDATE transactions SET created_at = now() - interval '10 minutes' WHERE id=$1`,[tx.id]);
+  const {reconcilePendingSends}=await import('../dist/core/money/invoiceMonitor.js');
+  await reconcilePendingSends();
+  ({rows:[tx]}=await q('SELECT id, status FROM transactions WHERE id=$1',[tx.id]));
+  assert.equal(tx.status,'pending');
+
+  // Ledger now shows the send succeeded - the reconciler settles the row.
+  blinkTxStatus='SUCCESS';
+  await reconcilePendingSends();
+  ({rows:[tx]}=await q('SELECT status, payment_hash FROM transactions WHERE id=$1',[tx.id]));
+  assert.equal(tx.status,'completed');assert.equal(tx.payment_hash,H);
+
+  // A second ambiguous send whose ledger record reads FAILURE is booked failed.
+  const H2=randomHash();blinkTxStatus=null;
+  const r2=await fetch(base+'/api/wallet/pay',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({bolt11:mkBolt11(H2,80)})});
+  assert.equal(r2.status,202);
+  let {rows:[tx2]}=await q('SELECT id FROM transactions WHERE account_id=$1 AND payment_hash=$2',[a.account.id,H2]);
+  await q(`UPDATE transactions SET created_at = now() - interval '10 minutes' WHERE id=$1`,[tx2.id]);
+  blinkTxStatus='FAILURE';
+  await reconcilePendingSends();
+  ({rows:[tx2]}=await q('SELECT status, failure_reason FROM transactions WHERE id=$1',[tx2.id]));
+  assert.equal(tx2.status,'failed');
+  assert.match(String(tx2.failure_reason),/Blink reports/i);
+});
+
+test('lightning address: send is refused with a receive-only message',async()=>{
+  const a=await register();
+  assert.equal((await connect(a.token,LN_ADDR)).status,200);
+  const r=await fetch(base+'/api/wallet/pay',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({bolt11:mkBolt11(randomHash(),100)})});
+  assert.equal(r.status,400);
+  assert.match((await r.json()).error,/receive-only/i);
 });

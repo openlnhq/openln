@@ -10,7 +10,7 @@ Three lanes, all through the same single connect field:
 | Lane (`wallet_mode`) | What the merchant pastes | Capability |
 |---|---|---|
 | `custom` / `veil` (NWC) | `nostr+walletconnect://...` | Full: receive, send, balance, cards |
-| `blink` | Blink API key (`blink_...`, Read + Receive scopes) | Receive + balance now. Send/cards are phase 2 (needs Write scope plus the openLN send-path wiring) |
+| `blink` | Blink API key (`blink_...`) | Full: receive, send, balance, cards. Read + Receive scopes are enough for receive/balance; sending needs **Write** on the key |
 | `lnaddress` | Lightning Address (`name@provider.com`) | Receive only. Works with any wallet whose address supports LNURL-pay and LUD-21 verify (Blink, and others) |
 
 ## How it works
@@ -36,6 +36,21 @@ Three lanes, all through the same single connect field:
   `list_transactions` / `lookup_invoice`; Lightning Address rows via their
   LUD-21 verify URL; Blink rows via `lnInvoicePaymentStatusByPaymentRequest`.
   Blink and LNURL rows are HTTPS only, no relay involved.
+- **Sending** (all four send surfaces - web pay, RIC withdraw, send-to-card,
+  card taps - funnel through `processExternalPayment` in `core/money/feeEngine.ts`,
+  which resolves the paying wallet via `resolvePayFunding`):
+  - NWC lane: `pay_invoice` on the relay (unchanged).
+  - Blink lane: `lnInvoicePaymentSend` over HTTPS (needs the Write scope).
+    Same money rules as NWC: a clean reply is definitive
+    (`SUCCESS`/`ALREADY_PAID` -> completed, `FAILURE` -> failed with the
+    wallet's reason); a network error, timeout, 5xx, or `PENDING` status is
+    **ambiguous** (`BlinkAmbiguousError`) - the row stays `pending`, never
+    retried, and is finalized from the wallet's own record.
+  - Outgoing reconciliation (`reconcilePendingSends`): Blink rows resolve via
+    `transactionsByPaymentHash` on the merchant's wallet (`SUCCESS` ->
+    completed, `FAILURE` -> failed, `PENDING`/no record -> leave pending);
+    NWC rows keep their relay-based lookup. A missing Write scope surfaces as
+    an actionable message pointing at dashboard.blink.sv.
 - **Storage** (`migrations/0012_blink_funding.sql`): `blink_api_key_encrypted`
   (AES-256-GCM via `core/money/encrypt.ts`), `blink_wallet_id`,
   `blink_wallet_currency`. The Lightning Address is public and stored as-is in
@@ -50,6 +65,14 @@ works (RIC + browser POS) exactly like NWC accounts.
 
 ## Tests
 
+The Blink send lane has its own integration coverage in
+`tests/funding-sources.integration.mjs`: Write-scope success (row booked
+`completed` with the payment hash), a definitive `FAILURE` (400 to the caller,
+row `failed`), and an ambiguous `PENDING` reply (202, row stays `pending`; the
+reconciler leaves it until the ledger record appears, then books
+`completed`/`failed` from `transactionsByPaymentHash`). Lightning Address
+sends are refused with a receive-only message.
+
 - Unit: `DATABASE_URL=postgresql://127.0.0.1/openln_test node --test dist/core/money/money-path.test.js tests/*.test.mjs`
 - Integration (scratch DB guard requires `/openln_qa_*`):
   `DATABASE_URL=postgresql://127.0.0.1/openln_qa_<x> SESSION_SECRET=<any> node --test --test-force-exit tests/*.integration.mjs`
@@ -60,13 +83,14 @@ works (RIC + browser POS) exactly like NWC accounts.
   real wallet or public network is touched. The Blink client reads
   `BLINK_API_URL` (default `https://api.blink.sv/graphql`) for this.
 
-## Phase 2 (not in this change)
+## Still open (not in this change)
 
-- Blink send + cards (Write scope; separate explicit opt-in, plus an openLN
-  spend guard following the Blink CLI's `BLINK_BUDGET_*` precedent).
 - Webhooks (`receive.lightning`) / websocket subscription as a settlement
   accelerator on top of the current polling.
 - OAuth2 (user-consent flow) so merchants do not paste a raw API key.
-- In-network transfers (`feeEngine.transferInNetwork`) to Blink/Lightning
-  Address receivers currently stop at "No wallet configured for receiver"
-  because neither lane has an openLN-internal spendable wallet.
+- An openLN-side spend guard for Blink Write keys (the Blink CLI's
+  `BLINK_BUDGET_*` precedent): today the guardrail is the API key's own scope,
+  which is server-enforced by Blink but unbounded.
+- `processInternalPayment` (in-network transfer) is unused legacy code and
+  still assumes the receiver has an NWC URL; openLN-to-openLN transfers to
+  Blink / Lightning Address receivers are not wired.

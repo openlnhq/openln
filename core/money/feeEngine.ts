@@ -5,6 +5,8 @@ import { db } from "../db/index.js";
 import { transactionsTable, pendingInvoicesTable } from "../db/index.js";
 import { and, eq, isNotNull, or, inArray } from "drizzle-orm";
 import { payInvoice, makeInvoice, getAccountNwcUrl, isAmbiguousPayError, lookupOutgoingPayment, lookupInvoice, PLATFORM_NWC_URL } from "./nwc.js";
+import { blinkPayInvoice, blinkOutgoingStatus, BlinkAmbiguousError } from "./blink.js";
+import { resolveWalletSource } from "./walletSource.js";
 import { advanceWrap, type WrapRow } from "./holdWrap.js";
 import { extractPaymentHash } from "./lnAddress.js";
 import { logger } from "./logger.js";
@@ -39,11 +41,33 @@ export function calculateFee(amountSats: number): {
 }
 
 /**
- * Process an outbound Lightning payment via the user's personal Veil wallet.
+ * Resolve which wallet pays for this account: an explicitly passed NWC URL
+ * first (callers that already resolved one), otherwise the account's funding
+ * source. Lightning-address accounts are receive-only; unset accounts have
+ * nothing to pay from.
+ */
+type PayFunding =
+  | { kind: "nwc"; nwcUrl: string }
+  | { kind: "blink"; apiKey: string; walletId: string | null };
+
+async function resolvePayFunding(accountId: string, explicitNwcUrl: string | undefined): Promise<PayFunding> {
+  if (explicitNwcUrl) return { kind: "nwc", nwcUrl: explicitNwcUrl };
+  const source = await resolveWalletSource(accountId);
+  if (source.kind === "nwc") return { kind: "nwc", nwcUrl: source.nwcUrl };
+  if (source.kind === "blink") return { kind: "blink", apiKey: source.apiKey, walletId: source.walletId };
+  if (source.kind === "lnaddress") {
+    throw new Error("This account is receive-only - connect a wallet that can send (NWC or Blink)");
+  }
+  throw new Error("No wallet configured for this account");
+}
+
+/**
+ * Process an outbound Lightning payment via the account's funding wallet
+ * (NWC over the relay, or the Blink API over HTTPS).
  *
- * Veil payments are atomic - they either succeed or fail with an error.
- * No DB balance manipulation is performed; Veil is the source of truth for balances.
- * A local transaction record is kept for UI history display only.
+ * Payments are atomic - they either succeed or fail with an error. No DB
+ * balance manipulation is performed; the wallet is the source of truth for
+ * balances. A local transaction record is kept for UI history display only.
  */
 export async function processExternalPayment(
   accountId: string,
@@ -59,8 +83,7 @@ export async function processExternalPayment(
 ): Promise<{ paymentHash: string; feeSats: number }> {
   const bookOrigin: TransactionOrigin = origin ?? (cardId ? "card" : "wallet");
   const fiat = await captureFiatSnapshot(accountId, amountSats, "send").catch(() => null);
-  const walletUrl = nwcUrl ?? await getAccountNwcUrl(accountId);
-  if (!walletUrl) throw new Error("No wallet configured for this account");
+  const funding = await resolvePayFunding(accountId, nwcUrl);
 
   // Decode the payment hash up front and store it on the pending row - the
   // reconciler resolves ambiguous outcomes by hash (Veil ignores invoice-string
@@ -93,31 +116,45 @@ export async function processExternalPayment(
     })
     .returning({ id: transactionsTable.id });
 
-  // Single relay call per tap. Extra concurrent relay traffic (settlement
-  // polls, balance reads) on the flaky Veil relay is what pushed the card-tap
-  // response past the POS device's HTTP timeout (-11). pay_invoice is the only
-  // relay op here; if its reply is dropped/slow the outcome is handled as
-  // ambiguous below and the background reconciler finalizes by payment_hash.
+  // One payment request per tap. The NWC path keeps its single-relay-call
+  // discipline; the Blink path runs one HTTPS mutation. Both must stay lean:
+  // extra round trips on the flaky Veil relay are what pushed the card-tap
+  // response past the POS device's HTTP timeout (-11). If the reply is
+  // dropped/slow the outcome is handled as ambiguous below and the background
+  // reconciler finalizes by payment_hash.
   const payStarted = Date.now();
+  const payMethod = funding.kind === "blink" ? "blink.lnInvoicePaymentSend" : "pay_invoice";
   recordPaymentEvent({
     paymentId: pendingTx.id,
     accountId,
     kind: cardId ? "card" : "send",
     event: "nwc.pay_invoice.start",
     status: "pending",
-    message: `pay_invoice starting for ${amountSats} sats`,
-    method: "pay_invoice",
+    message: `${payMethod} starting for ${amountSats} sats`,
+    method: payMethod,
     paymentHash: decodedHash,
     amountSats,
     detail: { cardId: cardId ?? null, counterpartLnAddress: counterpartLnAddress ?? null },
   });
   try {
-    const payResult = await payInvoice(bolt11, walletUrl);
+    let paymentHash = decodedHash ?? "";
+    let feeSats = 0;
+    if (funding.kind === "nwc") {
+      const payResult = await payInvoice(bolt11, funding.nwcUrl);
+      paymentHash = payResult.paymentHash;
+      feeSats = payResult.feesPaidSats;
+    } else {
+      const res = await blinkPayInvoice(funding.apiKey, funding.walletId, bolt11, memo);
+      if (res.status === "PENDING") throw new BlinkAmbiguousError("Blink reports the payment as pending");
+      if (res.status !== "SUCCESS" && res.status !== "ALREADY_PAID") {
+        throw new Error(`Blink payment failed${res.detail ? `: ${res.detail}` : ` (${res.status})`}`);
+      }
+    }
 
     await finalizePendingSend(pendingTx.id, {
       status: "completed",
-      paymentHash: payResult.paymentHash,
-      feeSats: payResult.feesPaidSats,
+      ...(paymentHash ? { paymentHash } : {}),
+      feeSats,
     });
 
     recordPaymentEvent({
@@ -126,23 +163,24 @@ export async function processExternalPayment(
       kind: cardId ? "card" : "send",
       event: "nwc.pay_invoice.success",
       status: "success",
-      message: `pay_invoice settled ${amountSats} sats (fee ${payResult.feesPaidSats})`,
-      method: "pay_invoice",
-      paymentHash: payResult.paymentHash,
+      message: `${payMethod} settled ${amountSats} sats (fee ${feeSats})`,
+      method: payMethod,
+      paymentHash: paymentHash || undefined,
       amountSats,
-      feeSats: payResult.feesPaidSats,
+      feeSats,
       durationMs: Date.now() - payStarted,
     });
 
     logger.info(
-      { accountId, amountSats, feeSats: payResult.feesPaidSats, paymentHash: payResult.paymentHash },
+      { accountId, amountSats, feeSats, paymentHash },
       "External payment processed via user wallet",
     );
 
-    return { paymentHash: payResult.paymentHash, feeSats: payResult.feesPaidSats };
+    return { paymentHash, feeSats };
   } catch (err) {
     const failureReason = err instanceof Error ? err.message : String(err);
-    if (isAmbiguousPayError(err)) {
+    const ambiguous = funding.kind === "blink" ? err instanceof BlinkAmbiguousError : isAmbiguousPayError(err);
+    if (ambiguous) {
       // Outcome unknown - the wallet may have executed the payment. Keep the
       // row pending; resolveAmbiguousPayment / the background reconciler will
       // finalize it. Marking it failed here is what caused real double-charges.
@@ -159,8 +197,8 @@ export async function processExternalPayment(
         kind: cardId ? "card" : "send",
         event: "nwc.pay_invoice.ambiguous",
         status: "ambiguous",
-        message: `pay_invoice ambiguous — left pending for resolution`,
-        method: "pay_invoice",
+        message: `${payMethod} ambiguous — left pending for resolution`,
+        method: payMethod,
         paymentHash: decodedHash,
         amountSats,
         durationMs: Date.now() - payStarted,
@@ -183,9 +221,9 @@ export async function processExternalPayment(
       event: "nwc.pay_invoice.fail",
       status: "fail",
       message: connFail
-        ? `pay_invoice failed — wallet relay unreachable (no request sent)`
-        : `pay_invoice failed definitively`,
-      method: "pay_invoice",
+        ? `${payMethod} failed — wallet unreachable (no request sent)`
+        : `${payMethod} failed definitively`,
+      method: payMethod,
       paymentHash: decodedHash,
       amountSats,
       durationMs: Date.now() - payStarted,
@@ -361,6 +399,7 @@ export type AmbiguousResolution =
 export async function resolveAmbiguousPayment(
   err: AmbiguousPaymentError,
   nwcUrl: string | undefined,
+  accountId?: string,
 ): Promise<AmbiguousResolution> {
   const deadline = Date.now() + AMBIGUOUS_RESOLVE_WINDOW_MS;
   let paymentHash: string | null = null;
@@ -381,17 +420,37 @@ export async function resolveAmbiguousPayment(
       logger.warn({ txId: err.pendingTxId, dbErr }, "Own-settlement proof check failed");
     }
     try {
-      const inv = await lookupOutgoingPayment(err.bolt11, nwcUrl);
-      if (inv.paid) {
-        const feeSats = Math.ceil((inv.feesPaidMsats ?? 0) / 1000);
-        await finalizePendingSend(err.pendingTxId, { status: "completed", paymentHash: inv.paymentHash, feeSats });
-        logger.info({ txId: err.pendingTxId, paymentHash: inv.paymentHash }, "Ambiguous payment resolved: settled");
-        return { status: "completed", paymentHash: inv.paymentHash, feeSats };
-      }
-      if (inv.state === "failed") {
-        await finalizePendingSend(err.pendingTxId, { status: "failed", reason: "Wallet reported payment failed" });
-        logger.info({ txId: err.pendingTxId }, "Ambiguous payment resolved: failed");
-        return { status: "failed" };
+      if (nwcUrl) {
+        const inv = await lookupOutgoingPayment(err.bolt11, nwcUrl);
+        if (inv.paid) {
+          const feeSats = Math.ceil((inv.feesPaidMsats ?? 0) / 1000);
+          await finalizePendingSend(err.pendingTxId, { status: "completed", paymentHash: inv.paymentHash, feeSats });
+          logger.info({ txId: err.pendingTxId, paymentHash: inv.paymentHash }, "Ambiguous payment resolved: settled");
+          return { status: "completed", paymentHash: inv.paymentHash, feeSats };
+        }
+        if (inv.state === "failed") {
+          await finalizePendingSend(err.pendingTxId, { status: "failed", reason: "Wallet reported payment failed" });
+          logger.info({ txId: err.pendingTxId }, "Ambiguous payment resolved: failed");
+          return { status: "failed" };
+        }
+      } else if (accountId && paymentHash) {
+        // Blink lane: the wallet's transaction record for the hash is the
+        // authoritative outcome once it exists.
+        const source = await resolveWalletSource(accountId);
+        if (source.kind === "blink") {
+          const status = await blinkOutgoingStatus(source.apiKey, paymentHash);
+          if (status === "SUCCESS") {
+            await finalizePendingSend(err.pendingTxId, { status: "completed", paymentHash, feeSats: 0 });
+            logger.info({ txId: err.pendingTxId, paymentHash }, "Ambiguous payment resolved: settled (Blink record)");
+            return { status: "completed", paymentHash, feeSats: 0 };
+          }
+          if (status === "FAILURE") {
+            await finalizePendingSend(err.pendingTxId, { status: "failed", reason: "Blink reports the payment failed" });
+            logger.info({ txId: err.pendingTxId }, "Ambiguous payment resolved: failed (Blink record)");
+            return { status: "failed" };
+          }
+          // PENDING / NONE - keep polling within the window
+        }
       }
     } catch (lookupErr) {
       logger.warn(

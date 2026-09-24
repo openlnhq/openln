@@ -9,7 +9,8 @@ import { verifySendPin, SEND_PIN_UNSET } from "../core/auth/send-pin.js";
 import { generateK1, encodeLnurl, decryptSunP, verifySunC } from "../core/money/boltcard.js";
 import { captureFiatSnapshot } from "../core/money/fiatSnapshot.js";
 import { resolveWalletSource } from "../core/money/walletSource.js";
-import { getAccountNwcUrl, makeInvoice } from "../core/money/nwc.js";
+import { makeInvoice } from "../core/money/nwc.js";
+import { blinkMakeInvoice } from "../core/money/blink.js";
 import { processExternalPayment } from "../core/money/feeEngine.js";
 import { logger } from "../core/money/logger.js";
 import { handleRicManagementRoute, type RicAccount } from "./ric-management.js";
@@ -86,7 +87,6 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   const source = await resolveWalletSource(account.id);
   if (source.kind === "none") return json(res, 400, { error: "Wallet not configured" });
   if (source.kind === "lnaddress") return json(res, 400, { error: "Lightning address accounts are receive-only" });
-  if (source.kind === "blink") return json(res, 400, { error: "Blink sends are not enabled yet - connect an NWC wallet to send" });
   const k1 = generateK1();
   const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "send");
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -160,17 +160,18 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   if (!sunData) return json(res, 400, { error: "Card authentication failed" });
   if (!verifySunC(key2Hex, sunData.uid, sunData.counter, cHex.toLowerCase())) return json(res, 400, { error: "Card verification failed" });
   const cardAccountId = card.accountId;
-  const cardNwcUrl = await getAccountNwcUrl(cardAccountId);
-  if (!cardNwcUrl) return json(res, 400, { error: "Card holder has no wallet configured" });
+  const cardSource = await resolveWalletSource(cardAccountId);
+  if (cardSource.kind === "none" || cardSource.kind === "lnaddress") {
+   return json(res, 400, { error: "Card holder's wallet cannot receive a transfer (needs NWC or Blink)" });
+  }
   const merchantSource = await resolveWalletSource(merchantAccountId);
   if (merchantSource.kind === "none") return json(res, 400, { error: "Merchant wallet not configured" });
   if (merchantSource.kind === "lnaddress") return json(res, 400, { error: "Lightning address accounts are receive-only" });
-  if (merchantSource.kind === "blink") return json(res, 400, { error: "Blink sends are not enabled yet - connect an NWC wallet to send" });
-  const merchantNwcUrl = await getAccountNwcUrl(merchantAccountId);
-  if (!merchantNwcUrl) return json(res, 400, { error: "Merchant wallet not available" });
   try {
-   const invoice = await makeInvoice(amountSats, "openLN send from merchant", 300, cardNwcUrl);
-   const { paymentHash, feeSats } = await processExternalPayment(merchantAccountId, invoice.bolt11, amountSats, undefined, "RIC send to card", merchantNwcUrl, undefined, "ric");
+   const invoice = cardSource.kind === "blink"
+    ? await blinkMakeInvoice(cardSource.apiKey, cardSource.walletId, amountSats, "openLN send from merchant", 5)
+    : await makeInvoice(amountSats, "openLN send from merchant", 300, cardSource.nwcUrl);
+   const { paymentHash, feeSats } = await processExternalPayment(merchantAccountId, invoice.bolt11, amountSats, undefined, "RIC send to card", undefined, undefined, "ric");
    logger.info({ cardId, merchantAccountId, cardAccountId, amountSats, feeSats, paymentHash }, "RIC send: payment sent to card holder");
    await db.insert(transactionsTable).values({ cardId, accountId: cardAccountId, amountSats, direction: "in", type: "receive", status: "completed", bolt11: invoice.bolt11, paymentHash, memo: "openLN send to card", origin: "card", class: "top_up", classSource: "system", ...((await captureFiatSnapshot(cardAccountId, amountSats, "receive").catch(() => null)) ?? {}) });
    return json(res, 200, { status: "OK" });

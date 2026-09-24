@@ -689,11 +689,11 @@ async function vWallet(st,bal,version=renderVersion){
   $('#connectWalletHome')?.addEventListener('click',walletModal);
   // One-time nudge (per browser) until the 6-digit send PIN exists. The RIC
   // and Send need it; asking here beats the first failed send on a device.
-  if(st.connected && st.walletMode!=='blink' && !localStorage.getItem('openln_pin_nudge_dismissed')){
+  if(st.connected && !localStorage.getItem('openln_pin_nudge_dismissed')){
     api('/api/account/send-pin').then(p=>{const n=$('#pinNudge');if(!n||p.set||VIEW!=='wallet')return;n.innerHTML=`<div class="card" style="margin:0 16px 10px;padding:12px 14px;border-color:var(--accent);display:flex;gap:10px;align-items:center"><div style="flex:1"><b style="font-size:13px">Set your 6-digit send PIN</b><div class="dim" style="font-size:12px;margin-top:2px">Needed before your RIC or this wallet can send sats.</div></div><button class="btn teal sm" id="pinNudgeGo">Set</button><button class="xbtn" id="pinNudgeX" title="Later">✕</button></div>`;$('#pinNudgeGo').onclick=()=>navigate('settings');$('#pinNudgeX').onclick=()=>{localStorage.setItem('openln_pin_nudge_dismissed','1');n.innerHTML='';};}).catch(()=>{});
   }
   $('#brecv').onclick=(st.connected||receiveOnly)?receiveModal:walletModal;
-  $('#bsend').onclick=receiveOnly?()=>toast('Receive-only: sending needs a full wallet (NWC or a Blink API key)'):(st.connected?(st.walletMode==='blink'?()=>toast('Sending from Blink is not enabled yet'):sendModal):walletModal);
+  $('#bsend').onclick=receiveOnly?()=>toast('Receive-only: sending needs a full wallet (NWC or a Blink API key)'):(st.connected?sendModal:walletModal);
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
   $('#bhist').onclick=async()=>{
     const list=$('#txlist');
@@ -837,7 +837,7 @@ function walletModalModes(){return {
   nwc:{tab:'NWC',label:'NWC connection string',ph:'nostr+walletconnect://…',
     hint:'Full wallet: receive, send, and card funding. In Coinos, Primal, Alby, or another compatible wallet, create a Nostr Wallet Connect connection and paste it here.'},
   blink:{tab:'Blink',label:'Blink API key',ph:'blink_…',
-    hint:'Full wallet for your Blink account. In Blink, open API Keys (dashboard.blink.sv), create a key with Read + Receive, and paste it here. openLN uses it to receive and to show your balance; sending is not enabled yet.'},
+    hint:'Full wallet for your Blink account. In Blink, open API Keys (dashboard.blink.sv) and create a key with Read + Receive to accept payments and show your balance, plus Write to send from openLN. Paste it here.'},
   lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',
     hint:'Receive-only, and it works with any wallet whose Lightning Address supports payment confirmation (LUD-21): Blink, Wallet of Satoshi, and others. We verify it when you connect, and your balance stays in that wallet.'},
 };}

@@ -304,7 +304,7 @@ const server = createServer(async (req, res) => {
       req.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
       return;
     }
-    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc" || source.kind === "blink", receiveOnly: source.kind === "lnaddress", canSend: source.kind === "nwc", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
+    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc" || source.kind === "blink", receiveOnly: source.kind === "lnaddress", canSend: source.kind === "nwc" || source.kind === "blink", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
     if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); await reconcileAccountInvoicesBounded(account.id); const source = await resolveWalletSource(account.id); if (source.kind === "nwc") { const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } if (source.kind === "blink") { try { const { blinkGetBalance } = await import("./money/blink.js"); const balance = await blinkGetBalance(source.apiKey, source.walletId); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } catch { return json(res, 200, { balanceSats: 0, connected: false, unavailable: true }); } } if (source.kind === "lnaddress") return json(res, 200, { balanceSats: 0, connected: false, receiveOnly: true }); return json(res, 200, { balanceSats: 0, connected: false }); }
 
     if (req.method === "POST" && u.pathname === "/api/wallet/verify") {
@@ -317,11 +317,10 @@ const server = createServer(async (req, res) => {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const bolt11 = String(v.bolt11 ?? "").trim();
       if (!bolt11 || !/^ln(bc|tb|bcrt)/i.test(bolt11)) return json(res, 400, { error: "Invalid BOLT11 invoice" });
-      // Sending is NWC-only in this release. Give receive-only funding
-      // sources an honest message instead of a cryptic wallet error.
+      // Receive-only funding sources get an honest message instead of a
+      // cryptic wallet error; NWC and Blink accounts both send.
       const paySource = await resolveWalletSource(account.id);
-      if (paySource.kind === "lnaddress") return json(res, 400, { error: "Lightning Address accounts are receive-only - connect an NWC wallet to send" });
-      if (paySource.kind === "blink") return json(res, 400, { error: "Sending from Blink is not enabled yet - connect an NWC wallet to send" });
+      if (paySource.kind === "lnaddress") return json(res, 400, { error: "Lightning Address accounts are receive-only - connect a wallet that can send (NWC or Blink)" });
       try { const { parseBolt11AmountSats } = await import("./money/boltcard.js"); const { processExternalPayment, AmbiguousPaymentError } = await import("./money/feeEngine.js"); const amountSats = parseBolt11AmountSats(bolt11); if (!amountSats) return json(res, 400, { error: "Invoice has no valid amount" }); const result = await processExternalPayment(account.id, bolt11, amountSats, undefined, typeof v.memo === "string" ? v.memo.slice(0, 140) : "openLN send", undefined, undefined, "wallet");
         // Books: the sender declared what this payment is (spend / transfer to own wallet / refund). Stored as a user classification on the row.
         const purpose = String(v.purpose ?? ""); if (["spend", "transfer_out", "refund"].includes(purpose) && result.paymentHash) { await db.update(transactionsTable).set({ class: purpose as "spend" | "transfer_out" | "refund", classSource: "user" }).where(and(eq(transactionsTable.accountId, account.id), eq(transactionsTable.paymentHash, result.paymentHash), eq(transactionsTable.direction, "out"))).catch(() => {}); }

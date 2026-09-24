@@ -60,6 +60,9 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
 
  // Shared sentinel so insert / status / callback lookups can never drift.
  const WITHDRAW_MEMO = "RIC send (QR)";
+ // LNURL-W k1 validity — mirrored in the create response so the RIC shows
+ // (and honours) the real window instead of a fixed local timeout.
+ const WITHDRAW_EXPIRY_MS = 5 * 60 * 1000;
  const sendPinGuard = async (accountId: string, rawPin: string): Promise<null | { status: number; body: Record<string, string> }> => {
   const [acc] = await db.select({ entityId: accountsTable.entityId }).from(accountsTable).where(eq(accountsTable.id, accountId));
   if (!acc) return { status: 404, body: { error: "Account not found" } };
@@ -89,12 +92,12 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   if (source.kind === "lnaddress") return json(res, 400, { error: "Lightning address accounts are receive-only" });
   const k1 = generateK1();
   const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "send");
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + WITHDRAW_EXPIRY_MS);
   await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: "", paymentHash: k1, amountSats, memo: WITHDRAW_MEMO, origin: "ric", expiresAt, ...(fiatSnapshot ?? {}) });
   const callbackUrl = `https://${DOMAIN}/api/pos/withdraw/callback`;
   const lnurlw = encodeLnurl(`${callbackUrl}?k1=${k1}`);
   logger.info({ accountId: account.id, amountSats, k1 }, "RIC send: LNURL-W created");
-  return json(res, 200, { lnurlw, k1 });
+  return json(res, 200, { lnurlw, k1, expiresAt });
  }
  // GET /api/pos/withdraw/:k1/status — device polls while the QR is shown.
  const wdStatus = u.pathname.match(/^\/api\/pos\/withdraw\/([^/]+)\/status$/);

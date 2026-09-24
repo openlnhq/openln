@@ -382,9 +382,9 @@ async function callback(req: Request, res: Response): Promise<void> {
   // headroom up front for a clear error; Veil still enforces authoritatively.
   const nwcUrl = await getAccountNwcUrl(cardAccountId);
   if (!nwcUrl) {
-    // Lightning-address and unset accounts have no spendable wallet -
-    // bolt card payments need an NWC (Veil or custom) wallet.
-    res.json({ status: "ERROR", reason: "Card spending requires a connected wallet (Veil or NWC) - lightning address accounts are receive-only" });
+    // Lightning-address, Blink, and unset accounts have no NWC spendable
+    // wallet - bolt card payments need an NWC (Veil or custom) wallet.
+    res.json({ status: "ERROR", reason: "Card spending requires an NWC wallet - Lightning Address and Blink accounts are receive-only in this release" });
     return;
   }
 

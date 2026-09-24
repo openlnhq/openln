@@ -551,7 +551,7 @@ function login(){
     <div class="lg">${MARK}<span style="font-size:17px;font-weight:590;letter-spacing:-.3px">open<em style="font-style:normal;color:var(--teal)">LN</em></span></div>
     <div class="overline">Wallet · RIC · Cards</div>
     <h1 style="margin-top:8px">Your wallet.<br>Your choice.</h1>
-    <p class="sub">Connect your own Nostr Wallet Connect wallet. openLN never takes custody of your sats.</p>
+    <p class="sub">Connect the wallet you already use. openLN never takes custody of your sats.</p>
     <form id="lf">
       <label class="field"><span>Handle</span><input class="input" name="handle" placeholder="satoshi" required autofocus></label>
       <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Continue</button>
@@ -666,14 +666,16 @@ async function vWallet(st,bal,version=renderVersion){
   let txs=[];try{txs=await api('/api/reports/transactions?limit=500')}catch(e){}
   const rows=(Array.isArray(txs)?txs:txs.transactions||[]);
   const latest=rows[0];
+  const receiveOnly=st.walletMode==='lnaddress';
+  let lnAddr='';if(receiveOnly){try{const me=await api('/api/me');lnAddr=(me&&me.account&&me.account.lightningAddress)||''}catch(e){}}
   if(version!==renderVersion || VIEW!=='wallet')return;
   $('#view').innerHTML=`
   <div class="wos">
     <div class="wos-hero">
-      <div class="conn"><span class="dot ${bal.connected?'':'off'}"></span>${bal.connected?'Your connected wallet':st.connected?'Wallet temporarily unavailable':'Connect your wallet'}</div>
+      <div class="conn"><span class="dot ${bal.connected||receiveOnly?'':'off'}"></span>${receiveOnly?'Receive-only'+(lnAddr?' · '+esc(lnAddr):''):bal.connected?'Your connected wallet':st.connected?'Wallet temporarily unavailable':'Connect your wallet'}</div>
       <div class="wos-bal">${bal.connected?fmt(bal.balanceSats):'-'}<span class="cur">sats</span></div>
-      <div class="wos-fiat">${bal.connected?'Live balance · held in your wallet':st.connected?'Unable to read your balance. Your wallet still holds your funds.':'Your wallet funds your cards and RIC.'}</div>
-      ${!st.connected?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">Coinos, Primal, Alby, or another NWC wallet</p>':''}
+      <div class="wos-fiat">${receiveOnly?'Your balance stays in your funding wallet. openLN never holds your sats.':bal.connected?'Live balance · held in your wallet':st.connected?'Unable to read your balance. Your wallet still holds your funds.':'Your wallet funds your cards and RIC.'}</div>
+      ${!st.connected&&!receiveOnly?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">NWC wallet, Blink API key, or a Lightning Address</p>':''}
     </div>
     <div id="pinNudge"></div>
     <div class="wos-latest" id="txlist">${latest?txRow(latest):emptyTx()}</div>
@@ -687,11 +689,11 @@ async function vWallet(st,bal,version=renderVersion){
   $('#connectWalletHome')?.addEventListener('click',walletModal);
   // One-time nudge (per browser) until the 6-digit send PIN exists. The RIC
   // and Send need it; asking here beats the first failed send on a device.
-  if(st.connected && !localStorage.getItem('openln_pin_nudge_dismissed')){
+  if(st.connected && st.walletMode!=='blink' && !localStorage.getItem('openln_pin_nudge_dismissed')){
     api('/api/account/send-pin').then(p=>{const n=$('#pinNudge');if(!n||p.set||VIEW!=='wallet')return;n.innerHTML=`<div class="card" style="margin:0 16px 10px;padding:12px 14px;border-color:var(--accent);display:flex;gap:10px;align-items:center"><div style="flex:1"><b style="font-size:13px">Set your 6-digit send PIN</b><div class="dim" style="font-size:12px;margin-top:2px">Needed before your RIC or this wallet can send sats.</div></div><button class="btn teal sm" id="pinNudgeGo">Set</button><button class="xbtn" id="pinNudgeX" title="Later">✕</button></div>`;$('#pinNudgeGo').onclick=()=>navigate('settings');$('#pinNudgeX').onclick=()=>{localStorage.setItem('openln_pin_nudge_dismissed','1');n.innerHTML='';};}).catch(()=>{});
   }
-  $('#brecv').onclick=st.connected?receiveModal:walletModal;
-  $('#bsend').onclick=st.connected?sendModal:walletModal;
+  $('#brecv').onclick=(st.connected||receiveOnly)?receiveModal:walletModal;
+  $('#bsend').onclick=receiveOnly?()=>toast('Receive-only: sending needs a full wallet (NWC or a Blink API key)'):(st.connected?(st.walletMode==='blink'?()=>toast('Sending from Blink is not enabled yet'):sendModal):walletModal);
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
   $('#bhist').onclick=async()=>{
     const list=$('#txlist');
@@ -831,15 +833,29 @@ function sendModal(){
   };
 }
 /* ---- WALLET CONNECT ---- */
+function walletModalModes(){return {
+  nwc:{tab:'NWC',label:'NWC connection string',ph:'nostr+walletconnect://…',
+    hint:'Full wallet: receive, send, and card funding. In Coinos, Primal, Alby, or another compatible wallet, create a Nostr Wallet Connect connection and paste it here.'},
+  blink:{tab:'Blink',label:'Blink API key',ph:'blink_…',
+    hint:'Full wallet for your Blink account. In Blink, open API Keys (dashboard.blink.sv), create a key with Read + Receive, and paste it here. openLN uses it to receive and to show your balance; sending is not enabled yet.'},
+  lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',
+    hint:'Receive-only, and it works with any wallet whose Lightning Address supports payment confirmation (LUD-21): Blink, Wallet of Satoshi, and others. We verify it when you connect, and your balance stays in that wallet.'},
+};}
 function walletModal(){
+  const WM=walletModalModes();let mode=Object.keys(WM)[0];
   const m=modal(`<div class="modalhead"><h2>Connect wallet</h2><button class="xbtn">✕</button></div>
-  <p class="muted" style="font-size:13px;margin-bottom:16px">Connect your existing wallet. In Coinos, Primal, Alby, or another compatible wallet, create a Nostr Wallet Connect connection and paste it here. Funds stay with the wallet you choose.</p>
+  <p class="muted" style="font-size:13px;margin-bottom:14px">Connect the wallet you already use. openLN never takes custody of your sats.</p>
+  <div class="setup-tabs" role="tablist" aria-label="Wallet type" id="wmtabs">${Object.entries(WM).map(([k,v],i)=>`<button role="tab" data-wm="${k}" aria-selected="${i===0}" class="${i===0?'on':''}">${v.tab}</button>`).join('')}</div>
+  <p class="hint" id="wmhint" style="margin:10px 0 12px"></p>
   <form id="wf">
-    <label class="field"><span>NWC connection string</span><input class="input mono" type="password" autocomplete="off" name="connection" placeholder="nostr+walletconnect://…" required style="font-size:11px"></label>
+    <label class="field"><span id="wmlabel"></span><input class="input mono" type="password" autocomplete="off" name="connection" required style="font-size:11px"></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Connect</button>
   </form><div id="wres"></div>`);
+  const paint=()=>{const c=WM[mode];m.querySelector('#wmhint').textContent=c.hint;m.querySelector('#wmlabel').textContent=c.label;const inp=m.querySelector('#wf [name=connection]');inp.placeholder=c.ph;inp.value='';};
+  m.querySelectorAll('[data-wm]').forEach(b=>b.onclick=()=>{mode=b.dataset.wm;m.querySelectorAll('[data-wm]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-selected',String(x===b))});paint()});
+  paint();
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();toast('Wallet connected');render()}
+    try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();toast(r.walletMode==='lnaddress'?'Lightning Address connected · receive-only':'Wallet connected');render()}
     catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${prose(x.message)}</p>`}
   };
 }

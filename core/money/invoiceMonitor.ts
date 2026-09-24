@@ -3,8 +3,8 @@ import { classifyMovement } from "./bookkeeping.js";
 //
 import cron from "node-cron";
 import { db } from "../db/index.js";
-import { pendingInvoicesTable, transactionsTable } from "../db/index.js";
-import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { pendingInvoicesTable, transactionsTable, accountsTable } from "../db/index.js";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { NWCClient } from "@getalby/sdk";
 import {
   lookupInvoice,
@@ -20,6 +20,7 @@ import { finalizePendingSend, checkOwnSettlementProof } from "./feeEngine.js";
 import { extractPaymentHash } from "./lnAddress.js";
 import { kickWrap } from "./wrapDriver.js";
 import { checkLnurlVerify } from "./lnAddress.js";
+import { blinkInvoiceStatus } from "./blink.js";
 import { logger } from "./logger.js";
 import { autoSettleShopOrders, directSettleShopOrder } from "./shopOrderAutoSettle.js";
 import { emitAccountEvent } from "../events.js";
@@ -202,6 +203,40 @@ async function checkInvoiceBatch(invoices: PendingInvoiceRow[], context: string)
     }
   }
   invoices = invoices.filter((inv) => !inv.lnurlVerifyUrl);
+
+  // Blink rows: settle via the merchant's own Blink API key (HTTPS status
+  // query - no relay involved). A Blink invoice row carries neither an NWC
+  // URL nor a verify URL; anything unsupported falls through to the NWC
+  // grouping below, which skips rows without a wallet URL.
+  const blinkCandidates = invoices.filter((inv) => !inv.nwcUrlEncrypted);
+  if (blinkCandidates.length) {
+    const accountIds = [...new Set(blinkCandidates.map((inv) => inv.accountId))];
+    const blinkAccounts = await db
+      .select({ id: accountsTable.id, key: accountsTable.blinkApiKeyEncrypted })
+      .from(accountsTable)
+      .where(and(inArray(accountsTable.id, accountIds), eq(accountsTable.walletMode, "blink")));
+    const keyByAccount = new Map(blinkAccounts.map((a) => [a.id, resolveNwcUrl(a.key)]));
+    if (keyByAccount.size) {
+      const BLINK_CHECK_CAP = 10;
+      let checked = 0;
+      for (const inv of blinkCandidates) {
+        const apiKey = keyByAccount.get(inv.accountId);
+        if (!apiKey) continue;
+        if (checked++ >= BLINK_CHECK_CAP) break;
+        try {
+          const status = await blinkInvoiceStatus(apiKey, inv.bolt11);
+          if (status.paid) {
+            await settleInvoice(inv, new Date()).catch((err) =>
+              logger.warn({ err, invoiceId: inv.id }, `${context}: blink settle error`),
+            );
+          }
+        } catch (err) {
+          logger.warn({ err, invoiceId: inv.id }, `${context}: blink status check failed - treating as pending`);
+        }
+      }
+      invoices = invoices.filter((inv) => !keyByAccount.has(inv.accountId));
+    }
+  }
 
   const byWallet = new Map<string, PendingInvoiceRow[]>();
   for (const inv of invoices) {

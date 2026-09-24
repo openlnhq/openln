@@ -101,10 +101,10 @@ export async function getAccountNwcUrl(accountId: string): Promise<string | unde
     return normalizeNwcUrl(account.customNwcUrl); // fallback for plaintext legacy rows
   }
 
-  // Lightning-address accounts have no NWC wallet - receive goes through
-  // LNURL-pay, spend is unavailable. Unset accounts have not completed
-  // wallet setup yet; never lazily create a Veil wallet for them.
-  if (account.walletMode === "lnaddress" || account.walletMode === "unset") {
+  // Lightning-address and Blink accounts have no NWC wallet - receive goes
+  // through LNURL-pay / the Blink API, spend is unavailable. Unset accounts
+  // have not completed wallet setup yet; never lazily create a Veil wallet.
+  if (account.walletMode === "lnaddress" || account.walletMode === "blink" || account.walletMode === "unset") {
     return undefined;
   }
 

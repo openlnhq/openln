@@ -4,7 +4,7 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-for(const source of ['ric-policy.cpp','ric-retry-policy.cpp'])test('RIC native policy: '+source,()=>{
+for(const source of ['ric-policy.cpp','ric-retry-policy.cpp','ric-invoice-ttl.cpp'])test('RIC native policy: '+source,()=>{
  const dir=mkdtempSync(join(tmpdir(),'ric-policy-'));
  try{
   const exe=join(dir,'test');

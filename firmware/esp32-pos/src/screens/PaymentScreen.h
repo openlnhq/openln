@@ -7,8 +7,9 @@ public:
     // Call on state entry — draws the amount block, QR, NFC strip + Cancel button.
     // bolt11 must remain valid for the duration of this state.
     // fiatLabel is the typed amount + currency (e.g. "5.00 THB"); shown as the primary line.
-    // ttlSec is the on-screen validity window (mirror main's waiting timeout) used
-    // for the countdown; pass the same value each redraw of the same invoice.
+    // ttlSec is the invoice's real remaining lifetime (from the server's
+    // expiresAt; main passes it per invoice) used for the countdown; ignored on
+    // redraws of the same invoice so the countdown keeps running.
     static void draw(TFT_eSPI& tft, const String& bolt11, long amountSats, const String& fiatLabel, int ttlSec);
 
     // Animate the NFC pulse ring — call each loop iteration

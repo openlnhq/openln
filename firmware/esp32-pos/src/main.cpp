@@ -24,6 +24,8 @@
 #include "nfc/NfcWriter.h"
 #include "ui/Theme.h"
 #include "api/OTAManager.h"
+#include "core/InvoiceTtl.h"
+#include <time.h>
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Global hardware objects
@@ -145,7 +147,12 @@ float effectiveSatsPerUnit() {
 
 // Polling
 static uint32_t invoiceCreateTime = 0;
-static const uint32_t INVOICE_TIMEOUT_MS = 60000;
+// Checkout presentation window, per invoice, derived from the server's real
+// expiry (`expiresAt` on the create response — 15 min for the wrapped hold,
+// 60 min on the direct lanes). See InvoiceTtl.h; fallback 360 s when the
+// field is missing/unparseable. Set on every invoice/withdraw creation.
+static uint32_t invoiceTtlMs = InvoiceTtl::FALLBACK_SECONDS * 1000U; // receive QR
+static uint32_t sendTtlMs    = InvoiceTtl::FALLBACK_SECONDS * 1000U; // send QR (LNURL-W)
 static uint32_t lastStatusPoll = 0;
 static const uint32_t POLL_INTERVAL_MS = 2000;
 static int      pollFailCount      = 0;      // consecutive HTTP errors; resets on good response
@@ -592,6 +599,8 @@ static void handleCreatingInvoice() {
     }
 
     invoiceCreateTime   = millis();
+    invoiceTtlMs        = InvoiceTtl::secondsUntil(currentInvoice.expiresAt.c_str(), (int64_t)time(nullptr)) * 1000U;
+    Serial.printf("RIC invoice: ttl=%us hash=%.12s\n", (unsigned)(invoiceTtlMs / 1000U), currentInvoice.paymentHash.c_str());
     lastStatusPoll      = 0;
     pollFailCount       = 0;
     currentPollInterval = POLL_INTERVAL_MS;
@@ -601,7 +610,7 @@ static void handleCreatingInvoice() {
     lnurlK1             = "";
     callbackRetryAt          = 0;
     callbackAttempts         = 0;
-    PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
+    PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), static_cast<int>(invoiceTtlMs / 1000U));
     state = STATE_WAITING_PAYMENT;
 }
 
@@ -660,7 +669,7 @@ static void dispatchCardPayment(const String& pin) {
             }
             lnurlCallback = ""; lnurlK1 = "";
             callbackAttempts = 0;
-            PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
+            PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), static_cast<int>(invoiceTtlMs / 1000U));
             PaymentScreen::setStage(tft, "No connection. Tap again");
             nfcRetryHintAt = millis();
             state = STATE_WAITING_PAYMENT;
@@ -681,7 +690,7 @@ static void dispatchCardPayment(const String& pin) {
             lnurlCallback = ""; lnurlK1 = "";
             callbackAttempts = 0;
             Buzzer::playError();
-            PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
+            PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), static_cast<int>(invoiceTtlMs / 1000U));
             PaymentScreen::setStage(tft, detail.isEmpty() ? "Card declined" : detail);
             nfcRetryHintAt = millis();
             state = STATE_WAITING_PAYMENT;
@@ -698,7 +707,7 @@ static void handleWaitingPayment() {
     // timeout at all: the terminal keeps polling this invoice until the server
     // says paid, expired or cancelled. A merchant can always leave via the
     // dashboard; the device never invents a "failed" it cannot prove.
-    if (!lnurlCallbackSent && callbackRetryAt == 0 && now - invoiceCreateTime > INVOICE_TIMEOUT_MS) {
+    if (!lnurlCallbackSent && callbackRetryAt == 0 && now - invoiceCreateTime > invoiceTtlMs) {
         const String expired = currentInvoice.paymentHash;
         enterIdleAmount();
         BitposClient::cancelInvoice(expired);
@@ -875,7 +884,7 @@ static void handlePinEntry() {
         // Cancel — return to WAITING_PAYMENT; NFC polling resumes on the same invoice
         lnurlCallback = "";
         lnurlK1       = "";
-        PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), INVOICE_TIMEOUT_MS / 1000);
+        PaymentScreen::draw(tft, currentInvoice.bolt11, currentAmountSats, AmountScreen::fiatLabel(), static_cast<int>(invoiceTtlMs / 1000U));
         state = STATE_WAITING_PAYMENT;
         return;
     }
@@ -940,7 +949,8 @@ static void handleSendPinEntry() {
         sendPin = pin;  // save for send-to-card NFC path
         String err;
         String k1;
-        String lnurlw = BitposClient::createWithdraw(currentAmountSats, pin, err, k1);
+        String wdExpires;
+        String lnurlw = BitposClient::createWithdraw(currentAmountSats, pin, err, k1, wdExpires);
 
         if (!err.isEmpty() || lnurlw.isEmpty()) {
             // Wrong PIN: shake and let the cashier retry on the same pad. Three
@@ -977,9 +987,11 @@ static void handleSendPinEntry() {
         // Reuse PaymentScreen layout: amount header + QR + "Tap a Bolt Card"
         String fiatLabel = AmountScreen::fiatLabel();
         invoiceCreateTime = millis();
+        sendTtlMs = InvoiceTtl::secondsUntil(wdExpires.c_str(), (int64_t)time(nullptr)) * 1000U;
+        Serial.printf("RIC send: ttl=%us\n", (unsigned)(sendTtlMs / 1000U));
         tft.fillScreen(COL_BG);
         PaymentScreen::draw(tft, sendLnurlw, currentAmountSats, fiatLabel,
-                           INVOICE_TIMEOUT_MS / 1000);
+                           static_cast<int>(sendTtlMs / 1000U));
         PaymentScreen::setStage(tft, "Ready to send");
         state = STATE_SEND_WAITING;
     }
@@ -987,7 +999,7 @@ static void handleSendPinEntry() {
 
 static void handleSendWaiting() {
     // Timeout — return to idle
-    if (millis() - invoiceCreateTime > INVOICE_TIMEOUT_MS) {
+    if (millis() - invoiceCreateTime > sendTtlMs) {
         AmountScreen::setSendMode(false);
         enterIdleAmount();
         return;

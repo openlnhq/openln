@@ -379,7 +379,7 @@ bool BitposClient::splitHttpsUrl(const char* url, String& host, uint16_t& port, 
 }
 
 // ── Send mode: create a LNURL-W for outward payment ─────────────────────────
-String BitposClient::createWithdraw(long amountSats, const String& pin, String& err, String& outK1) {
+String BitposClient::createWithdraw(long amountSats, const String& pin, String& err, String& outK1, String& outExpiresAt) {
     snprintf(_urlBuf, sizeof(_urlBuf), "%s/pos/withdraw", _serverUrl.c_str());
     char body[96];
     snprintf(body, sizeof(body),
@@ -410,6 +410,7 @@ String BitposClient::createWithdraw(long amountSats, const String& pin, String& 
         return "";
     }
     outK1 = doc["k1"] | "";
+    outExpiresAt = doc["expiresAt"].as<String>();
     return doc["lnurlw"] | "";
 }
 

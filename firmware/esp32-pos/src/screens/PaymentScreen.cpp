@@ -1,5 +1,6 @@
 #include "PaymentScreen.h"
 #include "../ui/Theme.h"
+#include "../core/InvoiceTtl.h"
 #include "../core/QrPolicy.h"
 #include <qrcode.h>
 
@@ -8,7 +9,7 @@ int PaymentScreen::_pulsePhase = 0;
 uint32_t PaymentScreen::_startedMs = 0;
 String PaymentScreen::_timedBolt11;
 int PaymentScreen::_lastShownSec = -1;
-int PaymentScreen::_ttlSec = 60;
+int PaymentScreen::_ttlSec = InvoiceTtl::FALLBACK_SECONDS;
 String PaymentScreen::_stage = "Ready to pay";
 bool PaymentScreen::_canCancel = true;
 
@@ -40,7 +41,7 @@ int PaymentScreen::remainingSec(uint32_t now) {
 void PaymentScreen::draw(TFT_eSPI& tft,const String& bolt11,long sats,const String& fiat,int ttlSec) {
     if (bolt11!=_timedBolt11) {
         _timedBolt11=bolt11;
-        _ttlSec=ttlSec>0 ? ttlSec : 60;
+        _ttlSec=ttlSec>0 ? ttlSec : InvoiceTtl::FALLBACK_SECONDS;
         _startedMs=millis();
     }
     _stage="Ready to pay"; _canCancel=true;

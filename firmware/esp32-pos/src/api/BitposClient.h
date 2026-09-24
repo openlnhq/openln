@@ -84,8 +84,9 @@ public:
 
     // POST /api/pos/withdraw — create a LNURL-W for the merchant to send sats outward.
     // Returns the LNURL-W string (for QR display) or sets err on failure.
-    // k1 is also returned so the device can poll the withdrawal status.
-    static String createWithdraw(long amountSats, const String& pin, String& err, String& outK1);
+    // k1 is returned so the device can poll the withdrawal status; outExpiresAt
+    // is the server's k1 expiry (ISO-8601 UTC) so the screen shows the real window.
+    static String createWithdraw(long amountSats, const String& pin, String& err, String& outK1, String& outExpiresAt);
 
     // GET /api/pos/withdraw/:k1/status — returns "pending"|"paid"|"expired"
     static String pollWithdrawStatus(const String& k1);

@@ -15,3 +15,8 @@ test('settings wallet card reflects every funding lane, not just NWC',()=>{
   assert.ok(source.includes('status.lightningAddress'),'The settings card must show the linked Lightning Address');
   assert.ok(source.includes('Receive-only')&&source.includes('Nostr Wallet Connect'),'Labels must name the lane, not just NWC');
 });
+test('every inline script in index.html parses (a syntax error blanks the whole app)',()=>{
+  const blocks=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
+  assert.ok(blocks.length>=2,'index.html is expected to keep its inline scripts');
+  for(const [i,block] of blocks.entries()) assert.doesNotThrow(()=>new vm.Script(block,{filename:`index.html script ${i}`}),`inline script ${i} must compile`);
+});

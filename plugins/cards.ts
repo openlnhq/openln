@@ -45,7 +45,14 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const [owned] = await db.select({ accountId: cardsTable.accountId, status: cardsTable.status }).from(cardsTable).where(eq(cardsTable.id, cardPath[1]));
     if (!owned) return json(res, 404, { error: "Card not found" }) as never;
     if (owned.accountId !== account.id) return json(res, 403, { error: "Forbidden" }) as never;
-    if (req.method === "DELETE") { await db.update(cardsTable).set({ status: "cancelled", provisionToken:null, provisionTokenExpiresAt:null, pendingK1:null, pendingK1ExpiresAt:null }).where(and(eq(cardsTable.id, cardPath[1]),eq(cardsTable.accountId,account.id))); return json(res, 200, { id: cardPath[1], status: "cancelled" }) as never; }
+    if (req.method === "DELETE") {
+      // Only a wiped (cancelled) card can be deleted. A live card must be wiped first so the physical
+      // chip is reset and nothing can still transact before its record disappears.
+      if (owned.status !== "cancelled") return json(res, 409, { error: "Only cancelled cards can be deleted. Wipe the card first." }) as never;
+      const [deleted] = await db.delete(cardsTable).where(and(eq(cardsTable.id, cardPath[1]), eq(cardsTable.accountId, account.id), eq(cardsTable.status, "cancelled"))).returning({ id: cardsTable.id });
+      if (!deleted) return json(res, 409, { error: "Card state changed; reload Cards" }) as never;
+      return json(res, 200, { id: deleted.id, deleted: true }) as never;
+    }
     if (owned.status === "cancelled") return json(res,409,{error:"Cancelled cards cannot be reactivated; issue a new card"});
     const v=await body(req); const allowed = ["active","frozen","cancelled"]; if (v.status !== undefined && !allowed.includes(String(v.status))) return json(res,400,{error:"Invalid status"}) as never;
     for(const field of ["perTapLimitSats","dailyLimitSats"]) if(v[field]!==undefined && (typeof v[field]!=="number" || !Number.isSafeInteger(v[field]) || Number(v[field])<0))return json(res,400,{error:"Spending limits must be non-negative whole sats"});

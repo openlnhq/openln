@@ -326,6 +326,9 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .cardtile-badge.cancelled{background:rgba(248,113,113,.18);color:#ffb3b3}
 .cardtile-name{font-size:14px;font-weight:590;letter-spacing:-.1px;margin-top:2px}
 .cardtile-meta{font-size:11px;color:var(--text3)}
+.cardtile-wrap{display:flex;flex-direction:column;gap:8px;min-width:0}
+.cardtile-wrap>.cardtile{flex:1}
+.cardtile-wrap>.btn{width:100%;justify-content:center}
 @media(max-width:640px){.cardsgrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 
 /* money input */
@@ -1014,12 +1017,13 @@ async function renderCardsList(){
     `;
     $('#issueCardTile').onclick=()=>vCardIssueForm();
     body.querySelectorAll('[data-card-id]').forEach(b=>b.onclick=()=>vCardDetail(cards.find(c=>c.id===b.dataset.cardId)));
+    body.querySelectorAll('[data-card-del]').forEach(b=>b.onclick=()=>deleteCard(b.dataset.cardDel));
   }catch(e){ body.innerHTML=`<p style="color:var(--err);font-size:13px">${prose(e.message)}</p>`; }
 }
 function cardStatusLabel(c){ return c.status==='active'?(c.lastUsedAt?'Active':'Ready to write'):c.status==='frozen'?'Frozen':'Cancelled'; }
 function cardTile(c){
   const st=c.status||'active';
-  return `<button type="button" class="cardtile ${st}" data-card-id="${esc(c.id)}">
+  const tile=`<button type="button" class="cardtile ${st}" data-card-id="${esc(c.id)}">
     <div class="cardtile-face">
       <div class="cardtile-chip"></div>
       <span class="cardtile-badge ${st}">${esc(cardStatusLabel(c))}</span>
@@ -1028,6 +1032,14 @@ function cardTile(c){
     <div class="cardtile-meta">${fmt(c.perTapLimitSats)} / tap · ${fmt(c.dailyLimitSats)} / day</div>
     <div class="cardtile-meta dim">${c.pinEnabled?'PIN protected':'No PIN'}${c.pinLocked?' · locked':''}</div>
   </button>`;
+  // Delete is offered on cancelled cards only: a live card must be wiped first.
+  if(st!=='cancelled')return tile;
+  return `<div class="cardtile-wrap">${tile}<button type="button" class="btn ghost sm dangerText" data-card-del="${esc(c.id)}">Delete card</button></div>`;
+}
+async function deleteCard(id){
+  if(!id)return;
+  if(!confirm('Delete this card? This permanently removes the card and its keys from openLN. Wipe the physical card first if you still need to reset it.'))return;
+  try{await api('/api/cards/'+id,{method:'DELETE'});toast('Card deleted');renderCardsList()}catch(e){toast(e.message)}
 }
 function vCardIssueForm(){
   const body=$('#cardsBody');
@@ -1077,6 +1089,7 @@ function vCardDetail(card){
         <button class="btn ghost sm" id="editCard">Edit details</button>
         <button class="btn ghost sm" id="toggleFreeze" ${st==='cancelled'?'disabled':''}>${st==='frozen'?'Enable card':'Freeze card'}</button>
         <button class="btn ghost sm dangerText" id="disableCard" ${st==='cancelled'?'disabled':''}>Cancel card</button>
+        ${st==='cancelled'?'<button class="btn ghost sm dangerText" id="deleteCard">Delete card</button>':''}
       </div>
       <div class="manage-section"><div class="dim label">Card</div>
         <div class="manage-line"><span>Name</span><b>${esc(card.name||'Unnamed card')}</b></div>
@@ -1110,6 +1123,7 @@ function vCardDetail(card){
   $('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:'{}'});const text=Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>k+': '+v).join('\n')+'\n'+out.lnurlwTemplate;const m=modal(`<div class="modalhead"><h2>Card keys</h2><button class="xbtn" aria-label="Close keys">✕</button></div><p class="muted setup-copy">These keys control this card. Keep them private.</p><pre class="codebox mono" style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(text)}</pre><button class="btn ghost" id="copyCardSecrets">Copy keys</button>`);m.querySelector('#copyCardSecrets').onclick=()=>navigator.clipboard.writeText(text).then(()=>toast('Keys copied'))}catch(e){toast(e.message)}};
   $('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:st==='frozen'?'active':'frozen'})});toast(st==='frozen'?'Card enabled':'Card frozen');renderCardsList()}catch(e){toast(e.message)}};
   $('#disableCard').onclick=async()=>{if(!confirm('Cancel this card? Future payments will be blocked. This does not erase the physical card.'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});toast('Card cancelled');renderCardsList()}catch(e){toast(e.message)}};
+  $('#deleteCard')?.addEventListener('click',()=>deleteCard(card.id));
   $('#togglePin').onclick=()=>vCardPinForm(card);
   $('#removePin')?.addEventListener('click',async()=>{const p=prompt('Enter current 4-digit PIN to remove it');if(!p)return;try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:p,newPin:null})});toast('PIN removed');renderCardsList()}catch(e){toast(e.message)}});
   $('#unlockPin')?.addEventListener('click',async()=>{try{await api('/api/cards/'+card.id+'/pin/unlock',{method:'POST',body:JSON.stringify({})});toast('PIN unlocked');vCardDetail({...card,pinLocked:null})}catch(e){toast(e.message)}});

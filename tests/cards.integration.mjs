@@ -76,6 +76,8 @@ test('RIC receives a real NDEF hex file and SDM offsets, then write/wipe reads b
   const wipe=await call('/api/pos/wipe-keys/'+card.cardId,{token:device});assert.equal(wipe.status,200);assert.equal(wipe.data.factorySettings,'40e0ee01ffff');
   assert.equal((await call('/api/pos/mark-wiped/'+card.cardId,{token:device,method:'POST',body:{}})).status,200);
   const after=await call('/api/accounts/'+a.account.id+'/cards');assert.equal(after.data.find(c=>c.id===card.cardId).status,'cancelled');
+  // The wiped card can then be deleted from Cards.
+  assert.equal((await call('/api/cards/'+card.cardId,{method:'DELETE'})).status,200,'A wiped card can be deleted');
 });
 
 test('card tap advertises LUD-21 PIN and refuses missing PIN before any NWC call',async()=>{
@@ -100,12 +102,30 @@ test('card daily limit constrains real SUN taps and concurrent replay admits one
 });
 
 test('cancelled card cannot be resurrected, provisioned, or marked written',async()=>{
-  const card=await issue();assert.equal((await call('/api/cards/'+card.cardId,{method:'DELETE'})).status,200);
+  const card=await issue();assert.equal((await call('/api/cards/'+card.cardId,{method:'PATCH',body:{status:'cancelled'}})).status,200);
   assert.equal((await call('/api/cards/'+card.cardId,{method:'PATCH',body:{status:'active'}})).status,409);
   assert.equal((await call(new URL(card.provisionUrl).pathname,{token:null})).status,404);
   assert.equal((await call('/api/pos/mark-written/'+card.cardId,{token:device,method:'POST',body:{}})).status,409);
   // Retain keys for a physical wipe even after cancellation.
   assert.equal((await call('/api/pos/wipe-keys/'+card.cardId,{token:device})).status,200);
+});
+
+test('only a cancelled card can be deleted, and deleting keeps the ledger row',async()=>{
+  const card=await issue();
+  assert.equal((await call('/api/cards/'+card.cardId,{method:'DELETE'})).status,409,'A live card must be wiped before it can be deleted');
+  assert.equal((await call('/api/cards/'+card.cardId,{token:b.token,method:'DELETE'})).status,403,'Only the owner may delete a card');
+  const tx=(await sql.query("INSERT INTO transactions(account_id,card_id,direction,type,status,amount_sats) VALUES($1,$2,'out','send','completed',700) RETURNING id",[a.account.id,card.cardId])).rows[0];
+  assert.equal((await call('/api/cards/'+card.cardId,{method:'PATCH',body:{status:'cancelled'}})).status,200);
+  const deleted=await call('/api/cards/'+card.cardId,{method:'DELETE'});assert.equal(deleted.status,200);assert.equal(deleted.data.deleted,true);
+  const kept=(await sql.query('SELECT card_id FROM transactions WHERE id=$1',[tx.id])).rows;
+  assert.equal(kept.length,1,'Deleting a card must not delete its transactions');
+  assert.equal(kept[0].card_id,null,'The ledger keeps the row and clears the reference to the deleted card');
+  const listed=await call('/api/accounts/'+a.account.id+'/cards');assert.equal(listed.data.some(c=>c.id===card.cardId),false,'Deleted cards disappear from the Cards list');
+  assert.equal((await call('/api/cards/'+card.cardId,{method:'DELETE'})).status,404);
+  assert.equal((await call('/api/pos/wipe-keys/'+card.cardId,{token:device})).status,404);
+  assert.equal((await call('/api/cards/'+card.cardId+'/keys',{method:'POST',body:{}})).status,404);
+  const tap=await call('/card/'+card.cardId+'?p='+'0'.repeat(32)+'&c='+'0'.repeat(16),{token:null});
+  assert.equal(tap.data.reason,'Card not found');
 });
 
 test('changing PIN always verifies the current PIN, even identical fields or omitted current PIN',async()=>{

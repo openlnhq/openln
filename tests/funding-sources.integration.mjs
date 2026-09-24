@@ -34,6 +34,7 @@ let blinkPayResult='SUCCESS';
 let blinkPayErrors=[];
 let blinkTxStatus=null;
 let blinkPayCalls=0;
+let blinkReceiveBlocked=false;
 
 const realFetch=globalThis.fetch;
 globalThis.fetch=async (input,init)=>{
@@ -56,7 +57,7 @@ globalThis.fetch=async (input,init)=>{
     if((init?.headers??{})['X-API-KEY']!==BLINK_KEY)return json({errors:[{message:'unauthorized'}]},401);
     const body=JSON.parse(init?.body??'{}');const q=String(body.query??'');
     if(q.includes('OpenLnMe'))return json({data:{me:{defaultAccount:{wallets:[{id:'wbtc-openln-test',walletCurrency:'BTC',balance:21000}]}}}});
-    if(q.includes('OpenLnInvoiceCreate')){blinkHash=randomHash();return json({data:{lnInvoiceCreate:{errors:[],invoice:{paymentRequest:mkBolt11(blinkHash),paymentHash:blinkHash,satoshis:body.variables?.input?.amount}}}});}
+    if(q.includes('OpenLnInvoiceCreate')){if(blinkReceiveBlocked)return json({data:{lnInvoiceCreate:{errors:[{message:'This account can no longer receive payments. If this is your account, please update the Blink app to migrate your funds.'}],invoice:null}}});blinkHash=randomHash();return json({data:{lnInvoiceCreate:{errors:[],invoice:{paymentRequest:mkBolt11(blinkHash),paymentHash:blinkHash,satoshis:body.variables?.input?.amount}}}});}
     if(q.includes('OpenLnStatus'))return json({data:{lnInvoicePaymentStatusByPaymentRequest:{status:blinkStatus,paymentHash:blinkHash}}});
     if(q.includes('OpenLnPay')){blinkPayCalls++;return json({data:{lnInvoicePaymentSend:{status:blinkPayResult,errors:blinkPayErrors}}});}
     if(q.includes('OpenLnTxLookup'))return json({data:{me:{defaultAccount:{wallets:[{id:'wbtc-openln-test',transactionsByPaymentHash:blinkTxStatus?[{status:blinkTxStatus}]:[]}]}}}});
@@ -245,4 +246,18 @@ test('lightning address: send is refused with a receive-only message',async()=>{
   const r=await fetch(base+'/api/wallet/pay',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({bolt11:mkBolt11(randomHash(),100)})});
   assert.equal(r.status,400);
   assert.match((await r.json()).error,/receive-only/i);
+});
+
+test('blink: a Blink-side receive block surfaces the account-state message',async()=>{
+  const a=await register();
+  blinkReceiveBlocked=true;
+  try {
+    const r=await connect(a.token,BLINK_KEY);
+    assert.equal(r.status,422);
+    const j=await r.json();
+    assert.match(j.error,/migrate|no longer receive/i);
+    assert.doesNotMatch(j.error,/Add the Receive permission/);
+  } finally { blinkReceiveBlocked=false; }
+  const {rows:[row]}=await q('SELECT wallet_mode FROM accounts WHERE id=$1',[a.account.id]);
+  assert.equal(row.wallet_mode,'unset');
 });

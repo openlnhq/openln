@@ -36,6 +36,11 @@ Three lanes, all through the same single connect field:
   `list_transactions` / `lookup_invoice`; Lightning Address rows via their
   LUD-21 verify URL; Blink rows via `lnInvoicePaymentStatusByPaymentRequest`.
   Blink and LNURL rows are HTTPS only, no relay involved.
+- **Blink account states**: an account Blink has disabled for receiving
+  (region wind-down / migration, seen live as "This account can no longer
+  receive payments. ... migrate your funds") is surfaced with that guidance
+  instead of a misleading permission hint - both at connect validation and at
+  sale-time invoice minting.
 - **Sending** (all four send surfaces - web pay, RIC withdraw, send-to-card,
   card taps - funnel through `processExternalPayment` in `core/money/feeEngine.ts`,
   which resolves the paying wallet via `resolvePayFunding`):

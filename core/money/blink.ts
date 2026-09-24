@@ -143,7 +143,11 @@ export async function blinkMakeInvoice(
   });
   const payload = data.lnInvoiceCreate;
   const payloadError = payload?.errors?.map((e) => e.message).filter(Boolean).join("; ");
-  if (payloadError) throw new Error(`Blink invoice error (${payloadError})`);
+  if (payloadError) {
+    const state = accountStateMessage(payloadError);
+    if (state) throw new Error(state);
+    throw new Error(`Blink invoice error (${payloadError})`);
+  }
   const invoice = payload?.invoice;
   if (!invoice?.paymentRequest) throw new Error("Blink returned no invoice");
   const paymentHash = invoice.paymentHash
@@ -203,6 +207,17 @@ function enrichWriteHint(err: unknown): Error {
     return new Error(`${msg}. Sending needs the Write permission on this API key - add it at dashboard.blink.sv.`);
   }
   return err instanceof Error ? err : new Error(msg);
+}
+
+/** Blink-side account states no API key change can fix (region wind-down, migration). */
+const ACCOUNT_STATE_PATTERN = /can no longer receive payments|migrate your funds/i;
+const ACCOUNT_STATE_PREFIX = "Blink has disabled receiving on this account";
+function accountStateMessage(msg: string): string | null {
+  // Already annotated by an inner layer - pass through unchanged (idempotent).
+  if (msg.startsWith(ACCOUNT_STATE_PREFIX)) return msg;
+  return ACCOUNT_STATE_PATTERN.test(msg)
+    ? `${ACCOUNT_STATE_PREFIX}: ${msg} This is a Blink-side account state (region wind-down / migration), not a key permission - complete the account migration in the Blink app, then reconnect.`
+    : null;
 }
 
 /**
@@ -307,6 +322,10 @@ export async function validateBlinkApiKeyForWallet(apiKey: string): Promise<{
     await blinkMakeInvoice(apiKey, wallet.id, 1, "openLN connection test", 5);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    // A wind-down / migration account state is not a permissions problem:
+    // surface Blink's own explanation instead of a misleading scope hint.
+    const state = accountStateMessage(msg);
+    if (state) throw new Error(state);
     throw new Error(
       `This Blink key cannot create invoices. Add the Receive permission to it at dashboard.blink.sv (${msg}).`,
     );

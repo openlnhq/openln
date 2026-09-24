@@ -10,7 +10,7 @@ Three lanes, all through the same single connect field:
 | Lane (`wallet_mode`) | What the merchant pastes | Capability |
 |---|---|---|
 | `custom` / `veil` (NWC) | `nostr+walletconnect://...` | Full: receive, send, balance, cards |
-| `blink` | Blink API key (`blink_...`) | Full: receive, send, balance, cards. Read + Receive scopes are enough for receive/balance; sending needs **Write** on the key |
+| `blink` | Blink API key (`blink_...`) | Full: receive, send, balance, cards - **custodial accounts only**. Read + Receive scopes are enough for receive/balance; sending needs **Write** on the key. Blink's non-custodial (Spark) accounts expose no API at all ("API will not be available") and use the Lightning Address lane |
 | `lnaddress` | Lightning Address (`name@provider.com`) | Receive only. Works with any wallet whose address supports LNURL-pay and LUD-21 verify (Blink, and others) |
 
 ## How it works
@@ -40,7 +40,12 @@ Three lanes, all through the same single connect field:
   (region wind-down / migration, seen live as "This account can no longer
   receive payments. ... migrate your funds") is surfaced with that guidance
   instead of a misleading permission hint - both at connect validation and at
-  sale-time invoice minting.
+  sale-time invoice minting. After a custodial account migrates to
+  non-custodial (Spark) the API key stops working entirely (HTTP 401; Blink:
+  "API will not be available"), while the Lightning Address keeps working and
+  still serves LUD-21 - verified live on a migrated account, so the
+  Lightning Address lane is the integration path for all non-custodial Blink
+  accounts.
 - **Sending** (all four send surfaces - web pay, RIC withdraw, send-to-card,
   card taps - funnel through `processExternalPayment` in `core/money/feeEngine.ts`,
   which resolves the paying wallet via `resolvePayFunding`):

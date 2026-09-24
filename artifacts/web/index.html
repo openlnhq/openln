@@ -241,8 +241,16 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .setrow select:focus,.setrow input:focus{outline:none;border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-dim)}
 .set-actions{display:flex;gap:8px;margin-top:14px}
 .walletstate{display:flex;align-items:center;gap:10px;padding:10px 0}
-.walletstate .dot{width:8px;height:8px;border-radius:50%;background:var(--teal)}
+.walletstate .dot{width:8px;height:8px;border-radius:50%;background:var(--teal);align-self:flex-start;margin-top:5px;flex-shrink:0}
 .walletstate .dot.off{background:var(--err)}
+.wpill{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:2.5px 8px;border-radius:999px;border:1px solid var(--line2);color:var(--text3);white-space:nowrap}
+.wpill.ok{color:var(--ok);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.09)}
+.wpill.warn{color:var(--gold);border-color:rgba(245,197,24,.4);background:var(--gold-dim)}
+.waddr{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text2);margin-top:7px;word-break:break-all;background:var(--surface2);border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 9px;display:inline-block;max-width:100%}
+.wchips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.wchip{font-size:10px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;padding:2.5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--text3)}
+.wchip.on{color:var(--teal);border-color:var(--teal-line);background:var(--teal-dim)}
+.wchip.off{opacity:.45}
 .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.formgrid{grid-template-columns:1fr}}.issued-card-list{display:grid;gap:6px}.issued-card-row{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);text-align:left;color:var(--text);cursor:pointer}.issued-card-row:hover{border-color:var(--teal-line)}.card-mini{width:29px;height:19px;border-radius:4px;background:linear-gradient(135deg,#123f3c,#0b1f1e);display:grid;place-items:center;flex-shrink:0}.card-mini-mark{color:var(--teal);font-size:15px;line-height:1}.issued-card-meta{flex:1;min-width:0}.issued-card-meta b{display:block;font-size:12px;font-weight:590}.issued-card-meta small{display:block;color:var(--text3);font-size:10.5px;margin-top:2px}
 .manage-actions{display:flex;flex-wrap:wrap;gap:7px}.manage-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.manage-section .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}.manage-line{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}.dangerText{color:var(--err)!important}
 /* real card face — CR80 ratio 85.6x54mm ≈ 1.586:1 */
@@ -1433,12 +1441,25 @@ const CURRENCIES = ["zar","usd","eur","thb","gbp","jpy","btc","sats"];
 const CURRENCY_NAMES={zar:'South African rand',usd:'US dollar',eur:'Euro',thb:'Thai baht',gbp:'British pound',jpy:'Japanese yen',btc:'Bitcoin',sats:'Satoshis'};
 const RATE_SOURCES = ["coingecko","binance"];
 async function vSettings(version=renderVersion){
-  const [settings, status, sendPin] = await Promise.all([
+  const [settings, status, sendPin, walletBal] = await Promise.all([
     api('/api/account/settings').catch(()=>({currency:'usd',rateSource:'coingecko'})),
     api('/api/wallet/status').catch(()=>({connected:false,walletMode:'unset'})),
     api('/api/account/send-pin').catch(()=>({set:false})),
+    api('/api/wallet/balance').catch(()=>null),
   ]);
   const pinSet = !!sendPin.set;
+  const wFull=!!status.connected, wReceive=!!status.receiveOnly, wAny=wFull||wReceive;
+  const wAddr=status.lightningAddress||'';
+  const wBal=(walletBal&&typeof walletBal.balanceSats==='number'&&walletBal.connected)?walletBal.balanceSats:null;
+  const wTitle=wFull?(status.walletMode==='blink'?'Blink API wallet':'Nostr Wallet Connect'):(wReceive?'Lightning Address':'No wallet connected');
+  const wPill=wFull?'<span class="wpill ok">Connected</span>':wReceive?'<span class="wpill warn">Receive-only</span>':'';
+  const wDetail=wFull
+    ?(status.walletMode==='blink'
+      ?'Receive, send, and card payments run through your Blink wallet'+(wBal!=null?` · balance ${wBal.toLocaleString()} sats`:'')+'.'
+      :'Receive, send, and card payments run through your connected wallet'+(wBal!=null?` · balance ${wBal.toLocaleString()} sats`:'')+'.')
+    :wReceive
+      ?'Receive-only: incoming payments land in this wallet. To send from openLN, connect a full wallet (NWC or Blink API key).'
+      :'Add a Nostr Wallet Connect (NWC) connection or a Blink API key for send and receive, or a Lightning Address for receive-only.';
   if(version!==renderVersion || VIEW!=='settings')return;
   $('#view').innerHTML=`<div style="margin-top:30px">
     <div class="overline">Settings</div>
@@ -1476,12 +1497,16 @@ async function vSettings(version=renderVersion){
         <h3>Wallet</h3>
         <div class="sub">How this account receives and sends sats.</div>
         <div class="walletstate">
-          <span class="dot ${status.connected?'':'off'}"></span>
-          <div style="flex:1">
-            <div style="font-size:13px;font-weight:590">${status.connected?'NWC wallet connected':'No wallet connected'}</div>
-            <div class="dim" style="font-size:11.5px;margin-top:2px">${status.connected?`Mode: ${esc(status.walletMode||'custom')}`:'Add an NWC connection string to receive and send sats'}</div>
+          <span class="dot ${wAny?'':'off'}"></span>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:13px;font-weight:590">${esc(wTitle)}</span>${wPill}
+            </div>
+            <div class="dim" style="font-size:11.5px;margin-top:3px;line-height:1.5">${esc(wDetail)}</div>
+            ${wReceive&&wAddr?`<div class="waddr">${esc(wAddr)}</div>`:''}
+            ${wAny?`<div class="wchips"><span class="wchip on">Receive</span><span class="wchip ${wFull?'on':'off'}">Send</span></div>`:''}
           </div>
-          <button class="btn ghost sm" id="setWalletBtn">${status.connected?'Replace':'Connect'}</button>
+          <button class="btn ghost sm" id="setWalletBtn">${wAny?'Replace':'Connect'}</button>
         </div>
       </div>
 

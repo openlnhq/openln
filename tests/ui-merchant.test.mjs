@@ -9,3 +9,9 @@ test('new merchant sees an immediate Connect wallet action rather than an unexpl
   assert.ok(source.includes('connectWalletHome'),'Unconnected wallet must offer Connect wallet on home');
   assert.ok(!source.includes('your keys · your node'),'NWC is compatible with user-chosen hosted wallets too');
 });
+test('settings wallet card reflects every funding lane, not just NWC',()=>{
+  const source=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));
+  assert.ok(source.includes('status.receiveOnly'),'A Lightning Address connection must render as connected (receive-only)');
+  assert.ok(source.includes('status.lightningAddress'),'The settings card must show the linked Lightning Address');
+  assert.ok(source.includes('Receive-only')&&source.includes('Nostr Wallet Connect'),'Labels must name the lane, not just NWC');
+});

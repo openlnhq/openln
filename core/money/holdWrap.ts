@@ -1,6 +1,6 @@
 import { classifyMovement } from "./bookkeeping.js";
 /**
- * Incoming-fee wrap engine (1% in, 0% out).
+ * Incoming-fee wrap engine (2% in, 0% out).
  *
  * A POS sale for price P produces ONE wrapped invoice for P:
  *   1. bitPOS generates a random preimage; the platform fee wallet (Alby,
@@ -52,6 +52,9 @@ import {
   PLATFORM_NWC_URL,
   relayInCooldown,
 } from "./nwc.js";
+import { requestLnurlInvoice } from "./lnAddress.js";
+import { blinkMakeInvoice } from "./blink.js";
+import type { MerchantFunding } from "./walletSource.js";
 import { logger } from "./logger.js";
 import { recordPaymentEvent } from "./paymentLog.js";
 
@@ -77,7 +80,7 @@ const FORWARD_STALE_MS = 90 * 1000;
 // After this long stuck in forwarding with no resolution, flag for manual review.
 const FORWARD_ABANDON_MS = 30 * 60 * 1000;
 
-/** 1% incoming fee: max(1 sat, ceil(1%)), clamped so the merchant always gets >= 1 sat. */
+/** 2% incoming fee: max(1 sat, ceil(2%)), clamped so the merchant always gets >= 1 sat. */
 export function incomingFeeSats(amountSats: number): number {
   return Math.min(Math.max(1, Math.ceil(amountSats * 0.02)), Math.max(0, amountSats - 1));
 }
@@ -130,17 +133,60 @@ async function platformBalanceSats(): Promise<number> {
 }
 
 /**
+ * Mint the merchant's real invoice for the post-fee amount. The merchant's
+ * funding source decides how:
+ *   - nwc       : make_invoice over NWC
+ *   - lnaddress : LNURL-pay request to the address (any wallet; expiry is
+ *                 provider-controlled and always outlives the wrap window)
+ *   - blink     : lnInvoiceCreate on the Blink account (expiresIn = the wrap's
+ *                 merchant window)
+ * All three yield a normal payable bolt11 with its own hash. The wrap never
+ * touches the merchant's wallet again: the forward is paid from the platform
+ * wallet, so the merchant side can even be receive-only.
+ */
+async function mintMerchantInvoice(
+  funding: MerchantFunding,
+  amountSats: number,
+  memo: string,
+): Promise<{ bolt11: string; paymentHash: string }> {
+  switch (funding.kind) {
+    case "nwc": {
+      const inv = await makeInvoice(amountSats, memo, MERCHANT_EXPIRY_SECONDS, funding.nwcUrl);
+      return { bolt11: inv.bolt11, paymentHash: inv.paymentHash };
+    }
+    case "lnaddress": {
+      const inv = await requestLnurlInvoice(funding.address, amountSats, memo);
+      return { bolt11: inv.bolt11, paymentHash: inv.paymentHash };
+    }
+    case "blink": {
+      const inv = await blinkMakeInvoice(
+        funding.apiKey,
+        funding.walletId,
+        amountSats,
+        memo,
+        Math.ceil(MERCHANT_EXPIRY_SECONDS / 60),
+      );
+      return { bolt11: inv.bolt11, paymentHash: inv.paymentHash };
+    }
+    default:
+      // Unreachable while MerchantFunding stays exhaustive - keeps the
+      // compiler honest if a funding kind is added without a mint path.
+      throw new Error("Unsupported merchant funding source");
+  }
+}
+
+/**
  * Create a wrapped invoice for a POS sale. Returns null when wrapping is not
- * possible (no platform wallet, fee rounds to zero, open-hold cap reached, or
- * the platform wallet call fails) - the caller falls back to a direct invoice
- * so the sale is never blocked.
+ * possible (no platform wallet, no/unsupported merchant funding source, fee
+ * rounds to zero, open-hold cap reached, or a wallet call fails) - the caller
+ * falls back to a direct invoice so the sale is never blocked.
  */
 export async function createWrappedInvoice(
   amountSats: number,
   memo: string,
-  merchantNwcUrl: string | undefined,
+  funding: MerchantFunding | null,
 ): Promise<WrappedInvoice | null> {
-  if (!PLATFORM_NWC_URL || !merchantNwcUrl) return null;
+  if (!PLATFORM_NWC_URL || !funding) return null;
 
   const feeSats = incomingFeeSats(amountSats);
   if (feeSats < 1) return null; // 1-sat sale - nothing to wrap
@@ -171,12 +217,7 @@ export async function createWrappedInvoice(
       logger.warn({ balance, obligationSats, usagePct: Math.round(usagePct), alertPct: WRAP_FLOAT_ALERT_PCT, openWraps: count }, "Platform float usage above alert threshold");
     }
 
-    const merchant = await makeInvoice(
-      amountSats - feeSats,
-      memo,
-      MERCHANT_EXPIRY_SECONDS,
-      merchantNwcUrl,
-    );
+    const merchantInvoice = await mintMerchantInvoice(funding, amountSats - feeSats, memo);
 
     // Platform-generated preimage: the hold's hash is OURS, unrelated to the
     // merchant invoice, so forwarding is a normal payment on the same node.
@@ -210,7 +251,7 @@ export async function createWrappedInvoice(
       mile: "first_mile",
       message: `Hold minted for ${amountSats} sats (fee ${feeSats}); merchant invoice ready`,
       paymentHash: holdHash,
-      merchantPaymentHash: merchant.paymentHash,
+      merchantPaymentHash: merchantInvoice.paymentHash,
       amountSats,
       feeSats,
       detail: { merchantSats: amountSats - feeSats },
@@ -219,8 +260,8 @@ export async function createWrappedInvoice(
       bolt11: hold.bolt11,
       paymentHash: holdHash,
       holdPreimage,
-      merchantBolt11: merchant.bolt11,
-      merchantPaymentHash: merchant.paymentHash,
+      merchantBolt11: merchantInvoice.bolt11,
+      merchantPaymentHash: merchantInvoice.paymentHash,
       feeSats,
       expiresAt: hold.expiresAt,
     };

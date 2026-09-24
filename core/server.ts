@@ -11,7 +11,8 @@ import { makeInvoice } from "./money/nwc.js";
 import { captureFiatSnapshot } from "./money/fiatSnapshot.js";
 import { createWrappedInvoice, cancelWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
-import { resolveWalletSource } from "./money/walletSource.js";
+import { resolveWalletSource, merchantFundingFromSource } from "./money/walletSource.js";
+import { detectFunding } from "./money/fundingInput.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { reconcileAccountInvoicesBounded, startInvoiceMonitor } from "./money/invoiceMonitor.js";
@@ -254,16 +255,43 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && u.pathname === "/api/wallet/connect") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const connection = String(v.connection ?? v.nwcUrl ?? "").trim();
-      try {
-        const parsed=new URL(connection);
-        if(parsed.protocol!=="nostr+walletconnect:" || !/^[0-9a-f]{64}$/i.test(parsed.hostname) || !/^[0-9a-f]{64}$/i.test(parsed.searchParams.get("secret")||"")) throw Error();
-        const relays=parsed.searchParams.getAll("relay");
-        if(!relays.length || relays.some(relay=>{const u=new URL(relay);return !["ws:","wss:"].includes(u.protocol)}))throw Error();
-      } catch { return json(res,400,{error:"Paste the complete NWC connection, including relay and secret"}); }
-      const {getBalance}=await import("./money/nwc.js");
-      try{await getBalance(connection)}catch{return json(res,422,{error:"Could not read this wallet. Check its NWC permissions and connection; your previous wallet is unchanged."});}
-      await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection) }).where(eq(accountsTable.id, account.id));
-      return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
+      const detected = detectFunding(connection);
+      if (!detected) return json(res, 400, { error: "Paste a Nostr Wallet Connect connection, a Lightning Address (name@provider.com), or a Blink API key" });
+
+      if (detected.kind === "nwc") {
+        try {
+          const parsed=new URL(connection);
+          if(parsed.protocol!=="nostr+walletconnect:" || !/^[0-9a-f]{64}$/i.test(parsed.hostname) || !/^[0-9a-f]{64}$/i.test(parsed.searchParams.get("secret")||"")) throw Error();
+          const relays=parsed.searchParams.getAll("relay");
+          if(!relays.length || relays.some(relay=>{const u=new URL(relay);return !["ws:","wss:"].includes(u.protocol)}))throw Error();
+        } catch { return json(res,400,{error:"Paste the complete NWC connection, including relay and secret"}); }
+        const {getBalance}=await import("./money/nwc.js");
+        try{await getBalance(connection)}catch{return json(res,422,{error:"Could not read this wallet. Check its NWC permissions and connection; your previous wallet is unchanged."});}
+        await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection), blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null }).where(eq(accountsTable.id, account.id));
+        return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
+      }
+
+      if (detected.kind === "lnaddress") {
+        // Receive-only lane, generic across wallets (Blink, Wallet of Satoshi,
+        // and any provider whose Lightning Address supports LUD-21 verify).
+        // The address is public - there is no secret to store or leak. It is
+        // also the address shown in the app, so people can pay it directly.
+        const { validateLightningAddressForWallet } = await import("./money/lnAddress.js");
+        try { await validateLightningAddressForWallet(detected.address); }
+        catch (err) { return json(res, 422, { error: err instanceof Error ? err.message : "This Lightning Address could not be validated" }); }
+        await db.update(accountsTable).set({ walletMode: "lnaddress", lightningAddress: detected.address, customNwcUrl: null, blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null }).where(eq(accountsTable.id, account.id));
+        return json(res, 200, { ok: true, walletMode: "lnaddress", connected: true, receiveOnly: true });
+      }
+
+      // Blink API key (custodial accounts). Read + Receive scopes cover
+      // receiving and balance; sending still runs through NWC in this
+      // release, so a Write scope is not required to connect.
+      const { validateBlinkApiKeyForWallet } = await import("./money/blink.js");
+      let blinkInfo: { walletId: string; walletCurrency: string; balanceSats: number };
+      try { blinkInfo = await validateBlinkApiKeyForWallet(detected.apiKey); }
+      catch (err) { return json(res, 422, { error: err instanceof Error ? err.message : "Could not read this Blink account" }); }
+      await db.update(accountsTable).set({ walletMode: "blink", blinkApiKeyEncrypted: encrypt(detected.apiKey), blinkWalletId: blinkInfo.walletId, blinkWalletCurrency: blinkInfo.walletCurrency, customNwcUrl: null }).where(eq(accountsTable.id, account.id));
+      return json(res, 200, { ok: true, walletMode: "blink", connected: true, balanceSats: blinkInfo.balanceSats });
     }
     if (req.method === "GET" && u.pathname === "/api/events") {
       const account = await sessionAccount();
@@ -276,8 +304,8 @@ const server = createServer(async (req, res) => {
       req.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
       return;
     }
-    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
-    if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); await reconcileAccountInvoicesBounded(account.id); const source = await resolveWalletSource(account.id); if (source.kind !== "nwc") return json(res, 200, { balanceSats: 0, connected: false }); const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); }
+    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc" || source.kind === "blink", receiveOnly: source.kind === "lnaddress", canSend: source.kind === "nwc", walletMode: source.kind === "nwc" ? source.mode : source.kind, plugins: [] }); }
+    if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); await reconcileAccountInvoicesBounded(account.id); const source = await resolveWalletSource(account.id); if (source.kind === "nwc") { const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } if (source.kind === "blink") { try { const { blinkGetBalance } = await import("./money/blink.js"); const balance = await blinkGetBalance(source.apiKey, source.walletId); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } catch { return json(res, 200, { balanceSats: 0, connected: false, unavailable: true }); } } if (source.kind === "lnaddress") return json(res, 200, { balanceSats: 0, connected: false, receiveOnly: true }); return json(res, 200, { balanceSats: 0, connected: false }); }
 
     if (req.method === "POST" && u.pathname === "/api/wallet/verify") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
@@ -289,6 +317,11 @@ const server = createServer(async (req, res) => {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const bolt11 = String(v.bolt11 ?? "").trim();
       if (!bolt11 || !/^ln(bc|tb|bcrt)/i.test(bolt11)) return json(res, 400, { error: "Invalid BOLT11 invoice" });
+      // Sending is NWC-only in this release. Give receive-only funding
+      // sources an honest message instead of a cryptic wallet error.
+      const paySource = await resolveWalletSource(account.id);
+      if (paySource.kind === "lnaddress") return json(res, 400, { error: "Lightning Address accounts are receive-only - connect an NWC wallet to send" });
+      if (paySource.kind === "blink") return json(res, 400, { error: "Sending from Blink is not enabled yet - connect an NWC wallet to send" });
       try { const { parseBolt11AmountSats } = await import("./money/boltcard.js"); const { processExternalPayment, AmbiguousPaymentError } = await import("./money/feeEngine.js"); const amountSats = parseBolt11AmountSats(bolt11); if (!amountSats) return json(res, 400, { error: "Invoice has no valid amount" }); const result = await processExternalPayment(account.id, bolt11, amountSats, undefined, typeof v.memo === "string" ? v.memo.slice(0, 140) : "openLN send", undefined, undefined, "wallet");
         // Books: the sender declared what this payment is (spend / transfer to own wallet / refund). Stored as a user classification on the row.
         const purpose = String(v.purpose ?? ""); if (["spend", "transfer_out", "refund"].includes(purpose) && result.paymentHash) { await db.update(transactionsTable).set({ class: purpose as "spend" | "transfer_out" | "refund", classSource: "user" }).where(and(eq(transactionsTable.accountId, account.id), eq(transactionsTable.paymentHash, result.paymentHash), eq(transactionsTable.direction, "out"))).catch(() => {}); }
@@ -305,7 +338,8 @@ const server = createServer(async (req, res) => {
       const v = await body(req); const amountSats = Number(v.amountSats);
       if (!Number.isSafeInteger(amountSats) || amountSats < 1) return json(res, 400, { error: "amountSats must be a positive integer" });
       const source = await resolveWalletSource(account.id);
-      if (source.kind !== "nwc") return json(res, 400, { error: "Wallet not configured for NWC" });
+      const funding = merchantFundingFromSource(source);
+      if (!funding) return json(res, 400, { error: "Wallet not configured" });
       const memo = typeof v.memo === "string" ? v.memo.slice(0, 140) : "POS payment";
       // Books: a POS invoice is a sale. RIC requests carry a device token / deviceId; the browser POS does not.
       const fromRic = typeof v.deviceId === "string" || (req.headers["user-agent"] ?? "").toString().startsWith("openLN-RIC");
@@ -315,9 +349,9 @@ const server = createServer(async (req, res) => {
       // NOTE: the RIC (hardware) is always a sale; the browser Receive screen defaults to top_up
       // and the user flips it to "sale" when a customer is paying at the counter without a RIC.
       const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "receive");
-      const wrap = await createWrappedInvoice(amountSats, memo, source.nwcUrl);
+      const wrap = await createWrappedInvoice(amountSats, memo, funding);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, origin: posOrigin, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt, ...(fiatSnapshot ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, origin: posOrigin, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt, ...(fiatSnapshot ?? {}) });
         recordPaymentEvent({
           paymentId: wrap.paymentHash,
           accountId: account.id,
@@ -333,9 +367,28 @@ const server = createServer(async (req, res) => {
         });
         return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, feeSats:wrap.feeSats, merchantAmountSats:amountSats-wrap.feeSats, expiresAt: wrap.expiresAt });
       }
-      const invoice = await makeInvoice(amountSats, memo, 3600, source.nwcUrl);
-      await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(source.nwcUrl), origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
-      return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
+      // Direct (unwrapped) invoice - the fallback when wrapping is not
+      // available, so a sale is never blocked. The funding source decides how
+      // the invoice is minted and how settlement is observed (NWC lookups,
+      // LUD-21 verify polling, or the Blink API).
+      if (funding.kind === "nwc") {
+        const invoice = await makeInvoice(amountSats, memo, 3600, funding.nwcUrl);
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(funding.nwcUrl), origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
+        return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
+      }
+      if (funding.kind === "lnaddress") {
+        const { requestLnurlInvoice } = await import("./money/lnAddress.js");
+        const invoice = await requestLnurlInvoice(funding.address, amountSats, memo);
+        const expiresAt = new Date(Date.now() + 3600 * 1000);
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, lnurlVerifyUrl: invoice.verifyUrl, origin: posOrigin, expiresAt, ...(fiatSnapshot ?? {}) });
+        return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt, receiveOnly: true });
+      }
+      {
+        const { blinkMakeInvoice } = await import("./money/blink.js");
+        const invoice = await blinkMakeInvoice(funding.apiKey, funding.walletId, amountSats, memo, 60);
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
+        return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
+      }
     }
     // Merchant cancelled the sale on the RIC or in the web POS. Closes a
     // wrap that has not been accepted yet; never touches accepted or paid.
@@ -374,20 +427,35 @@ const server = createServer(async (req, res) => {
       const sats = Math.ceil(Number(u.searchParams.get("amount") ?? 0) / 1000);
       if (!Number.isSafeInteger(sats) || sats < 1) return json(res, 400, { status: "ERROR", reason: "Invalid amount" });
       const source = await resolveWalletSource(account.id);
-      if (source.kind !== "nwc") return json(res, 400, { status: "ERROR", reason: "Wallet is not configured for NWC receiving" });
+      const funding = merchantFundingFromSource(source);
+      if (!funding) return json(res, 400, { status: "ERROR", reason: "Wallet is not configured for receiving" });
       // Use the same wrapped hold-invoice path as POS: customer pays the
       // platform hold, then status polling forwards merchant sats and settles
-      // the hold, recording the 1% fee in the core ledger.
+      // the hold, recording the 2% fee in the core ledger.
       // Books: a payment to the Lightning address is a sale at today's rate.
       const lnFiat = await captureFiatSnapshot(account.id, sats, "receive");
-      const wrap = await createWrappedInvoice(sats, "openLN payment", source.nwcUrl);
+      const wrap = await createWrappedInvoice(sats, "openLN payment", funding);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), origin: "ln_address", expiresAt: wrap.expiresAt, ...(lnFiat ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), origin: "ln_address", expiresAt: wrap.expiresAt, ...(lnFiat ?? {}) });
         return json(res, 200, { pr: wrap.bolt11, routes: [] });
       }
-      const invoice = await makeInvoice(sats, "openLN payment", 3600, source.nwcUrl);
-      await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(source.nwcUrl), origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
-      return json(res, 200, { pr: invoice.bolt11, routes: [] });
+      if (funding.kind === "nwc") {
+        const invoice = await makeInvoice(sats, "openLN payment", 3600, funding.nwcUrl);
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(funding.nwcUrl), origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
+        return json(res, 200, { pr: invoice.bolt11, routes: [] });
+      }
+      if (funding.kind === "lnaddress") {
+        const { requestLnurlInvoice } = await import("./money/lnAddress.js");
+        const invoice = await requestLnurlInvoice(funding.address, sats, "openLN payment");
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", lnurlVerifyUrl: invoice.verifyUrl, origin: "ln_address", expiresAt: new Date(Date.now() + 3600 * 1000), ...(lnFiat ?? {}) });
+        return json(res, 200, { pr: invoice.bolt11, routes: [] });
+      }
+      {
+        const { blinkMakeInvoice } = await import("./money/blink.js");
+        const invoice = await blinkMakeInvoice(funding.apiKey, funding.walletId, sats, "openLN payment", 60);
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
+        return json(res, 200, { pr: invoice.bolt11, routes: [] });
+      }
     }
     // Wrapped invoice status is request-driven: each poll advances the
     // persisted hold -> forward -> settle state machine. This is the HTTP

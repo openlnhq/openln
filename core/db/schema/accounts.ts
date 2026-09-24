@@ -23,11 +23,17 @@ export const accountsTable = pgTable("accounts", {
   nostrPrivKeyEncrypted: text("nostr_priv_key_encrypted"),
   nostrPubKey: text("nostr_pub_key"),
   // Wallet source: 'veil' (opt-in provider), 'custom' (user-supplied NWC URL),
+  // 'blink' (Blink API wallet - encrypted key in blinkApiKeyEncrypted),
   // 'lnaddress' (receive-only lightning address), or 'unset' (new account,
   // wallet setup not completed yet). Existing rows default to 'veil'.
   walletMode: text("wallet_mode").notNull().default("veil"),
   customNwcUrl: text("custom_nwc_url"),
   lightningAddress: text("lightning_address"),
+  // Blink API funding source: encrypted API key + resolved Blink BTC wallet
+  // identity, so the receive path needs no extra lookup per sale.
+  blinkApiKeyEncrypted: text("blink_api_key_encrypted"),
+  blinkWalletId: text("blink_wallet_id"),
+  blinkWalletCurrency: text("blink_wallet_currency"),
   balanceSats: bigint("balance_sats", { mode: "number" }).notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

@@ -86,6 +86,7 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   const source = await resolveWalletSource(account.id);
   if (source.kind === "none") return json(res, 400, { error: "Wallet not configured" });
   if (source.kind === "lnaddress") return json(res, 400, { error: "Lightning address accounts are receive-only" });
+  if (source.kind === "blink") return json(res, 400, { error: "Blink sends are not enabled yet - connect an NWC wallet to send" });
   const k1 = generateK1();
   const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "send");
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -164,6 +165,7 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   const merchantSource = await resolveWalletSource(merchantAccountId);
   if (merchantSource.kind === "none") return json(res, 400, { error: "Merchant wallet not configured" });
   if (merchantSource.kind === "lnaddress") return json(res, 400, { error: "Lightning address accounts are receive-only" });
+  if (merchantSource.kind === "blink") return json(res, 400, { error: "Blink sends are not enabled yet - connect an NWC wallet to send" });
   const merchantNwcUrl = await getAccountNwcUrl(merchantAccountId);
   if (!merchantNwcUrl) return json(res, 400, { error: "Merchant wallet not available" });
   try {

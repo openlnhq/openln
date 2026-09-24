@@ -107,7 +107,7 @@ test('lightning address: connect is receive-only, POS invoice settles via LUD-21
   assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,LN_ADDR);
 
   const sj=await (await fetch(base+'/api/wallet/status',{headers:auth(a.token)})).json();
-  assert.equal(sj.walletMode,'lnaddress');assert.equal(sj.receiveOnly,true);assert.equal(sj.canSend,false);assert.equal(sj.connected,false);
+  assert.equal(sj.walletMode,'lnaddress');assert.equal(sj.receiveOnly,true);assert.equal(sj.canSend,false);assert.equal(sj.connected,false);assert.equal(sj.lightningAddress,LN_ADDR);
 
   const inv=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({amountSats:1500,memo:'qa ln address'})});
   assert.equal(inv.status,201);
@@ -156,7 +156,7 @@ test('blink: wrong key fails validation, good key connects, POS invoice settles 
   assert.equal(row.blink_wallet_currency,'BTC');assert.equal(row.has_key,true);
 
   const sj=await (await fetch(base+'/api/wallet/status',{headers:auth(a.token)})).json();
-  assert.equal(sj.walletMode,'blink');assert.equal(sj.connected,true);assert.equal(sj.canSend,true);
+  assert.equal(sj.walletMode,'blink');assert.equal(sj.connected,true);assert.equal(sj.canSend,true);assert.equal(sj.lightningAddress,null);
 
   blinkStatus='PENDING';
   const inv=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({amountSats:700,memo:'qa blink'})});

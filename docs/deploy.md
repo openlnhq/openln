@@ -16,7 +16,7 @@ One repo, two environments, one command per hop. Nothing else touches the server
 
 | | dev | production |
 |---|---|---|
-| host | `dev` (192.0.2.10) | `prod` (192.0.2.66) |
+| host | `dev` (192.0.2.10) | `prod` (192.0.2.214, prod) |
 | dir | `~/openln` | `/opt/openln` |
 | branch | `main` | `production` |
 | port | 3147 | 3160 |
@@ -30,7 +30,7 @@ One repo, two environments, one command per hop. Nothing else touches the server
 3. **`promote` requires dev to be on the exact commit being promoted.** Untested code can't reach prod.
 4. **Migrations are files in `migrations/`**, idempotent (`IF NOT EXISTS`), run on every deploy as the app's DB role. Never `CREATE TABLE` by hand on a server.
 5. **Every deploy ends with a real register+login probe**, not just `/health`. Empty DB or missing `SESSION_SECRET` fails the deploy loudly.
-6. **Credentials:** all git access is SSH-key based (`ssh://git@192.0.2.10:2222/openln/openln.git`; the VPS uses the Tailscale address `192.0.2.92:2222`). No passwords, no tokens in remote URLs. Gitea admin API token (for the API only): `~/.gitea-token` on the gateway.
+6. **Credentials:** all git access is SSH-key based (`ssh://git@192.0.2.10:2222/openln/openln.git`; the VPS uses the Tailscale address `192.0.2.92:2222`). No passwords, no tokens in remote URLs. Gitea admin API token (for the API only): `~/.gitea-token` on the gateway. Host access is key-based too: gateway → production VPS (`prod` alias) uses `~/.ssh/id_openln_prod`.
 
 ## Commands
 

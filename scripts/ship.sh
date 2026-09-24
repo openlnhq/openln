@@ -13,7 +13,7 @@ set -euo pipefail
 
 GITEA_SSH="ssh://git@192.0.2.10:2222/openln/openln.git"
 DEV_HOST="dev"                 # ~/.ssh/config alias → openln@dev (192.0.2.10)
-PROD_HOST="prod"               # ~/.ssh/config alias → root@192.0.2.66
+PROD_HOST="prod"               # ~/.ssh/config alias → root@192.0.2.214 (prod; old box = rollback only)
 GITHUB_REMOTE="github"         # public mirror (openlnhq/openln), pushed on promote
 
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"

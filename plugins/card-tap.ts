@@ -23,7 +23,7 @@ import { cardsTable, transactionsTable } from "../core/db/index.js";
 import { eq, and, gte, isNull, isNotNull, sql } from "drizzle-orm";
 import { decryptSunP, verifySunC, parseBolt11AmountSats, generateK1 } from "../core/money/boltcard.js";
 import { processExternalPayment, AmbiguousPaymentError, resolveAmbiguousPayment } from "../core/money/feeEngine.js";
-import { getAccountNwcUrl } from "../core/money/nwc.js";
+import { resolveWalletSource } from "../core/money/walletSource.js";
 import { settleInvoiceByPaymentHash } from "../core/money/invoiceMonitor.js";
 import { decrypt } from "../core/money/encrypt.js";
 import { logger } from "../core/money/logger.js";
@@ -380,13 +380,15 @@ async function callback(req: Request, res: Response): Promise<void> {
   // Veil is the source of truth for balances - the legacy DB balance column is
   // no longer used. Veil charges 1% on outgoing payments, so require that
   // headroom up front for a clear error; Veil still enforces authoritatively.
-  const nwcUrl = await getAccountNwcUrl(cardAccountId);
-  if (!nwcUrl) {
-    // Lightning-address, Blink, and unset accounts have no NWC spendable
-    // wallet - bolt card payments need an NWC (Veil or custom) wallet.
-    res.json({ status: "ERROR", reason: "Card spending requires an NWC wallet - Lightning Address and Blink accounts are receive-only in this release" });
+  // ── Paying wallet check ──────────────────────────────────────────────────
+  // The card's account funds the tap from its funding source: NWC (Veil or
+  // custom) or Blink. Lightning-address accounts are receive-only.
+  const cardSource = await resolveWalletSource(cardAccountId);
+  if (cardSource.kind === "none" || cardSource.kind === "lnaddress") {
+    res.json({ status: "ERROR", reason: "Card spending requires a wallet that can send (NWC or Blink) - Lightning Address accounts are receive-only" });
     return;
   }
+  const nwcUrl = cardSource.kind === "nwc" ? cardSource.nwcUrl : undefined;
 
   // No balance pre-check here on purpose. It is only advisory (Veil enforces
   // the real limit on pay_invoice and returns an insufficient-balance error we
@@ -441,7 +443,7 @@ async function callback(req: Request, res: Response): Promise<void> {
           { cardId, accountId: cardAccountId, amountSats, err: err.message },
           "Bolt Card payment outcome ambiguous - resolving before responding",
         );
-        const outcome = await resolveAmbiguousPayment(err, nwcUrl);
+        const outcome = await resolveAmbiguousPayment(err, nwcUrl, cardAccountId);
         if (outcome.status === "completed") {
           logger.info(
             { cardId, accountId: cardAccountId, amountSats, paymentHash: outcome.paymentHash },

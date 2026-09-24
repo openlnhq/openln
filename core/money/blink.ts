@@ -183,28 +183,103 @@ const PAY_INVOICE_MUTATION = `mutation OpenLnPay($input: LnInvoicePaymentInput!)
 }`;
 
 /**
+ * Thrown when a Blink payment's outcome is UNKNOWN: the request may have
+ * reached Blink and executed even though no (usable) reply came back
+ * (network failure, timeout, 5xx). Callers must leave the transaction row
+ * pending and resolve it from the wallet's transaction record - never retry,
+ * never report a definitive failure on these.
+ */
+export class BlinkAmbiguousError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BlinkAmbiguousError";
+  }
+}
+
+/** Turn a scope/authorization rejection into an actionable message. */
+function enrichWriteHint(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/permission|not authorized|unauthorized|forbidden|write|scope/i.test(msg)) {
+    return new Error(`${msg}. Sending needs the Write permission on this API key - add it at dashboard.blink.sv.`);
+  }
+  return err instanceof Error ? err : new Error(msg);
+}
+
+/**
  * Pay a bolt11 from the merchant's Blink wallet (requires the Write scope).
  *
- * Not wired into openLN's send paths yet - sending still goes through NWC
- * only (phase 2). Exposed here so the integration is one dispatch away.
- * Callers must treat PENDING as AMBIGUOUS (same money rules as NWC timeouts):
- * never retry, resolve via the wallet's transaction record first.
+ * Money rules mirror the NWC path: a clean Blink response is definitive
+ * (SUCCESS / ALREADY_PAID / FAILURE), while network errors, timeouts and 5xx
+ * responses throw BlinkAmbiguousError - the caller keeps the row pending and
+ * resolves it from the wallet's transaction record (transactionsByPaymentHash).
  */
 export async function blinkPayInvoice(
   apiKey: string,
-  walletId: string,
+  walletId: string | null,
   paymentRequest: string,
   memo?: string,
-): Promise<{ status: "SUCCESS" | "PENDING" | "FAILURE" | "ALREADY_PAID" | string }> {
-  const data = await blinkGraphql<{
-    lnInvoicePaymentSend?: { status?: string; errors?: Array<{ message?: string }> };
-  }>(apiKey, PAY_INVOICE_MUTATION, {
-    input: { walletId, paymentRequest, ...(memo ? { memo: memo.slice(0, 200) } : {}) },
-  });
+): Promise<{ status: string; detail?: string }> {
+  let resolvedWalletId = walletId;
+  if (!resolvedWalletId) {
+    resolvedWalletId = btcWallet(await blinkWallets(apiKey)).id;
+  }
+  let data: { lnInvoicePaymentSend?: { status?: string; errors?: Array<{ message?: string }> } };
+  try {
+    data = await blinkGraphql<{
+      lnInvoicePaymentSend?: { status?: string; errors?: Array<{ message?: string }> };
+    }>(apiKey, PAY_INVOICE_MUTATION, {
+      input: { walletId: resolvedWalletId, paymentRequest, ...(memo ? { memo: memo.slice(0, 200) } : {}) },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Response lost or Blink-side error: the mutation may still have executed.
+    if (/Could not reach Blink|HTTP 5\d\d|internal server error|timed? ?out|temporar/i.test(msg)) {
+      throw new BlinkAmbiguousError(msg);
+    }
+    throw enrichWriteHint(err);
+  }
   const payload = data.lnInvoicePaymentSend;
-  const payloadError = payload?.errors?.map((e) => e.message).filter(Boolean).join("; ");
-  if (payloadError) throw new Error(`Blink payment error (${payloadError})`);
-  return { status: String(payload?.status ?? "UNKNOWN") };
+  const detail = payload?.errors?.map((e) => e.message).filter(Boolean).join("; ") || undefined;
+  const status = String(payload?.status ?? "");
+  if (!status) {
+    // No status: application errors that read like infrastructure flakes are
+    // ambiguous; anything else is a definitive rejection.
+    if (detail && /internal|timed? ?out|temporar|try again/i.test(detail)) throw new BlinkAmbiguousError(detail);
+    if (detail) throw enrichWriteHint(new Error(`Blink rejected the payment (${detail})`));
+    throw new BlinkAmbiguousError("Blink returned no payment status");
+  }
+  if (status === "FAILURE" && detail && /permission|not authorized|write|scope/i.test(detail)) {
+    throw enrichWriteHint(new Error(`Blink payment error (${detail})`));
+  }
+  return { status, detail };
+}
+
+const TX_BY_HASH_QUERY = `query OpenLnTxLookup($paymentHash: PaymentHash!) {
+  me { defaultAccount { wallets { id transactionsByPaymentHash(paymentHash: $paymentHash) { status } } } }
+}`;
+
+/**
+ * The Blink ledger record for a payment hash - the authoritative outcome of a
+ * send once it exists. Returns "NONE" when no transaction is listed (yet);
+ * callers keep such rows pending rather than assuming failure.
+ */
+export async function blinkOutgoingStatus(
+  apiKey: string,
+  paymentHash: string,
+): Promise<"SUCCESS" | "PENDING" | "FAILURE" | "NONE"> {
+  const data = await blinkGraphql<{
+    me?: {
+      defaultAccount?: {
+        wallets?: Array<{ id?: string; transactionsByPaymentHash?: Array<{ status?: string }> | null }>;
+      };
+    };
+  }>(apiKey, TX_BY_HASH_QUERY, { paymentHash });
+  const wallets = data.me?.defaultAccount?.wallets ?? [];
+  const statuses = wallets.flatMap((w) => (w.transactionsByPaymentHash ?? []).map((tx) => String(tx.status ?? "")));
+  if (statuses.includes("SUCCESS")) return "SUCCESS";
+  if (statuses.includes("PENDING")) return "PENDING";
+  if (statuses.includes("FAILURE")) return "FAILURE";
+  return "NONE";
 }
 
 /**

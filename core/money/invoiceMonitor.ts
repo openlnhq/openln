@@ -13,14 +13,14 @@ import {
   resolveNwcUrl,
   relayInCooldown,
   noteRelayOverload,
-  getAccountNwcUrl,
   isPaymentNotFoundError,
 } from "./nwc.js";
 import { finalizePendingSend, checkOwnSettlementProof } from "./feeEngine.js";
+import { resolveWalletSource } from "./walletSource.js";
 import { extractPaymentHash } from "./lnAddress.js";
 import { kickWrap } from "./wrapDriver.js";
 import { checkLnurlVerify } from "./lnAddress.js";
-import { blinkInvoiceStatus } from "./blink.js";
+import { blinkInvoiceStatus, blinkOutgoingStatus } from "./blink.js";
 import { logger } from "./logger.js";
 import { autoSettleShopOrders, directSettleShopOrder } from "./shopOrderAutoSettle.js";
 import { emitAccountEvent } from "../events.js";
@@ -560,9 +560,30 @@ export async function reconcilePendingSends(): Promise<void> {
       logger.warn({ dbErr, txId: tx.id }, "Own-settlement proof check failed");
     }
 
+    // Resolve the paying wallet: Blink accounts reconcile from the Blink
+    // ledger (HTTPS); NWC accounts use relay lookups.
+    const source = await resolveWalletSource(tx.accountId).catch(() => ({ kind: "none" } as const));
+    if (source.kind === "blink") {
+      if (!txHash) continue; // Blink lookups are hash-keyed
+      try {
+        const status = await blinkOutgoingStatus(source.apiKey, txHash);
+        if (status === "SUCCESS") {
+          const finalized = await finalizePendingSend(tx.id, { status: "completed", paymentHash: txHash });
+          if (finalized) logger.info({ txId: tx.id, paymentHash: txHash }, "Pending send reconciled: settled (Blink record)");
+        } else if (status === "FAILURE") {
+          const finalized = await finalizePendingSend(tx.id, { status: "failed", reason: "Blink reports the payment failed" });
+          if (finalized) logger.info({ txId: tx.id }, "Pending send reconciled: failed (Blink record)");
+        }
+        // PENDING / NONE - leave for the next sweep
+      } catch (err) {
+        logger.warn({ err, txId: tx.id }, "Pending send reconcile check failed (Blink)");
+      }
+      continue;
+    }
+    if (source.kind !== "nwc") continue;
+
     if (relayInCooldown()) return;
-    const nwcUrl = await getAccountNwcUrl(tx.accountId).catch(() => undefined);
-    if (!nwcUrl) continue;
+    const nwcUrl = source.nwcUrl;
     try {
       const inv = await lookupOutgoingPayment(tx.bolt11!, nwcUrl);
       if (inv.paid) {

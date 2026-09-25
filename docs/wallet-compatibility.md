@@ -55,24 +55,31 @@ wallets have HTLC/ecash quirks on some flows. The connect-time `get_balance`
 probe is the gate; deeper method gaps surface per sale and are handled by the
 existing reconcile paths.
 
-### API - send + receive (per-provider client work)
+### API - direct integrations
 
-| Provider | API | openLN status |
+**The wall lists only providers with a live connection.** Per-provider client
+work; follow `core/money/blink.ts`. Anything still being built lives in the
+integration queue below - never on the wall.
+
+| Provider | API | Status |
 |---|---|---|
-| Blink | GraphQL + API keys (dev.blink.sv) | **LIVE** (custodial accounts; non-custodial accounts expose no API and use the Lightning Address lane) |
-| Strike | REST (docs.strike.me) | To build. NWC only via an experimental community bridge - not a dependency. |
-| ZBD | REST (docs.zbdpay.com) | To build. No NWC. |
-| Bitnob | REST (bitnob.dev; Lightning + stablecoins, Africa) | To build. |
-| OpenNode | REST (developers.opennode.com; charges + withdrawals) | To build. Custodial processor. `create charge` returns a Lightning invoice (`lightning_invoice.payreq`) + webhooks; `POST /v2/withdrawals` with `type:"ln"` pays a Lightning invoice - full send + receive. Optional fiat auto-conversion, US-oriented. |
-| Speed | REST (apidocs.tryspeed.com; business platform) | To build. Checkout sessions / payment links (Lightning + on-chain + stablecoins) and global Lightning payouts. The *consumer* Speed app has no public API - the lane is a Speed *business* account. |
-| CoinGate | REST (developer.coingate.com) | To build. Established EU processor (~1% fees); Lightning enabled by default when accepting; payouts + merchant refunds APIs. |
-| Coinsnap | REST (docs.coinsnap.io; store ID + API key, email signup) | To build. Receive-only: self-custody acceptance - payments settle directly to the merchant's own wallet via a stored Lightning address. DACH market; app + web POS included. |
-| phoenixd | Local HTTP API (single binary, ACINQ) | Works today *indirectly*: phoenixd backs an Alby Hub, which serves NWC. Direct client not needed for the standard path. |
-| BlueWallet | LNDhub API (self-host LNDhub, or BTCPay's LNDhub plugin) | Possible later; LNDhub has no create-invoice/webhook shape like the others - treat as node-side. |
-| Coinos server | Open-source REST API (self-hosted Coinos) | Same as BlueWallet: possible, node-side. |
-| LND / Core Lightning / Eclair / LDK | Node daemons with APIs | Reach openLN via NWC bridges or an Alby Hub on top; no direct client planned. |
-| BTCPay Server | REST + LNDhub plugin + boltcard plugins | Possible later; the standard path is an Alby Hub / LNbits on top. |
-| LNbits | Full platform API | Not needed - LNbits already reaches openLN through NWC. |
+| Blink | GraphQL + API keys (dev.blink.sv) | **LIVE** - the only API connection on the wall. Non-custodial accounts expose no API and use the Lightning Address lane instead. |
+
+Integration queue (not on the wall; ships one at a time, live-verified first):
+
+| Provider | API | Notes |
+|---|---|---|
+| Strike | REST (docs.strike.me) | NWC only via an experimental community bridge - not a dependency. Needs an account for the live test. |
+| ZBD | REST (docs.zbdpay.com) | No NWC. Needs an account for the live test. |
+| Bitnob | REST (bitnob.dev; Lightning + stablecoins, Africa) | Needs an account for the live test. |
+| OpenNode | REST (developers.opennode.com; charges + withdrawals) | Custodial processor: `create charge` returns a Lightning invoice + webhooks; `POST /v2/withdrawals type:"ln"` pays a Lightning invoice - full send + receive. Needs an account + API key for the live test. |
+| Speed | REST (apidocs.tryspeed.com; business platform) | Checkout sessions + Lightning payouts. The consumer app has no public API - the lane is a Speed business account. |
+| CoinGate | REST (developer.coingate.com) | EU processor (~1% fees); Lightning enabled by default on accept; payouts + refunds APIs. |
+| Coinsnap | REST (docs.coinsnap.io; store ID + API key) | Receive-only: self-custody acceptance - settles straight to the merchant's own wallet. |
+Node-side paths (reach openLN through NWC; no direct client needed):
+LND / Core Lightning / Eclair / LDK via NWC bridges, phoenixd via an Alby Hub,
+BlueWallet / Coinos server / BTCPay / LNbits through their own platforms - the
+standard path is an Alby Hub or LNbits on top.
 
 Integration shape for a new API wallet (follow `core/money/blink.ts`):
 1. Client module in `core/money/` (auth, create invoice, pay invoice, lookup, balance).
@@ -115,12 +122,11 @@ Speed/OpenNode comparisons). Beyond the four added to the API table:
 ## Landing wall (`landing.html` `#compatibility`)
 
 The wall is data-driven: `var COMPAT` in the landing script, one object per
-wallet (`name`, `logo` at `/media/compat/<slug>.png`, `url`; `tag:'soon'`
-marks integrations still being built; `caps:'...'` adds a small qualifier
-pill - e.g. Coinsnap `receive only`; `ghost:true` renders the "+ any LUD-21
-wallet" tile). Groups mirror the three lanes plus self-hosted. When an API
-integration ships, remove its `soon` tag; when a wallet fails re-validation,
-remove it from both the wall and the settings lists.
+wallet (`name`, `logo` at `/media/compat/<slug>.png`, `url`; `ghost:true`
+renders a universal tile - "+ Any NWC wallet", "+ Any LUD-21 wallet"). Groups
+mirror the three lanes plus self-hosted. **List only wallets that connect
+today**: a provider appears on the wall when its connection is live and
+verified, and comes off if it fails re-validation. No "coming soon" entries.
 
 Logos live in `artifacts/web/media/compat/`. Logos are brand assets used
 nominatively ("works with") - keep the wordmark unaltered and linked to the

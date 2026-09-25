@@ -232,6 +232,24 @@ section{position:relative}
 .pcta{display:flex;gap:16px;align-items:center;margin-top:36px;flex-wrap:wrap}
 .pcta .note{font-size:14px;color:var(--mute);max-width:520px}
 
+/* partner cards */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;margin-bottom:52px}
+.pcard{position:relative;border:1px solid var(--line2);border-radius:14px;padding:26px 26px 20px;background:linear-gradient(180deg,rgba(14,131,136,.10),rgba(14,131,136,0) 62%);display:flex;flex-direction:column;gap:13px;min-height:250px;transition:border-color .2s,transform .2s}
+.pcard:hover{border-color:var(--teal-b);transform:translateY(-2px)}
+.pcard .pk{position:absolute;top:20px;right:20px;font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--teal-b);border:1px solid var(--line2);border-radius:999px;padding:6px 11px}
+.pcard .mk{display:inline-flex;align-self:flex-start;background:#fff;border-radius:8px;padding:10px 14px;box-shadow:0 1px 0 rgba(255,255,255,.25)}
+.pcard .mk img{height:28px;width:auto;display:block}
+.pcard h3{font-family:var(--disp);font-variation-settings:"wdth" 108;font-weight:700;font-size:26px;letter-spacing:-.02em;line-height:1.05;padding-right:70px}
+.pcard .legal{font:500 12px/1.6 var(--mono);color:var(--dim);letter-spacing:.02em}
+.pcard p{color:var(--mute);font-size:14.5px;flex:1}
+.pcard .meta{display:flex;justify-content:space-between;align-items:center;gap:14px;border-top:1px solid var(--line);padding-top:13px;font:500 11.5px/1.4 var(--mono);letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+.pcard .meta a{color:var(--ink2);text-transform:none;letter-spacing:.02em}
+.pcard .meta a:hover{color:var(--teal-b)}
+.pcard.open{border-style:dashed;background:none}
+.pcard.open:hover{border-color:var(--line2);transform:none}
+.pcard.open h3{color:var(--ink2)}
+.plabel{display:block;margin:0 0 16px}
+
 /* finale */
 .fin{padding:150px 0 120px;background:var(--bg);position:relative;overflow:hidden}
 .fin::before{content:'';position:absolute;left:50%;top:40%;width:1100px;height:600px;transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(14,131,136,.2),transparent 70%);pointer-events:none}
@@ -283,6 +301,10 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   .steps li{grid-template-columns:36px 1fr;gap:12px;padding:20px 0}
   .vgrid{grid-template-columns:1fr}.vcell{min-height:0}
   .ptable td.base{font-size:19px}
+  .pgrid{grid-template-columns:1fr;gap:12px;margin-bottom:40px}
+  .pcard{min-height:0;padding:24px 20px 18px}
+  .pcard .mk img{height:24px}
+  .pcard .meta{flex-direction:column;align-items:flex-start;gap:6px}
   .stage,.thumbs,.cardname{display:none}
   .cin>.rv{min-width:0}
   .cardmob{display:flex;gap:14px;overflow-x:auto;overflow-y:hidden;width:calc(100% + 40px);scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:6px 20px 18px;margin:0 -20px;scrollbar-width:none}
@@ -533,10 +555,12 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 <!-- PARTNERS -->
 <section class="partners" id="partners"><div class="wrap">
   <div class="sechead rv">
-    <span class="lbl teal">Distributor network</span>
+    <span class="lbl teal">Partners</span>
     <h2 class="sec">Built Locally.<br><span class="g">Serve Globally.</span></h2>
-    <p class="sub">Partners source parts locally, assemble the RIC, print the cards, and onboard the merchants around them. They keep 100% of every hardware sale and earn on every payment their devices route, for the life of the device.</p>
+    <p class="sub">openLN grows through the companies that build with us: manufacturers who make the hardware, distributors who assemble the RIC, print the cards, and onboard the merchants around them. Partners keep 100% of every hardware sale and earn on every payment their devices route.</p>
   </div>
+  <div class="pgrid rv" id="pgrid"></div>
+  <span class="lbl plabel rv">Distributor network</span>
   <table class="ptable rv" aria-label="Distributors">
     <thead><tr><th>Region</th><th>Base</th><th>Does</th><th style="text-align:right">Status</th></tr></thead>
     <tbody>
@@ -640,6 +664,21 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
       raf=requestAnimationFrame(function(){ card.style.setProperty('--ry',(x*22)+'deg'); card.style.setProperty('--rx',(-y*16)+'deg'); card.style.setProperty('--gx',(50+x*90)+'%'); });
     });
     stage.addEventListener('pointerleave',function(){ card.classList.remove('snap'); card.style.removeProperty('--ry'); card.style.removeProperty('--rx'); card.style.removeProperty('--gx'); });
+  }
+
+  // partners: add an object per partner (kind, name, logo, blurb, meta, url). Cards render in order; the open slot stays last.
+  // innerHTML here composes static repo-authored data only (no user input), so it is safe.
+  var PARTNERS=[
+    {kind:"Hardware",name:"Guition",legal:"Shenzhen Jingcai Intelligent Co., Ltd.",logo:"/media/partner-guition.webp",blurb:"The Shenzhen manufacturer behind the ESP32 display module at the heart of the RIC. 1,500 m² factory, 100,000+ units a month, CE, FCC and RoHS certified.",meta:"Shenzhen, China · Partner since 2026",url:"https://www.guition.com/",urlText:"guition.com"}
+  ];
+  var pgrid=document.getElementById('pgrid');
+  if(pgrid){
+    var phtml=PARTNERS.map(function(p){
+      var head=p.logo?'<span class="mk"><img src="'+p.logo+'" alt="'+p.name+'" loading="lazy"></span>':'<h3>'+p.name+'</h3>';
+      return '<div class="pcard"><span class="pk">'+p.kind+'</span>'+head+(p.legal?'<div class="legal">'+p.legal+'</div>':'')+'<p>'+p.blurb+'</p><div class="meta"><span>'+p.meta+'</span><a href="'+p.url+'" target="_blank" rel="noopener">'+p.urlText+' ↗</a></div></div>';
+    }).join('');
+    phtml+='<div class="pcard open"><span class="pk">Open</span><h3>Your company</h3><p>Manufacturers, payment providers, and communities building the open bitcoin economy. Partner slots are open in every region.</p><div class="meta"><span>Your region</span><a href="/partner">Become a partner →</a></div></div>';
+    pgrid.innerHTML=phtml;
   }
 })();
 </script>

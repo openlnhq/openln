@@ -368,6 +368,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0 10px 20px -12px rgba(0,0,0,.7)}
 .ctile img{height:20px;width:auto;display:block}
 .ctile .ctag{font:700 8.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:#7a5c00;background:#ffe9a3;border-radius:999px;padding:3px 7px;margin-left:1px}
+.ctile .ccaps{font:600 8.5px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#5b6472;background:#edf0f4;border-radius:999px;padding:3px 7px;margin-left:1px}
 .ctile.ghost{background:transparent;border:1px dashed var(--line2);color:var(--ink2);font-weight:500}
 .cfoot{margin-top:42px;font-size:13.5px;color:var(--mute);max-width:780px;border-top:1px solid var(--line);padding-top:22px}
 @media(max-width:760px){
@@ -726,7 +727,11 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
       {name:'Blink',logo:'/media/compat/blink.png',url:'https://blink.sv/'},
       {name:'Strike',logo:'/media/compat/strike.png',url:'https://strike.me/',tag:'soon'},
       {name:'ZBD',logo:'/media/compat/zbd.png',url:'https://zbd.gg/',tag:'soon'},
-      {name:'Bitnob',logo:'/media/compat/bitnob.png',url:'https://bitnob.com/',tag:'soon'}
+      {name:'Bitnob',logo:'/media/compat/bitnob.png',url:'https://bitnob.com/',tag:'soon'},
+      {name:'OpenNode',logo:'/media/compat/opennode.png',url:'https://opennode.com/',tag:'soon'},
+      {name:'Speed',logo:'/media/compat/speed.png',url:'https://www.tryspeed.com/',tag:'soon'},
+      {name:'CoinGate',logo:'/media/compat/coingate.png',url:'https://coingate.com/',tag:'soon'},
+      {name:'Coinsnap',logo:'/media/compat/coinsnap.png',url:'https://coinsnap.io/',tag:'soon',caps:'receive only'}
     ]},
     {group:'Lightning Address',caps:'Receive-only',meta:'LUD-21 verify',ro:true,wallets:[
       {name:'Blink',logo:'/media/compat/blink.png',url:'https://blink.sv/'},
@@ -746,7 +751,7 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
     cgrid.innerHTML=COMPAT.map(function(g){
       var tiles=g.wallets.map(function(w){
         if(w.ghost)return '<span class="ctile ghost">+ '+w.name+'</span>';
-        return '<a class="ctile" href="'+w.url+'" target="_blank" rel="noopener"><img src="'+w.logo+'" alt="" loading="lazy">'+w.name+(w.tag?'<span class="ctag">'+w.tag+'</span>':'')+'</a>';
+        return '<a class="ctile" href="'+w.url+'" target="_blank" rel="noopener"><img src="'+w.logo+'" alt="" loading="lazy">'+w.name+(w.tag?'<span class="ctag">'+w.tag+'</span>':'')+(w.caps?'<span class="ccaps">'+w.caps+'</span>':'')+'</a>';
       }).join('');
       return '<div class="cgroup"><div class="chead"><span class="cglabel">'+g.group+'</span><span class="cchip'+(g.ro?' ro':'')+'">'+g.caps+'</span><span class="cmeta">'+g.meta+'</span></div><div class="ctiles">'+tiles+'</div></div>';
     }).join('');

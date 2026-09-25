@@ -29,4 +29,6 @@ test('compatibility section lists every wallet provider with a link',()=>{
       }
     }
   }
+  for(const n of ['OpenNode','Speed','CoinGate','Coinsnap']) assert.ok(wallets.some(w=>w.name===n),n+' must be listed on the wall');
+  assert.ok(wallets.some(w=>w.caps),'a tile may carry a capability note (Coinsnap: receive only)');
 });

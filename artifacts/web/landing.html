@@ -217,19 +217,7 @@ section{position:relative}
 
 /* partners */
 .partners{padding:120px 0;background:var(--bg2)}
-.ptable{width:100%;border-collapse:collapse;font-size:15px;border-top:1px solid var(--line2)}
-.ptable th{font:500 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--mute);text-align:left;padding:14px 0;border-bottom:1px solid var(--line)}
-.ptable td{padding:22px 0;border-bottom:1px solid var(--line);vertical-align:middle}
-.ptable td.reg{font:500 12px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--teal-b);width:16%}
-.ptable td.base{font-family:var(--disp);font-variation-settings:"wdth" 105;font-weight:700;font-size:24px;letter-spacing:-.02em;width:26%;line-height:1}
-.ptable td.does{color:var(--mute);width:42%}
-.ptable td.st{text-align:right;font:500 12px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink2);white-space:nowrap}
-.ptable td.st .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal-b);margin-right:8px;vertical-align:middle;box-shadow:0 0 0 3px var(--teal-wash)}
-.ptable tr.open td{color:var(--ink)}
-.ptable tr.open td.base{color:var(--gold)}
-.ptable tr.open td.st a{color:var(--gold);border-bottom:1px solid rgba(255,204,0,.4);padding-bottom:2px}
-.ptable tr.open td.st .dot{background:var(--gold);box-shadow:0 0 0 3px rgba(255,204,0,.18)}
-.pcta{display:flex;gap:16px;align-items:center;margin-top:36px;flex-wrap:wrap}
+.pcta{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
 .pcta .note{font-size:14px;color:var(--mute);max-width:520px}
 
 /* partner cards */
@@ -248,7 +236,6 @@ section{position:relative}
 .pcard.open{border-style:dashed;background:none}
 .pcard.open:hover{border-color:var(--line2);transform:none}
 .pcard.open h3{color:var(--ink2)}
-.plabel{display:block;margin:0 0 16px}
 
 /* finale */
 .fin{padding:150px 0 120px;background:var(--bg);position:relative;overflow:hidden}
@@ -280,8 +267,6 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   .bar{margin-top:-8px;position:relative;z-index:2;padding-bottom:30px}
   .movesin,.rin,.cin{grid-template-columns:1fr;gap:48px}
   .vgrid{grid-template-columns:1fr 1fr}
-  .ptable td.does{display:none}
-  .ptable td.reg{width:22%}.ptable td.base{width:auto}
 }
 @media(max-width:760px){
   .wrap{padding:0 20px}
@@ -300,7 +285,6 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   h2.sec{font-size:clamp(34px,10vw,52px)}
   .steps li{grid-template-columns:36px 1fr;gap:12px;padding:20px 0}
   .vgrid{grid-template-columns:1fr}.vcell{min-height:0}
-  .ptable td.base{font-size:19px}
   .pgrid{grid-template-columns:1fr;gap:12px;margin-bottom:40px}
   .pcard{min-height:0;padding:24px 20px 18px}
   .pcard .mk img{height:24px}
@@ -560,16 +544,6 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
     <p class="sub">openLN grows through the companies that build with us: manufacturers who make the hardware, distributors who assemble the RIC, print the cards, and onboard the merchants around them. Partners keep 100% of every hardware sale and earn on every payment their devices route.</p>
   </div>
   <div class="pgrid rv" id="pgrid"></div>
-  <span class="lbl plabel rv">Distributor network</span>
-  <table class="ptable rv" aria-label="Distributors">
-    <thead><tr><th>Region</th><th>Base</th><th>Does</th><th style="text-align:right">Status</th></tr></thead>
-    <tbody>
-      <tr><td class="reg">Thailand</td><td class="base">Koh Samui</td><td class="does">RIC assembly, card printing, worldwide dispatch</td><td class="st"><span class="dot"></span>Shipping</td></tr>
-      <tr><td class="reg">South Africa</td><td class="base">Johannesburg</td><td class="does">Local assembly and merchant onboarding</td><td class="st"><span class="dot"></span>Active</td></tr>
-      <tr><td class="reg">Europe</td><td class="base">satoshi.si</td><td class="does">European distribution and onboarding</td><td class="st"><span class="dot"></span>Onboarding</td></tr>
-      <tr class="open"><td class="reg">Your region</td><td class="base">Your city</td><td class="does">Assemble, print, onboard. Earn on every device you ship</td><td class="st"><span class="dot"></span><a href="/partner">Apply</a></td></tr>
-    </tbody>
-  </table>
   <div class="pcta rv"><a class="btn btn-teal" href="/partner">Become a partner <span class="ar">→</span></a><p class="note">Earnings are tracked in an append-only ledger per partner and paid out on request.</p></div>
 </div></section>
 

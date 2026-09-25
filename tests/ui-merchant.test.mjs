@@ -24,6 +24,7 @@ test('connect modal teaches each lane capability and the wallets that work',()=>
   assert.ok(modes.includes('NIP-47')&&modes.includes('LUD-21'),'Modal names the compatible wallet families');
   const modal=html.slice(html.indexOf('function walletModal('),html.indexOf('async function loadAuthedImage('));
   assert.ok(modal.includes('wmworks')&&modal.includes('wmcaps'),'Modal renders the capability chips and works-with line');
+  assert.ok(modal.includes("inp.setAttribute('type',isAddr?'text':'password')"),'Lightning Address input is plain text; NWC and API keys stay masked');
 });
 test('every inline script in index.html parses (a syntax error blanks the whole app)',()=>{
   const blocks=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);

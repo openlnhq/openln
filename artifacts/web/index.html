@@ -252,6 +252,13 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .wchip{font-size:10px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;padding:2.5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--text3)}
 .wchip.on{color:var(--teal);border-color:var(--teal-line);background:var(--teal-dim)}
 .wchip.off{opacity:.45}
+.wlanehead{font-size:12px;font-weight:590;color:var(--text2);margin-top:16px;border-top:1px solid var(--line);padding-top:14px;margin-bottom:2px}
+.wlane{padding:9px 0 1px}
+.wlanetop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wlanename{font-size:13px;font-weight:590}
+.wlanetop .wchips{margin-top:0}
+.wlanework{font-size:11.5px;color:var(--text3);margin-top:4px;line-height:1.55}
+.wmlist{font-size:11.5px;line-height:1.6;color:var(--text3);margin:0 0 12px}
 .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.formgrid{grid-template-columns:1fr}}.issued-card-list{display:grid;gap:6px}.issued-card-row{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);text-align:left;color:var(--text);cursor:pointer}.issued-card-row:hover{border-color:var(--teal-line)}.card-mini{width:29px;height:19px;border-radius:4px;background:linear-gradient(135deg,#123f3c,#0b1f1e);display:grid;place-items:center;flex-shrink:0}.card-mini-mark{color:var(--teal);font-size:15px;line-height:1}.issued-card-meta{flex:1;min-width:0}.issued-card-meta b{display:block;font-size:12px;font-weight:590}.issued-card-meta small{display:block;color:var(--text3);font-size:10.5px;margin-top:2px}
 .manage-actions{display:flex;flex-wrap:wrap;gap:7px}.manage-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.manage-section .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}.manage-line{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}.dangerText{color:var(--err)!important}
 /* real card face — CR80 ratio 85.6x54mm ≈ 1.586:1 */
@@ -854,24 +861,29 @@ function sendModal(){
 }
 /* ---- WALLET CONNECT ---- */
 function walletModalModes(){return {
-  nwc:{tab:'NWC',label:'NWC connection string',ph:'nostr+walletconnect://…',
-    hint:'Full wallet: receive, send, and card funding. In Coinos, Primal, Alby, or another compatible wallet, create a Nostr Wallet Connect connection and paste it here.'},
-  blink:{tab:'Blink',label:'Blink API key',ph:'blink_…',
-    hint:'Full wallet for custodial Blink accounts. In Blink, open API Keys (dashboard.blink.sv) and create a key with Read + Receive to accept payments and show your balance, plus Write to send from openLN. Non-custodial Blink accounts have no API - connect those with the Lightning Address tab instead.'},
-  lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',
-    hint:'Receive-only, and it works with any wallet whose Lightning Address supports payment confirmation (LUD-21), such as Blink. We verify it when you connect, and your balance stays in that wallet.'},
+  nwc:{tab:'NWC',label:'NWC connection string',ph:'nostr+walletconnect://…',caps:['recv','send'],
+    works:'Works with Alby Hub, LNbits, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum, and any NIP-47 wallet.',
+    hint:'Full wallet: receive, send, and card funding. In your wallet app, create a Nostr Wallet Connect connection and paste it here.'},
+  blink:{tab:'Blink',label:'Blink API key',ph:'blink_…',caps:['recv','send'],
+    works:'Works with custodial Blink accounts. Create a key at dashboard.blink.sv: Read + Receive to accept payments, Write to send. Non-custodial Blink connects with a Lightning Address.',
+    hint:'Full wallet for custodial Blink accounts. Receive, send, and card funding run through Blink.'},
+  lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',caps:['recv'],
+    works:'Works with any wallet whose address verifies payments (LUD-21), such as Blink, Coinos, or Alby.',
+    hint:'Receive-only. We verify your address when you connect, and your balance stays in that wallet.'},
 };}
 function walletModal(){
   const WM=walletModalModes();let mode=Object.keys(WM)[0];
   const m=modal(`<div class="modalhead"><h2>Connect wallet</h2><button class="xbtn">✕</button></div>
   <p class="muted" style="font-size:13px;margin-bottom:14px">Connect the wallet you already use. openLN never takes custody of your sats.</p>
   <div class="setup-tabs" role="tablist" aria-label="Wallet type" id="wmtabs">${Object.entries(WM).map(([k,v],i)=>`<button role="tab" data-wm="${k}" aria-selected="${i===0}" class="${i===0?'on':''}">${v.tab}</button>`).join('')}</div>
-  <p class="hint" id="wmhint" style="margin:10px 0 12px"></p>
+  <div class="wchips" id="wmcaps" style="margin:12px 0 0"></div>
+  <p class="hint" id="wmhint" style="margin:8px 0 6px"></p>
+  <p class="wmlist" id="wmworks"></p>
   <form id="wf">
     <label class="field"><span id="wmlabel"></span><input class="input mono" type="password" autocomplete="off" name="connection" required style="font-size:11px"></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Connect</button>
   </form><div id="wres"></div>`);
-  const paint=()=>{const c=WM[mode];m.querySelector('#wmhint').textContent=c.hint;m.querySelector('#wmlabel').textContent=c.label;const inp=m.querySelector('#wf [name=connection]');inp.placeholder=c.ph;inp.value='';};
+  const paint=()=>{const c=WM[mode];m.querySelector('#wmhint').textContent=c.hint;m.querySelector('#wmworks').textContent=c.works;m.querySelector('#wmcaps').innerHTML='<span class="wchip on">Receive</span><span class="wchip '+(c.caps.includes('send')?'on':'off')+'">Send</span>';m.querySelector('#wmlabel').textContent=c.label;const inp=m.querySelector('#wf [name=connection]');inp.placeholder=c.ph;inp.value='';};
   m.querySelectorAll('[data-wm]').forEach(b=>b.onclick=()=>{mode=b.dataset.wm;m.querySelectorAll('[data-wm]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-selected',String(x===b))});paint()});
   paint();
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
@@ -1561,6 +1573,19 @@ async function vSettings(version=renderVersion){
             ${wAny?`<div class="wchips"><span class="wchip on">Receive</span><span class="wchip ${wFull?'on':'off'}">Send</span></div>`:''}
           </div>
           <button class="btn ghost sm" id="setWalletBtn">${wAny?'Replace':'Connect'}</button>
+        </div>
+        <div class="wlanehead">Wallet connection options</div>
+        <div class="wlane">
+          <div class="wlanetop"><span class="wlanename">Nostr Wallet Connect</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip on">Send</span></div></div>
+          <div class="wlanework">Alby Hub, LNbits, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum, and any NIP-47 wallet.</div>
+        </div>
+        <div class="wlane">
+          <div class="wlanetop"><span class="wlanename">Blink API key</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip on">Send</span></div></div>
+          <div class="wlanework">Custodial Blink accounts, with a key from dashboard.blink.sv. Non-custodial Blink accounts connect with a Lightning Address.</div>
+        </div>
+        <div class="wlane">
+          <div class="wlanetop"><span class="wlanename">Lightning Address</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip off">Send</span></div></div>
+          <div class="wlanework">Blink, Coinos, Alby, and any wallet whose address verifies payments (LUD-21).</div>
         </div>
       </div>
 

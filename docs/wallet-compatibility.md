@@ -60,9 +60,13 @@ existing reconcile paths.
 | Provider | API | openLN status |
 |---|---|---|
 | Blink | GraphQL + API keys (dev.blink.sv) | **LIVE** (custodial accounts; non-custodial accounts expose no API and use the Lightning Address lane) |
-| Strike | REST (docs.strike.me) | To build. NWC only via an experimental community bridge - not a dependancy. |
+| Strike | REST (docs.strike.me) | To build. NWC only via an experimental community bridge - not a dependency. |
 | ZBD | REST (docs.zbdpay.com) | To build. No NWC. |
 | Bitnob | REST (bitnob.dev; Lightning + stablecoins, Africa) | To build. |
+| OpenNode | REST (developers.opennode.com; charges + withdrawals) | To build. Custodial processor. `create charge` returns a Lightning invoice (`lightning_invoice.payreq`) + webhooks; `POST /v2/withdrawals` with `type:"ln"` pays a Lightning invoice - full send + receive. Optional fiat auto-conversion, US-oriented. |
+| Speed | REST (apidocs.tryspeed.com; business platform) | To build. Checkout sessions / payment links (Lightning + on-chain + stablecoins) and global Lightning payouts. The *consumer* Speed app has no public API - the lane is a Speed *business* account. |
+| CoinGate | REST (developer.coingate.com) | To build. Established EU processor (~1% fees); Lightning enabled by default when accepting; payouts + merchant refunds APIs. |
+| Coinsnap | REST (docs.coinsnap.io; store ID + API key, email signup) | To build. Receive-only: self-custody acceptance - payments settle directly to the merchant's own wallet via a stored Lightning address. DACH market; app + web POS included. |
 | phoenixd | Local HTTP API (single binary, ACINQ) | Works today *indirectly*: phoenixd backs an Alby Hub, which serves NWC. Direct client not needed for the standard path. |
 | BlueWallet | LNDhub API (self-host LNDhub, or BTCPay's LNDhub plugin) | Possible later; LNDhub has no create-invoice/webhook shape like the others - treat as node-side. |
 | Coinos server | Open-source REST API (self-hosted Coinos) | Same as BlueWallet: possible, node-side. |
@@ -96,13 +100,24 @@ callback and check for the LUD-21 `verify` field.
 
 - **Mutiny** - shut down end of 2024.
 - **Wallet of Satoshi** - no official API, no NWC, no LUD-21. Community-built clients only, can break anytime.
-- **Speed** - consumer app, no public wallet API; address behavior unverified. Nothing to connect with.
+
+### Processors evaluated, parked (not on the wall)
+
+The 2026 processor layer was swept separately from the awesome-nwc wallet scan
+(watch: Voltage "Best bitcoin payment APIs 2026", Chainstack payments list,
+Speed/OpenNode comparisons). Beyond the four added to the API table:
+
+- **BitPay** - invoices + payouts APIs, but Lightning support reads as limited in the REST docs; verify before claiming.
+- **IBEX** - real Lightning settlement (IBEX Pay retail; poweredbyibex institutional) but per-merchant / enterprise onboarding; no self-serve wallet API for openLN merchants today.
+- **Voltage / Lightspark / Blockstream Greenlight** - platform and node infrastructure, not merchant wallets; the self-hosted group already covers this class.
+- **NOWPayments / Crypto.com Pay / Coinbase Commerce / Coinify / Nuvei** - no meaningful Lightning support. Excluded.
 
 ## Landing wall (`landing.html` `#compatibility`)
 
 The wall is data-driven: `var COMPAT` in the landing script, one object per
 wallet (`name`, `logo` at `/media/compat/<slug>.png`, `url`; `tag:'soon'`
-marks integrations still being built; `ghost:true` renders the "+ any LUD-21
+marks integrations still being built; `caps:'...'` adds a small qualifier
+pill - e.g. Coinsnap `receive only`; `ghost:true` renders the "+ any LUD-21
 wallet" tile). Groups mirror the three lanes plus self-hosted. When an API
 integration ships, remove its `soon` tag; when a wallet fails re-validation,
 remove it from both the wall and the settings lists.
@@ -124,6 +139,7 @@ wallet card list the headline wallets per lane. Keep the three lists in sync:
 
 - github.com/getAlby/awesome-nwc (canonical directory to watch), nwc.dev
 - dev.blink.sv, docs.strike.me, docs.zbdpay.com, bitnob.dev
+- developers.opennode.com, apidocs.tryspeed.com, developer.coingate.com, docs.coinsnap.io (processor APIs verified 2026-09-25)
 - zeusln.com v0.12 release notes, news.lnbits.com NWC guide
 - Live probes on server1 (2026-09-25): LNURL-pay + LUD-21 verify against
   coinos.io, blink.sv, getalby.com, primal.net, walletofsatoshi.com

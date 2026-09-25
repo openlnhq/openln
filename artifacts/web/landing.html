@@ -541,10 +541,10 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   <div class="sechead rv">
     <span class="lbl teal">Partners</span>
     <h2 class="sec">Built Locally.<br><span class="g">Serve Globally.</span></h2>
-    <p class="sub">openLN grows through the companies that build with us: manufacturers who make the hardware, distributors who assemble the RIC, print the cards, and onboard the merchants around them. Partners keep 100% of every hardware sale and earn on every payment their devices route.</p>
+    <p class="sub">Bitcoin mass adoption is built locally, or not at all. openLN is the full stack for the people doing that work: open hardware, open software, the cards, and the rails. Partners keep 100% of every hardware sale and earn on every payment their devices route.</p>
   </div>
   <div class="pgrid rv" id="pgrid"></div>
-  <div class="pcta rv"><a class="btn btn-teal" href="/partner">Become a partner <span class="ar">→</span></a><p class="note">Earnings are tracked in an append-only ledger per partner and paid out on request.</p></div>
+  <div class="pcta rv"><a class="btn btn-teal" href="/partner">Become a partner <span class="ar">→</span></a><p class="note">We build the tools. You build the economy.</p></div>
 </div></section>
 
 <!-- FINALE -->
@@ -653,7 +653,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
       var head=p.logo?'<span class="mk"><img src="'+p.logo+'" alt="'+p.name+'" loading="lazy"></span>':'<h3>'+p.name+'</h3>';
       return '<div class="pcard"><span class="pk">'+p.kind+'</span>'+head+(p.legal?'<div class="legal">'+p.legal+'</div>':'')+'<p>'+p.blurb+'</p><div class="meta"><span>'+p.meta+'</span><a href="'+p.url+'" target="_blank" rel="noopener">'+p.urlText+' ↗</a></div></div>';
     }).join('');
-    phtml+='<div class="pcard open"><span class="pk">Open</span><h3>Your company</h3><p>Manufacturers, payment providers, and communities building the open bitcoin economy. Partner slots are open in every region.</p><div class="meta"><span>Your region</span><a href="/partner">Become a partner →</a></div></div>';
+    phtml+='<div class="pcard open"><span class="pk">Open</span><h3>Your company</h3><p>Manufacturers, payment providers, and communities building the open bitcoin economy. Your region is still open.</p><div class="meta"><span>Your region</span><a href="/partner">Claim your region →</a></div></div>';
     pgrid.innerHTML=phtml;
   }
 })();

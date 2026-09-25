@@ -178,6 +178,7 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .badge.ok{background:rgba(52,211,153,.11);color:var(--ok)}
 .badge.pend{background:var(--surface3);color:var(--text2)}
 .badge.gold{background:var(--gold-dim);color:var(--gold)}
+.badge.err{background:rgba(248,113,113,.12);color:var(--err)}
 
 /* installed extension chips — compact, one line each */
 .chip{display:inline-flex;align-items:center;gap:8px;padding:7px 13px 7px 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12.5px;font-weight:510;color:var(--text2);cursor:pointer;transition:.13s;white-space:nowrap}
@@ -1256,7 +1257,8 @@ function ricStepRow(n,label,state){ // state: 'pending'|'active'|'done'
   return `<div class="ricstep ${state}"><div class="ricstep-n">${state==='done'?'✓':n}</div><div class="ricstep-body"><div class="ricstep-label">${esc(label)}</div><div class="ricstep-slot" id="ricStepSlot${n}"></div></div></div>`;
 }
 
-function ricFlashModal(){
+function ricFlashModal(opts={}){
+  const partner=opts.partner||null; // {name, claimCode} -> registers the device MAC to the partner after flashing
   const hasSerial = !!navigator.serial;
   let phase='idle'; let port=null;
   const m=modal(`<div class="modalhead"><div><h2>Flash device</h2><p class="dim" style="font-size:12px;margin-top:4px" id="ricFlashVer">ESP32-2432S028R only · not ESP32-S3 / ES3C28P</p></div><button class="xbtn">✕</button></div>
@@ -1264,7 +1266,7 @@ function ricFlashModal(){
       <div class="ricsteps">
         ${ricStepRow(1,'Connect','active')}
         ${ricStepRow(2,'Flash firmware','pending')}
-        ${ricStepRow(3,'Result','pending')}
+        ${ricStepRow(3,partner?'Register device':'Result','pending')}
       </div>
       <p class="dim" style="font-size:11.5px;text-align:center;margin-top:14px">Requires Chrome or Edge on desktop (USB access)</p>
     `:`<div class="warnbox">WebSerial is not available in this page context. Open this page in Chrome or Edge on desktop, then reconnect the USB device.</div>`}`);
@@ -1291,6 +1293,8 @@ function ricFlashModal(){
           await loader.main();
           const chip=loader.chip?.CHIP_NAME||'';
           if(chip!==manifest.chip)throw Error('This image is for '+manifest.chip+'. Detected '+(chip||'unknown chip')+'. Nothing was written.');
+          let devMac='';
+          try{ devMac=String(await loader.chip.readMac(loader)).toUpperCase(); }catch{}
           const fwRes=await fetch(manifest.url);
           if(!fwRes.ok)throw Error('Failed to download firmware');
           const data=new Uint8Array(await fwRes.arrayBuffer());
@@ -1300,7 +1304,35 @@ function ricFlashModal(){
             reportProgress:(_i,written,total)=>{ const pct=total>0?Math.round(written/total*100):0; const bar=m.querySelector('#ricBar'); if(bar)bar.style.width=pct+'%'; const p=m.querySelector('#ricPct'); if(p)p.textContent=pct+'% written'; }});
           try{await loader.softReset(false);}catch{/* esptool-js cannot soft-reset ESP32; device boots on power cycle */}
           setStep(2,'done'); slot(2).innerHTML=`<span style="color:var(--ok);font-size:12.5px">v${esc(manifest.version||'?')} written${chip?' · '+esc(chip)+' detected':''}</span>`;
+          if(partner){
+            // Partner flash: bind the device MAC to this partner account. The
+            // binding is first-wins on the hardware, so it follows the device
+            // through re-flashes and ownership changes.
+            setStep(3,'active');
+            const doneMsg=(replayed)=>`<p style="color:var(--ok);font-size:12.5px;font-weight:590">${replayed?'Device was already registered to':'Registered to'} ${esc(partner.name)}</p><p class="dim" style="font-size:11.5px;margin-top:4px">MAC ${esc(devMac||'')}. Power-cycle the device (unplug/replug USB), then hand it to the merchant. Sales on this RIC earn your 0.3% share automatically.</p>`;
+            const regPanel=(note,mac)=>{
+              slot(3).innerHTML=`<p class="dim" style="font-size:12.5px;margin-bottom:8px">${esc(note)}</p>
+                <div class="ricform"><input class="input mono" id="ricMac" placeholder="CC:DB:A7:9F:A8:0C" value="${esc(mac||'')}"><button class="btn teal sm" id="ricReg" style="margin-top:8px">Register to ${esc(partner.name)}</button></div>`;
+              m.querySelector('#ricReg').onclick=()=>{const inp=m.querySelector('#ricMac');const v=(inp?inp.value:'').trim().toUpperCase();if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(v)){toast('Enter a valid device MAC');return}doReg(v)};
+            };
+            const doReg=async(macValue)=>{
+              const btn=m.querySelector('#ricReg'); if(btn){btn.disabled=true;btn.textContent='Registering…'}
+              try{
+                if(!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(macValue))throw Error('Device MAC unavailable');
+                const r=await fetch('/api/posbox/devices',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mac:macValue,claimCode:partner.claimCode})});
+                const d=await r.json().catch(()=>({}));
+                if(!r.ok)throw Error(d.error||'Registration failed');
+                setStep(3,'done'); slot(3).innerHTML=doneMsg(!!d.replayed);
+              }catch(e2){
+                setStep(3,'active');
+                regPanel('Registration failed: '+(e2.message||'unknown error')+'. Retry or enter the MAC below.',macValue);
+              }
+            };
+            if(devMac){ slot(3).innerHTML=`<span class="dim" style="font-size:12.5px">Registering device ${esc(devMac)}…</span>`; doReg(devMac); }
+            else regPanel('Firmware installed, but the device MAC could not be read automatically. Enter it below to register this RIC.',null);
+          } else {
           setStep(3,'done'); slot(3).innerHTML=`<p style="color:var(--ok);font-size:12.5px;font-weight:590">Firmware v${esc(manifest.version||'')} installed</p><p class="dim" style="font-size:11.5px;margin-top:4px">Power-cycle the device (unplug/replug USB), then use "Link device" to connect it to your account over Bluetooth.</p>`;
+          }
         }catch(e){ setStep(3,'error'); slot(3).innerHTML=`<p style="color:var(--err);font-size:12.5px">${esc(e.message||'Flash failed')}</p><button class="btn ghost sm" id="ricRetryFlash" style="margin-top:8px">Try again</button>`; m.querySelector('#ricRetryFlash').onclick=()=>{m.remove();ricFlashModal();}; }
       };
     }catch(e){
@@ -1631,47 +1663,114 @@ async function vSettings(version=renderVersion){
   $('#setWalletBtn').onclick=walletModal;
 }
 /* ---- PARTNER ---- */
+const ptok=()=>localStorage.getItem('openln_partner_token');
+async function papi(path,opts={}){opts.headers={'content-type':'application/json',...(opts.headers||{}),...(ptok()?{Authorization:'Bearer '+ptok()}:{})};const r=await fetch(path,opts);const d=await r.json().catch(()=>({}));if(!r.ok){const e=Error(displayText(d.error||('Request failed ('+r.status+')')));e.status=r.status;throw e}return d}
+let PARTNER_CLAIM=null, PARTNER_CLAIM_PID=null;
+async function ensurePartnerClaim(pid){if(PARTNER_CLAIM&&PARTNER_CLAIM_PID===pid)return PARTNER_CLAIM;try{PARTNER_CLAIM=await papi(`/api/partner/${pid}/claim-code`,{method:'POST'});PARTNER_CLAIM_PID=pid}catch{}return PARTNER_CLAIM}
 async function vPartner(){
   const pid=localStorage.getItem('openln_partner');
-  if(!pid)return partnerLogin();
-  try{const e=await api(`/api/partner/${pid}/earnings`);renderPartner(e.earnings||[],pid)}
-  catch(x){localStorage.removeItem('openln_partner');partnerLogin()}
+  if(!pid||!ptok())return partnerLogin();
+  let d;
+  try{d=await papi(`/api/partner/${pid}/dashboard`)}
+  catch(x){
+    if(x.status===401){localStorage.removeItem('openln_partner');localStorage.removeItem('openln_partner_token');return partnerLogin()}
+    $('#view').innerHTML=`<div style="margin-top:30px;max-width:520px"><div class="overline">Partner portal</div><h1 class="page">Could not load your portal</h1><p class="muted" style="margin:10px 0 18px">${esc(x.message||'Request failed')}</p><button class="btn ghost" id="pRetry">Retry</button></div>`;
+    $('#pRetry').onclick=()=>vPartner();
+    return;
+  }
+  renderPartner(d,pid);
 }
 function partnerLogin(){
   $('#view').innerHTML=`<div style="margin-top:30px;max-width:400px">
   <div class="overline">Partner portal</div>
   <h1 class="page">Partner access</h1>
-  <p class="muted" style="margin:10px 0 22px">Hardware partners track device attribution and earnings.</p>
+  <p class="muted" style="margin:10px 0 22px">Flash RICs, track your fleet, and collect your revenue share.</p>
   <form id="pf">
     <label class="field"><span>Partner handle</span><input class="input" name="handle" placeholder="thailand" required></label>
     <label class="field"><span>Password</span><input class="input" name="password" type="password" required></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Sign in</button>
   </form><p id="perr" style="color:var(--err);font-size:13px;margin-top:10px"></p></div>`;
   $('#pf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{const s=await api('/api/partner/login',{method:'POST',body:JSON.stringify(b)});localStorage.setItem('openln_partner',s.partner.id);render()}
+    try{const s=await api('/api/partner/login',{method:'POST',body:JSON.stringify(b)});localStorage.setItem('openln_partner',s.partner.id);localStorage.setItem('openln_partner_token',s.token);PARTNER_CLAIM=null;render()}
     catch(x){$('#perr').textContent=displayText(x.message)}};
 }
-async function renderPartner(rows,pid){
-  let stats={totalSats:0,totalEarned:0,count:0};
-  rows.forEach(r=>{stats.totalSats+=r.amountSats;stats.totalEarned+=r.feeShareSats;stats.count++});
-  let claim=null;
-  try{claim=await api(`/api/partner/${pid}/claim-code`,{method:'POST'})}catch(e){}
+function pollPayouts(pid){
+  let n=0;const t=setInterval(async()=>{n++;
+    try{
+      const d=await papi(`/api/partner/${pid}/dashboard`);
+      const inFlight=(d.payouts||[]).some(x=>x.state==='requested'||x.state==='sending');
+      if(!inFlight||n>20){clearInterval(t);renderPartner(d,pid);return}
+      const msg=$('#pPayoutMsg');if(msg)msg.innerHTML=`<span class="dim">Payout in progress · ${esc(((d.payouts||[])[0]||{}).state||'sending')}</span>`;
+    }catch(x){if(n>20)clearInterval(t)}
+  },3000);
+}
+async function renderPartner(d,pid){
+  const b=d.balance||{},p=d.partner||{},payouts=d.payouts||[],rows=d.earnings||[],devices=d.devices||[];
+  const pending=payouts.filter(x=>x.state==='requested'||x.state==='sending');
+  const claim=await ensurePartnerClaim(pid);
+  const canPay=(b.availableSats||0)>=(b.minPayoutSats||0)&&!pending.length;
   $('#view').innerHTML=`<div style="margin-top:30px">
-  <div class="overline">Partner portal</div>
-  <h1 class="page">Attribution & earnings</h1>
-  <div class="statgrid" style="margin-top:20px">
-    <div class="stat"><div class="overline">Volume attributed</div><div class="sv t">${fmt(stats.totalSats)}</div><div class="dim" style="font-size:11px">sats</div></div>
-    <div class="stat"><div class="overline">Earnings accrued</div><div class="sv g">${fmt(stats.totalEarned)}</div><div class="dim" style="font-size:11px">sats · ⅓ of fee</div></div>
-    <div class="stat"><div class="overline">Payments</div><div class="sv">${fmt(stats.count)}</div><div class="dim" style="font-size:11px">settled wraps</div></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+    <div><div class="overline">Partner portal</div><h1 class="page">${esc(p.name||'Partner')}</h1>
+    <p class="muted" style="margin:8px 0 0">${esc(p.handle||'')}${p.region?' · '+esc(p.region):''}</p></div>
+    <button class="btn ghost sm" id="pSignout">Sign out</button>
   </div>
-  ${claim?`<div class="card" style="margin-top:14px"><h3>Device claim code <span class="side">rotate on issue</span></h3>
-    <div class="copyrow" style="margin-top:12px"><input class="input mono" readonly value="${esc(claim.claimCode)}"><button class="btn ghost sm" id="pcopy">Copy</button></div>
-    <p class="dim" style="font-size:11.5px;margin-top:8px">Embed in the RIC webflasher to bind the device MAC to your partner account at flash time.</p></div>`:''}
+  <div class="statgrid" style="margin-top:20px">
+    <div class="stat"><div class="overline">Available</div><div class="sv g">${fmt(b.availableSats||0)}</div><div class="dim" style="font-size:11px">sats ready to pay out</div></div>
+    <div class="stat"><div class="overline">Earned all time</div><div class="sv t">${fmt(b.earnedSats||0)}</div><div class="dim" style="font-size:11px">sats · 0.3% of sales</div></div>
+    <div class="stat"><div class="overline">Paid out</div><div class="sv">${fmt(b.paidSats||0)}</div><div class="dim" style="font-size:11px">sats sent</div></div>
+    ${pending.length?`<div class="stat"><div class="overline">Payout pending</div><div class="sv">${fmt(b.pendingSats||0)}</div><div class="dim" style="font-size:11px">sats in flight</div></div>`:''}
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Payouts <span class="side">0.3% of every settled sale</span></h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div><div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.06em">Payout address</div>
+      <div class="mono" style="font-size:13px;margin-top:4px">${p.lightningAddress?esc(p.lightningAddress):'<span class="dim">Not set yet</span>'}</div></div>
+      <button class="btn ghost sm" id="pAddrEdit">${p.lightningAddress?'Change':'Set address'}</button>
+    </div>
+    <div id="pAddrForm" style="display:none;margin-top:10px">
+      <div class="ricform"><input class="input mono" id="pAddrInput" placeholder="name@wallet.com" style="font-size:12.5px" value="${esc(p.lightningAddress||'')}">
+      <div style="display:flex;gap:8px;margin-top:8px"><button class="btn teal sm" id="pAddrSave">Save address</button><button class="btn ghost sm" id="pAddrCancel">Cancel</button></div></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+      <div class="dim" style="font-size:12px">Minimum payout ${fmt(b.minPayoutSats||0)} sats · paid from the platform wallet</div>
+      <button class="btn gold sm" id="pRequest" ${canPay?'':'disabled'}>Request payout${canPay?' · '+fmt(b.availableSats||0)+' sats':''}</button>
+    </div>
+    <p id="pPayoutMsg" style="font-size:12.5px;margin-top:8px">${pending.length?`<span class="dim">A payout of ${fmt(b.pendingSats||0)} sats is in flight.</span>`:''}</p>
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Your RICs <span class="side">${devices.length} registered</span></h3>
+    <p class="dim" style="font-size:12.5px;margin-top:8px">Flash RICs here and they register to your account automatically. A device stays yours through re-flashes and ownership changes, so its sales keep earning your share.</p>
+    ${claim?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn teal sm" id="pFlash">Flash a RIC</button><button class="btn ghost sm" id="pCodeToggle">Claim code</button></div>
+    <div id="pCodeBox" style="display:none;margin-top:12px"><div class="copyrow"><input class="input mono" readonly value="${esc(claim.claimCode)}"><button class="btn ghost sm" id="pcopy">Copy</button></div>
+    <p class="dim" style="font-size:11.5px;margin-top:8px">Used by the flasher to bind devices to you. Issuing again replaces this code; existing devices stay bound to you.</p></div>`
+    :`<div class="warnbox" style="margin-top:12px">Could not issue a claim code right now. Reload the page to try again.</div>`}
+    ${devices.length?`<table class="tb" style="margin-top:10px"><thead><tr><th>Device</th><th>Earned</th><th>Payments</th><th>Last seen</th></tr></thead><tbody>${devices.map(x=>`<tr><td class="mono" style="font-size:11.5px">${esc(x.mac)}</td><td class="mono" style="color:var(--gold)">${fmt(x.earnedSats||0)}</td><td class="mono">${fmt(x.payments||0)}</td><td class="dim">${x.lastSeenAt?ago(x.lastSeenAt):'-'}</td></tr>`).join('')}</tbody></table>`
+    :`<div style="padding:22px 0;text-align:center"><span class="dim" style="font-size:13px">No RICs registered yet. Flash your first device above.</span></div>`}
+  </div>
+  <div class="card" style="margin-top:14px"><h3>Payout history</h3>
+    ${payouts.length?`<table class="tb" style="margin-top:10px"><thead><tr><th>When</th><th>Amount</th><th>State</th><th>Destination</th><th>Payment</th></tr></thead><tbody>${payouts.map(x=>`<tr><td class="dim">${ago(x.createdAt)}</td><td class="mono">${fmt(x.amountSats)}</td><td><span class="badge ${x.state==='sent'?'ok':x.state==='failed'?'err':'pend'}">${esc(x.state)}</span>${x.error?`<div class="dim" style="font-size:11px;margin-top:3px">${esc(x.error)}</div>`:''}</td><td class="mono" style="font-size:11.5px">${esc(x.destination||'-')}</td><td class="mono" style="font-size:11px">${x.paymentHash?esc(x.paymentHash.slice(0,12))+'…':'-'}</td></tr>`).join('')}</tbody></table>`
+    :`<div style="padding:22px 0;text-align:center"><span class="dim" style="font-size:13px">No payouts yet. Request one once your balance reaches the minimum.</span></div>`}
+  </div>
   <div class="card" style="margin-top:14px"><h3>Earnings ledger <span class="side">append-only</span></h3>
-    ${rows.length?`<table class="tb" style="margin-top:10px"><thead><tr><th>Payment</th><th>Amount</th><th>Your share</th><th>State</th><th>When</th></tr></thead>
-    <tbody>${rows.slice().reverse().map(r=>`<tr><td class="mono" style="font-size:11px">${esc((r.paymentHash||'').slice(0,14))}…</td><td class="mono">${fmt(r.amountSats)}</td><td class="mono" style="color:var(--gold)">${fmt(r.feeShareSats)}</td><td><span class="badge ${r.payoutState==='accrued'?'pend':'ok'}">${esc(r.payoutState)}</span></td><td class="dim">${ago(r.createdAt)}</td></tr>`).join('')}</tbody></table>`
-    :`<div style="padding:26px 0;text-align:center"><span class="dim" style="font-size:13px">No attributed payments yet. Flash a RIC with your claim code to begin.</span></div>`}</div></div>`;
-  if(claim)$('#pcopy').onclick=()=>{navigator.clipboard.writeText(claim.claimCode);toast('Claim code copied')};
+    ${rows.length?`<table class="tb" style="margin-top:10px"><thead><tr><th>Payment</th><th>Sale</th><th>Your share</th><th>Device</th><th>When</th></tr></thead><tbody>${rows.map(r=>`<tr><td class="mono" style="font-size:11px">${esc((r.paymentHash||'').slice(0,12))}…</td><td class="mono">${fmt(r.amountSats)}</td><td class="mono" style="color:var(--gold)">${fmt(r.feeShareSats)}</td><td class="mono" style="font-size:11px">${esc(r.deviceMac||'-')}</td><td class="dim">${ago(r.createdAt)}</td></tr>`).join('')}</tbody></table>`
+    :`<div style="padding:22px 0;text-align:center"><span class="dim" style="font-size:13px">No attributed payments yet. Flash a RIC to begin.</span></div>`}
+  </div></div>`;
+  $('#pSignout').onclick=()=>{localStorage.removeItem('openln_partner');localStorage.removeItem('openln_partner_token');PARTNER_CLAIM=null;partnerLogin()};
+  if(claim){$('#pcopy').onclick=()=>{navigator.clipboard.writeText(claim.claimCode);toast('Claim code copied')};
+    $('#pCodeToggle').onclick=()=>{const box=$('#pCodeBox');if(box)box.style.display=box.style.display==='none'?'block':'none'};
+    $('#pFlash').onclick=()=>ricFlashModal({partner:{name:p.name||p.handle||'your account',claimCode:claim.claimCode}});}
+  $('#pAddrEdit').onclick=()=>{const f=$('#pAddrForm');if(f)f.style.display=f.style.display==='none'?'block':'none'};
+  $('#pAddrCancel').onclick=()=>{const f=$('#pAddrForm');if(f)f.style.display='none'};
+  $('#pAddrSave').onclick=async()=>{const addr=($('#pAddrInput')?.value||'').trim();if(!addr)return;
+    const btn=$('#pAddrSave');btn.disabled=true;btn.textContent='Saving…';
+    try{await papi(`/api/partner/${pid}/payout-address`,{method:'PUT',body:JSON.stringify({address:addr})});toast('Payout address saved');vPartner();}
+    catch(x){btn.disabled=false;btn.textContent='Save address';toast(x.message||'Could not save address')}};
+  const rb=$('#pRequest');
+  if(rb&&!rb.disabled)rb.onclick=()=>{
+    if(!confirm('Request a payout of '+fmt(b.availableSats||0)+' sats to '+(p.lightningAddress||'your payout address')+'?'))return;
+    rb.disabled=true;rb.textContent='Requesting…';
+    papi(`/api/partner/${pid}/payouts`,{method:'POST'}).then(()=>{toast('Payout requested');pollPayouts(pid)})
+      .catch(x=>{rb.disabled=false;rb.textContent='Request payout';const m=$('#pPayoutMsg');if(m)m.innerHTML=`<span style="color:var(--err)">${esc(x.message||'Request failed')}</span>`});
+  };
 }
 /* ---- ADMIN PAYMENTS (treasury ops console) ---- */
 let ADM_ID=null; // selected payment id, null = list view

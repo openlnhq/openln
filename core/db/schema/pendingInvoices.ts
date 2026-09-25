@@ -13,6 +13,10 @@ export const pendingInvoicesTable = pgTable("pending_invoices", {
   nwcUrlEncrypted: text("nwc_url_encrypted"),
   cardOrderId: uuid("card_order_id"),
   posboxDeviceId: uuid("posbox_device_id"),
+  // RIC hardware MAC (uppercase, colon-separated) captured at invoice create
+  // from the device token. Settled sales accrue the partner revenue share for
+  // whichever partner registered this MAC (posbox_devices_attribution).
+  deviceMac: text("device_mac"),
   // Which surface created this invoice: ric | web_pos | ln_address | wallet | shop.
   // Settlement copies it to the transaction row and derives the bookkeeping class.
   origin: text("origin"),

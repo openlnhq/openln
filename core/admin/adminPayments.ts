@@ -834,6 +834,7 @@ export async function handleAdminPaymentsRoute(
         merchantPaymentHash: inv.merchantPaymentHash,
         feeSats: inv.feeSats,
         memo: inv.memo,
+        deviceMac: inv.deviceMac,
         bolt11: inv.bolt11,
         wrapStatus: inv.wrapStatus,
         preimage: inv.preimage,

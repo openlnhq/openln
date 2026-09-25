@@ -202,7 +202,7 @@ export async function handleRicManagementRoute(req: IncomingMessage, res: Server
       .where(and(eq(deviceTokensTable.id, identity.id), isNull(deviceTokensTable.revokedAt))).for("update");
     if (!active) return false;
     await tx.insert(ricDeviceTelemetryTable).values(values).onConflictDoUpdate({target: ricDeviceTelemetryTable.deviceTokenId, set: values});
-    await tx.update(deviceTokensTable).set({lastUsedAt: now}).where(eq(deviceTokensTable.id, identity.id));
+    await tx.update(deviceTokensTable).set({lastUsedAt: now, ...(parsed.mac ? {mac: parsed.mac.toUpperCase()} : {})}).where(eq(deviceTokensTable.id, identity.id));
     return true;
   });
   if (!accepted) return json(req, res, 401, {error: "Device authentication required"});

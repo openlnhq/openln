@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { AuthService } from "./auth/service.js";
 import { WalletService } from "./wallet/service.js";
 import { createBuiltinRegistry } from "./plugins/builtin.js";
-import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable } from "./db/index.js";
+import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable, deviceTokensTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice } from "./money/nwc.js";
 import { captureFiatSnapshot } from "./money/fiatSnapshot.js";
@@ -18,6 +18,7 @@ import { AmbiguousPaymentError } from "./money/feeEngine.js";
 import { reconcileAccountInvoicesBounded, startInvoiceMonitor } from "./money/invoiceMonitor.js";
 import { startWrapDriver, kickWrap, OPEN_WRAP_STATES, wrapDriverStats } from "./money/wrapDriver.js";
 import { startWrapNotifications, wrapNotificationStats } from "./money/nwcNotifications.js";
+import { startPartnerPayoutDriver } from "./money/partnerPayouts.js";
 import { onAccountEvent } from "./events.js";
 import { handleCardsPreview } from "../plugins/cards-preview.js";
 import { handleCardsRoute } from "../plugins/cards.js";
@@ -345,12 +346,18 @@ const server = createServer(async (req, res) => {
       // The wallet's own Receive screen declares purpose "top_up" (owner funding the wallet:
       // not income). Anything else on this route is a sale: RIC, or the browser POS.
       const posOrigin = fromRic ? "ric" : v.purpose === "top_up" ? "wallet" : "web_pos";
+      // Partner rev-share: resolve the RIC's hardware MAC from its device token
+      // (populated by /api/ric/hello telemetry). Captured at create time so the
+      // settle can credit whichever partner registered this MAC.
+      const deviceMac = cardToken && /^[0-9a-f]{64}$/.test(cardToken)
+        ? (await db.select({ mac: deviceTokensTable.mac }).from(deviceTokensTable).where(eq(deviceTokensTable.token, cardToken)).limit(1))[0]?.mac?.toUpperCase() ?? undefined
+        : undefined;
       // NOTE: the RIC (hardware) is always a sale; the browser Receive screen defaults to top_up
       // and the user flips it to "sale" when a customer is paying at the counter without a RIC.
       const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "receive");
       const wrap = await createWrappedInvoice(amountSats, memo, funding);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, origin: posOrigin, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt, ...(fiatSnapshot ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, deviceMac, origin: posOrigin, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt, ...(fiatSnapshot ?? {}) });
         recordPaymentEvent({
           paymentId: wrap.paymentHash,
           accountId: account.id,
@@ -500,11 +507,14 @@ const server = createServer(async (req, res) => {
 });
 const port = Number(process.env.PORT ?? 3001);
 let stopWrapDriver: (() => void) | undefined;
+let stopPartnerPayoutDriver: (() => void) | undefined;
 server.listen({ port, host: "0.0.0.0" }, () => {
   console.log(`openLN core listening on ${port}`);
   if (process.env.WRAP_DRIVER_ENABLED === "0") return;
   // One place advances hold-wraps; HTTP polls never touch the relay.
   stopWrapDriver = startWrapDriver();
+  // Partner payouts: executes requested payouts and reconciles stuck sends.
+  stopPartnerPayoutDriver = startPartnerPayoutDriver();
   // Pending-send reconciliation + fallback sweep (was defined, never started).
   startInvoiceMonitor();
   // Push path: Alby Hub notifications advance a wrap the moment the customer's
@@ -512,7 +522,7 @@ server.listen({ port, host: "0.0.0.0" }, () => {
   startWrapNotifications().then((stop) => { stopWrapNotifications = stop; }).catch(() => {});
 });
 let stopWrapNotifications: (() => void) | undefined;
-server.on("close", () => { stopWrapDriver?.(); stopWrapNotifications?.(); });
+server.on("close", () => { stopWrapDriver?.(); stopWrapNotifications?.(); stopPartnerPayoutDriver?.(); });
 export { auth, wallet, registry };
 
 export const __test = { accountForHandle };

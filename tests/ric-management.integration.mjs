@@ -105,6 +105,11 @@ test('device hello and status persist token-scoped metadata; owner listing exclu
   assert.equal(row.firmware_version, '1.0.2'); assert.equal(row.ota_state, 'failed'); assert.equal(row.ota_code, '-32512'); assert.equal(row.ota_target_version, '1.0.3');
   assert.equal(Number(row.uptime_ms), 12000); assert.ok(row.last_seen_at); assert.ok(row.last_hello_at);
   const lastUsed = (await sql.query('SELECT last_used_at FROM device_tokens WHERE id=$1', [tokens[0].id])).rows[0]; assert.ok(lastUsed.last_used_at);
+  const macRow = (await sql.query('SELECT mac FROM device_tokens WHERE id=$1', [tokens[0].id])).rows[0];
+  assert.equal(macRow.mac, 'A0:B1:C2:D3:E4:F5', 'hello persists the hardware MAC (partner attribution join key)');
+  assert.equal((await call('/api/ric/status', {method: 'POST', bearer: tokens[0].raw, body: {mac: 'aa:bb:cc:dd:ee:01'}})).status, 200);
+  const macRow2 = (await sql.query('SELECT mac FROM device_tokens WHERE id=$1', [tokens[0].id])).rows[0];
+  assert.equal(macRow2.mac, 'AA:BB:CC:DD:EE:01', 'status refreshes the MAC, normalized to uppercase');
   const e = (await sql.query("INSERT INTO entities(handle,pin_hash) VALUES($1,'password-login') RETURNING id", ['qa_ric_' + randomBytes(6).toString('hex')])).rows[0];
   const a = (await sql.query("INSERT INTO accounts(entity_id,wallet_mode) VALUES($1,'unset') RETURNING id", [e.id])).rows[0]; accounts.push({id: a.id, entityId: e.id});
   const raw = token(); const d = (await sql.query('INSERT INTO device_tokens(account_id,token,label) VALUES($1,$2,$3) RETURNING id', [a.id, raw, 'Other owner'])).rows[0]; tokens.push({id: d.id, raw});

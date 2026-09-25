@@ -57,6 +57,7 @@ import { blinkMakeInvoice } from "./blink.js";
 import type { MerchantFunding } from "./walletSource.js";
 import { logger } from "./logger.js";
 import { recordPaymentEvent } from "./paymentLog.js";
+import { recordPartnerEarning } from "./partnerShare.js";
 
 // Customer-facing hold invoice expiry - short, consistent with POS usage
 // (customer is standing at the terminal). Limits open-hold exposure.
@@ -346,6 +347,7 @@ export type WrapRow = {
   fiatRateDirection: string | null;
   fiatRateAt: Date | null;
   origin?: string | null; // ric | web_pos | ln_address | wallet | shop (books)
+  deviceMac: string | null; // RIC hardware MAC (partner rev-share); null/absent for browser POS
 };
 
 function isDefinitivePayFailure(err: unknown): boolean {
@@ -510,6 +512,14 @@ async function finalizeSettled(row: WrapRow): Promise<void> {
       classSource: "system",
       fiatCurrency: row.fiatCurrency ?? undefined, fiatAmount: row.fiatAmount ?? undefined, fiatBaseRate: row.fiatBaseRate ?? undefined, fiatEffectiveRate: row.fiatEffectiveRate ?? undefined, fiatModifier: row.fiatModifier ?? undefined, fiatRateSource: row.fiatRateSource ?? undefined, fiatRateDirection: row.fiatRateDirection ?? undefined, fiatRateAt: row.fiatRateAt ?? undefined,
     });
+  });
+  // Partner rev-share accrual: a separate write after the settle commit, so
+  // partner bookkeeping can never block or fail the merchant money path.
+  await recordPartnerEarning({
+    paymentHash: row.paymentHash,
+    amountSats: row.amountSats,
+    feeSats,
+    deviceMac: row.deviceMac,
   });
   recordPaymentEvent({
     paymentId: row.id,

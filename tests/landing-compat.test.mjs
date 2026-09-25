@@ -29,6 +29,9 @@ test('compatibility section lists every wallet provider with a link',()=>{
       }
     }
   }
-  for(const n of ['OpenNode','Speed','CoinGate','Coinsnap']) assert.ok(wallets.some(w=>w.name===n),n+' must be listed on the wall');
-  assert.ok(wallets.some(w=>w.caps),'a tile may carry a capability note (Coinsnap: receive only)');
+  assert.ok(wallets.every(w=>!w.tag),'the wall lists only live connections - no "soon" tags, ever');
+  assert.ok(wallets.every(w=>!w.caps),'no capability qualifiers needed - every listed wallet connects');
+  const ghosts=wallets.filter(w=>w.ghost).map(w=>w.name);
+  assert.ok(ghosts.includes('Any NWC wallet'),'the universal NWC tile is present');
+  assert.ok(ghosts.includes('Any LUD-21 wallet'),'the universal LUD-21 tile is present');
 });

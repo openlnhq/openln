@@ -35,6 +35,12 @@ test('partner flasher registers the device MAC to the partner after flashing', (
   assert.ok(src.includes('first-wins'), 'binding semantics documented in the modal code');
 });
 
+test('partner boot path skips the merchant session gate', () => {
+  assert.ok(html.includes("if(VIEW==='partner')return render();"), 'boot must not require a merchant session for /partner');
+  assert.ok(html.includes("if(tok())startLiveUpdates();"), 'no merchant SSE for partners');
+  assert.ok(html.includes("const mb=$('#menuBtn');if(mb)mb.style.display='none';"), 'merchant drawer hidden in the partner portal');
+});
+
 test('merchant flash path is unchanged for non-partner flows', () => {
   const start = html.indexOf('function ricFlashModal');
   const end = html.indexOf('function ricLinkModal');

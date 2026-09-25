@@ -41,6 +41,14 @@ test('partner boot path skips the merchant session gate', () => {
   assert.ok(html.includes("const mb=$('#menuBtn');if(mb)mb.style.display='none';"), 'merchant drawer hidden in the partner portal');
 });
 
+test('claim codes stay invisible: the partner only flashes', () => {
+  assert.ok(!html.includes('pCodeBox'), 'no claim code box in the portal');
+  assert.ok(!html.includes('pCodeToggle'), 'no claim code toggle in the portal');
+  assert.ok(!html.includes('#pcopy'), 'no claim code copy control');
+  assert.ok(!html.includes('Claim code copied'), 'no claim code toast');
+  assert.ok(html.includes('/api/partner/${pid}/claim-code'), 'claim code still issued silently for registration');
+});
+
 test('merchant flash path is unchanged for non-partner flows', () => {
   const start = html.indexOf('function ricFlashModal');
   const end = html.indexOf('function ricLinkModal');

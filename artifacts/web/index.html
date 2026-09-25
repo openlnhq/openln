@@ -1772,10 +1772,8 @@ async function renderPartner(d,pid){
   </div>
   <div class="card" style="margin-top:14px"><h3>Your RICs <span class="side">${devices.length} registered</span></h3>
     <p class="dim" style="font-size:12.5px;margin-top:8px">Flash RICs here and they register to your account automatically. A device stays yours through re-flashes and ownership changes, so its sales keep earning your share.</p>
-    ${claim?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn teal sm" id="pFlash">Flash a RIC</button><button class="btn ghost sm" id="pCodeToggle">Claim code</button></div>
-    <div id="pCodeBox" style="display:none;margin-top:12px"><div class="copyrow"><input class="input mono" readonly value="${esc(claim.claimCode)}"><button class="btn ghost sm" id="pcopy">Copy</button></div>
-    <p class="dim" style="font-size:11.5px;margin-top:8px">Used by the flasher to bind devices to you. Issuing again replaces this code; existing devices stay bound to you.</p></div>`
-    :`<div class="warnbox" style="margin-top:12px">Could not issue a claim code right now. Reload the page to try again.</div>`}
+    ${claim?`<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn teal sm" id="pFlash">Flash a RIC</button></div>`
+    :`<div class="warnbox" style="margin-top:12px">Device registration is briefly unavailable. Reload the page to try again.</div>`}
     ${devices.length?`<table class="tb" style="margin-top:10px"><thead><tr><th>Device</th><th>Earned</th><th>Payments</th><th>Last seen</th></tr></thead><tbody>${devices.map(x=>`<tr><td class="mono" style="font-size:11.5px">${esc(x.mac)}</td><td class="mono" style="color:var(--gold)">${fmt(x.earnedSats||0)}</td><td class="mono">${fmt(x.payments||0)}</td><td class="dim">${x.lastSeenAt?ago(x.lastSeenAt):'-'}</td></tr>`).join('')}</tbody></table>`
     :`<div style="padding:22px 0;text-align:center"><span class="dim" style="font-size:13px">No RICs registered yet. Flash your first device above.</span></div>`}
   </div>
@@ -1788,9 +1786,7 @@ async function renderPartner(d,pid){
     :`<div style="padding:22px 0;text-align:center"><span class="dim" style="font-size:13px">No attributed payments yet. Flash a RIC to begin.</span></div>`}
   </div></div>`;
   $('#pSignout').onclick=()=>{localStorage.removeItem('openln_partner');localStorage.removeItem('openln_partner_token');PARTNER_CLAIM=null;partnerLogin()};
-  if(claim){$('#pcopy').onclick=()=>{navigator.clipboard.writeText(claim.claimCode);toast('Claim code copied')};
-    $('#pCodeToggle').onclick=()=>{const box=$('#pCodeBox');if(box)box.style.display=box.style.display==='none'?'block':'none'};
-    $('#pFlash').onclick=()=>ricFlashModal({partner:{name:p.name||p.handle||'your account',claimCode:claim.claimCode}});}
+  if(claim)$('#pFlash').onclick=()=>ricFlashModal({partner:{name:p.name||p.handle||'your account',claimCode:claim.claimCode}});
   $('#pAddrEdit').onclick=()=>{const f=$('#pAddrForm');if(f)f.style.display=f.style.display==='none'?'block':'none'};
   $('#pAddrCancel').onclick=()=>{const f=$('#pAddrForm');if(f)f.style.display='none'};
   $('#pAddrSave').onclick=async()=>{const addr=($('#pAddrInput')?.value||'').trim();if(!addr)return;

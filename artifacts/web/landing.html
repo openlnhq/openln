@@ -134,8 +134,8 @@ section{position:relative}
 @keyframes ring{0%{transform:scale(.3);opacity:.9}100%{transform:scale(1.4);opacity:0}}
 .ui.tap .t1{font:600 14px/1.2 var(--sans)}
 .ui.tap .t2{font:500 9.5px/1 var(--mono);color:#8fa3bf;letter-spacing:.08em}
-.ui.tap .qr{position:absolute;right:4%;bottom:6%;width:15%;aspect-ratio:1;background:
-  repeating-linear-gradient(90deg,#dfe7f2 0 3px,transparent 3px 6px),repeating-linear-gradient(0deg,#dfe7f2 0 3px,transparent 3px 6px);background-blend-mode:multiply;opacity:.5;border-radius:2px}
+.ui.tap .qr{position:absolute;right:4%;bottom:6%;width:15%;aspect-ratio:1;border-radius:2px}
+.ui.tap .qr svg{display:block;width:100%;height:100%}
 .ui.paid .mid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px}
 .ui.paid .chk{width:46px;height:46px;border-radius:50%;background:#2f7373;display:flex;align-items:center;justify-content:center;animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
 .ui.paid .chk svg{width:22px;height:22px}
@@ -143,6 +143,12 @@ section{position:relative}
 .ui.paid .t1{font:600 15px/1.2 var(--sans)}
 .ui.paid .t2{font:500 9.5px/1.5 var(--mono);color:#8fa3bf;letter-spacing:.06em;text-align:center}
 .ui.paid .t2 b{color:var(--gold-2);font-weight:600}
+/* card mockup tapping to pay, timed inside the tap screen */
+.tapcard{position:absolute;left:23%;top:21%;width:52%;aspect-ratio:1.586;border-radius:4.2%/6.7%;overflow:hidden;z-index:3;pointer-events:none;visibility:hidden;opacity:0;transform:translate(115%,10%) rotate(12deg)}
+.tapcard img{width:100%;height:100%;object-fit:cover;display:block}
+.ric.cardin .tapcard{visibility:visible;opacity:1;transform:rotate(-6deg);transition:transform .55s cubic-bezier(.2,.8,.25,1),opacity .2s,visibility 0s}
+.ric.cardtap .tapcard{transform:rotate(-6.5deg) translate(1.4%,3%) scale(.99);transition:transform .16s ease}
+.ric.cardout .tapcard{visibility:visible;opacity:0;transform:translate(128%,12%) rotate(14deg);transition:transform .5s cubic-bezier(.55,0,.8,.4),opacity .38s .1s,visibility 0s .5s}
 .devcap{text-align:center;margin-top:8px;font:500 12px/1.6 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
 .devcap b{color:var(--ink2);font-weight:600}
 
@@ -255,7 +261,7 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
 /* reveal */
 .rv{opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.2,.7,.2,1),transform .7s cubic-bezier(.2,.7,.2,1)}
 .rv.in{opacity:1;transform:none}
-@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.ui,.card3d{transition:none}.ui.tap .nfc i,.ui .amt .cur,.ui.paid .chk{animation:none}.slip .r{opacity:1;transform:none}.slip .stamp{opacity:1;transform:translate(-50%,-50%) rotate(-6deg)}}
+@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.ui,.card3d{transition:none}.ui.tap .nfc i,.ui .amt .cur,.ui.paid .chk{animation:none}.slip .r{opacity:1;transform:none}.slip .stamp{opacity:1;transform:translate(-50%,-50%) rotate(-6deg)}.tapcard{display:none}}
 
 /* responsive */
 @media(max-width:1040px){
@@ -400,13 +406,14 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
             <div class="ui tap" data-ui="tap">
               <div class="sb"><span class="ok">12 000 sats</span><span>waiting…</span></div>
               <div class="mid"><div class="nfc"><i></i><i></i><i></i><b></b></div><div class="t1">Tap card</div><div class="t2">OR SCAN TO PAY</div></div>
-              <div class="qr"></div>
+              <div class="qr"><svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.5 -1.5 28 28"><path d="M0 0h7v1h-7zM8 0h1v1h-1zM14 0h3v1h-3zM18 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h1v1h-1zM11 1h3v1h-3zM16 1h1v1h-1zM18 1h1v1h-1zM24 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM8 2h2v1h-2zM12 2h1v1h-1zM14 2h1v1h-1zM18 2h1v1h-1zM20 2h3v1h-3zM24 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM8 3h3v1h-3zM12 3h1v1h-1zM16 3h1v1h-1zM18 3h1v1h-1zM20 3h3v1h-3zM24 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM9 4h2v1h-2zM12 4h1v1h-1zM14 4h3v1h-3zM18 4h1v1h-1zM20 4h3v1h-3zM24 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM8 5h3v1h-3zM16 5h1v1h-1zM18 5h1v1h-1zM24 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h7v1h-7zM10 7h2v1h-2zM13 7h1v1h-1zM16 7h1v1h-1zM0 8h2v1h-2zM4 8h3v1h-3zM10 8h1v1h-1zM12 8h2v1h-2zM19 8h1v1h-1zM21 8h4v1h-4zM1 9h3v1h-3zM13 9h5v1h-5zM20 9h2v1h-2zM23 9h1v1h-1zM0 10h1v1h-1zM4 10h1v1h-1zM6 10h5v1h-5zM15 10h3v1h-3zM19 10h4v1h-4zM0 11h1v1h-1zM3 11h1v1h-1zM7 11h3v1h-3zM12 11h1v1h-1zM14 11h1v1h-1zM17 11h1v1h-1zM19 11h2v1h-2zM22 11h2v1h-2zM0 12h1v1h-1zM2 12h2v1h-2zM6 12h1v1h-1zM8 12h1v1h-1zM11 12h1v1h-1zM13 12h3v1h-3zM17 12h3v1h-3zM21 12h4v1h-4zM0 13h2v1h-2zM3 13h2v1h-2zM10 13h1v1h-1zM12 13h1v1h-1zM15 13h1v1h-1zM20 13h1v1h-1zM23 13h1v1h-1zM3 14h2v1h-2zM6 14h2v1h-2zM9 14h1v1h-1zM11 14h6v1h-6zM19 14h4v1h-4zM2 15h4v1h-4zM11 15h1v1h-1zM13 15h1v1h-1zM19 15h2v1h-2zM22 15h2v1h-2zM0 16h2v1h-2zM3 16h4v1h-4zM8 16h1v1h-1zM12 16h2v1h-2zM15 16h8v1h-8zM8 17h3v1h-3zM13 17h2v1h-2zM16 17h1v1h-1zM20 17h1v1h-1zM0 18h7v1h-7zM9 18h1v1h-1zM16 18h1v1h-1zM18 18h1v1h-1zM20 18h1v1h-1zM0 19h1v1h-1zM6 19h1v1h-1zM8 19h1v1h-1zM10 19h1v1h-1zM12 19h1v1h-1zM14 19h1v1h-1zM16 19h1v1h-1zM20 19h5v1h-5zM0 20h1v1h-1zM2 20h3v1h-3zM6 20h1v1h-1zM8 20h1v1h-1zM10 20h2v1h-2zM13 20h2v1h-2zM16 20h7v1h-7zM24 20h1v1h-1zM0 21h1v1h-1zM2 21h3v1h-3zM6 21h1v1h-1zM10 21h1v1h-1zM12 21h1v1h-1zM17 21h3v1h-3zM22 21h3v1h-3zM0 22h1v1h-1zM2 22h3v1h-3zM6 22h1v1h-1zM11 22h4v1h-4zM17 22h2v1h-2zM21 22h1v1h-1zM23 22h1v1h-1zM0 23h1v1h-1zM6 23h1v1h-1zM8 23h1v1h-1zM11 23h1v1h-1zM13 23h1v1h-1zM15 23h1v1h-1zM18 23h6v1h-6zM0 24h7v1h-7zM8 24h1v1h-1zM12 24h2v1h-2zM15 24h1v1h-1zM22 24h3v1h-3z" fill="#dfe7f2"/></svg></div>
             </div>
             <div class="ui paid" data-ui="paid">
               <div class="sb"><span class="ok">12 000 sats</span><span>settled</span></div>
               <div class="mid"><div class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></div><div class="t1">Paid</div><div class="t2"><b>12 000 sats</b> → merchant wallet</div></div>
             </div>
           </div>
+          <div class="tapcard" aria-hidden="true"><img src="/media/OWW0.webp" alt="" draggable="false"></div>
         </div>
         <div class="plane" aria-hidden="true"></div>
       </div>
@@ -595,13 +602,17 @@ footer{border-top:1px solid var(--line);padding:34px 0 44px;color:var(--ink2);fo
   var ricOn=false, tm=[];
   function clearT(){ tm.forEach(clearTimeout); tm=[]; }
   function loop(){
-    clearT(); show('keypad'); var typed='';
+    clearT(); show('keypad'); ricEl.classList.remove('cardin','cardtap','cardout'); var typed='';
     amt.innerHTML='0<span class="cur">_</span>';
     digits.forEach(function(d,i){ tm.push(setTimeout(function(){
       typed+=d; amt.innerHTML=fmt(typed)+'<span class="cur">_</span>';
       var k=keys[keyIdx[d]]; k.classList.add('hit'); setTimeout(function(){k.classList.remove('hit');},160);
     }, 500+i*260)); });
     tm.push(setTimeout(function(){ show('tap'); }, 2500));
+    tm.push(setTimeout(function(){ ricEl.classList.add('cardin'); }, 2700));
+    tm.push(setTimeout(function(){ ricEl.classList.add('cardtap'); }, 3500));
+    tm.push(setTimeout(function(){ ricEl.classList.remove('cardin','cardtap'); ricEl.classList.add('cardout'); }, 4300));
+    tm.push(setTimeout(function(){ ricEl.classList.remove('cardout'); }, 4920));
     tm.push(setTimeout(function(){ show('paid'); }, 5200));
     tm.push(setTimeout(loop, 8400));
   }

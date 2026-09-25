@@ -68,7 +68,9 @@ Three lanes, all through the same single connect field:
 
 ## UI
 
-The connect sheet has three tabs (NWC, Blink, Lightning Address). A receive-only
+The connect sheet has three tabs (NWC, Blink, Lightning Address). Each tab
+teaches the lane's capability and lists the wallet families it accepts (the
+2026-09 scan lives in `docs/wallet-compatibility.md`). A receive-only
 account shows a "Receive-only" wallet view: the balance line states the balance
 stays in the funding wallet, Send is disabled with an explanation, and Receive
 works (RIC + browser POS) exactly like NWC accounts.

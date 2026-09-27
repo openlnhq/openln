@@ -39,6 +39,7 @@ test('POS ships an item pad, numpad, checkout and a wallet entry point',()=>{
   assert.ok(pos.includes("purpose:'sale'"),'POS charges create sale invoices');
   assert.ok(pos.includes("'/status'"),'POS polls the sale status');
   assert.ok(pos.includes('posShrinkImage('),'Item photos are downscaled before saving');
+  assert.ok(pos.includes('posUnitSegHTML')&&pos.includes('posEnteredSats'),'POS custom amount toggles sats and fiat');
   const wallet=html.slice(html.indexOf('async function vWallet('),html.indexOf('function txDetail('));
   assert.ok(wallet.includes('id="bpos"'),'Wallet dashboard has the POS button');
   assert.ok(html.includes("['wallet','ric','cards','books','pos','settings','partner','adminpayments'].includes(view)"),'pos is a routable view');
@@ -57,7 +58,15 @@ test('send opens a camera-first scanner with Paste, Keyboard and Images for ever
   assert.ok(send.includes("api('/api/wallet/pay'"),'paying reuses the wallet pay route');
   assert.ok(send.includes('lnurl_withdraw')&&html.includes('receiveWithdrawModal'),'withdraw codes explain and hand off to Receive');
   assert.ok(send.includes('openln_addr_book'),'the address book is device-local');
+  assert.ok(send.includes('sndUnitSeg')&&send.includes('amtUnitPref'),'Send amount toggles sats and fiat');
   assert.ok(send.includes('sndBookSave(')&&send.includes('sndBookRemove('),'addresses can be saved and removed');
+});
+
+test('receive uses the same numpad entry as send, with a sats and fiat toggle',()=>{
+  const source=html.slice(html.indexOf('function receiveModal('),html.indexOf('/* ---- SEND ---- */'));
+  assert.ok(source.includes('posnumpad')&&source.includes('data-rkey'),'Receive enters amounts on the same numpad as Send');
+  assert.ok(source.includes('rUnitWrap')&&source.includes('amtUnitPref'),'Receive toggles between sats and fiat');
+  assert.ok(source.includes("api('/api/pos/invoice'"),'Receive still creates invoices through the pos route');
 });
 
 test('cards can be written and wiped inside the app through a local reader bridge',()=>{

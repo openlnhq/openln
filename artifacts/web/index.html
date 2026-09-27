@@ -258,6 +258,9 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .posnumpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:330px;margin:16px auto 0}
 .posnumpad button{padding:15px 0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);font-size:19px;font-weight:510}
 .posnumpad button:hover{background:var(--surface2);border-color:var(--line2)}
+.unitseg{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;margin:2px 0 8px}
+.unitseg button{padding:6px 15px;font-size:12px;font-weight:590;letter-spacing:.02em;color:var(--text3);background:transparent;border:0}
+.unitseg button.on{background:var(--surface2);color:var(--text)}
 .pospay{text-align:center}
 .pospay .plines{font-size:12.5px;color:var(--text3);margin-top:6px;overflow-wrap:anywhere}
 .posdone{text-align:center;padding:26px 0 8px}
@@ -864,10 +867,18 @@ const emptyTx=()=>`<div style="padding:34px 0;text-align:center"><div class="dim
 const extGlyph=id=>({cards:'◧',pos:'▦',reports:'▤',posbox:'▣',shop:'⌂',stripe:'₿',satora:'◈'}[id]||'◆');
 
 /* ---- POS ---- */
-let pos={items:[],cart:[],mode:'items',note:'',num:'',stage:'shop',cur:'',rate:null,inv:null,canSell:false,busy:false,pollT:null,tickT:null};
+let pos={items:[],cart:[],mode:'items',note:'',num:'',stage:'shop',cur:'',rate:null,unit:'',inv:null,canSell:false,busy:false,pollT:null,tickT:null};
 const posCurLabel=()=>!pos.cur?'':(pos.cur==='sats'?'sats':pos.cur.toUpperCase());
 function posMoney(v){if(v==null||v==='')return'';if(!pos.cur)return String(v);return pos.cur==='sats'?fmt(v)+' sats':fmtFiat(v,pos.cur)}
 function posSats(fv){if(!Number.isFinite(fv)||fv<=0)return null;if(pos.cur==='sats')return Math.round(fv);if(!pos.rate||pos.rate<=0)return null;return Math.round(fv/pos.rate*1e8)}
+function amtUnitPref(){try{return localStorage.getItem('openln_amt_unit')==='sats'?'sats':'fiat'}catch(e){return 'fiat'}}
+function amtUnitSet(u){try{localStorage.setItem('openln_amt_unit',u==='sats'?'sats':'fiat')}catch(e){}}
+function posUnit(){if(pos.cur==='sats')return 'sats';if(pos.unit==='sats'||pos.unit==='fiat')return pos.unit;pos.unit=amtUnitPref();return pos.unit}
+function posFiatOfSats(s){if(pos.cur==='sats'||!pos.rate||pos.rate<=0)return '';return '≈ '+fmtFiat(s/1e8*pos.rate,pos.cur)}
+function posConvert(to){const v=Number(pos.num||0);if(!(v>0))return pos.num;if(to==='sats'){const s=posSats(v);return s!=null?String(s):pos.num}if(!pos.rate||pos.rate<=0)return pos.num;return String(Math.round(v*pos.rate/1e8*100)/100)}
+function posEnteredSats(){const v=Number(pos.num||0);if(!(v>0))return null;if(posUnit()==='sats')return Math.round(v);return posSats(v)}
+function posAmtSub(){const cur=posCurLabel();const v=Number(pos.num||0);if(!cur||pos.cur==='sats')return 'sats';if(posUnit()==='sats'){const f=posFiatOfSats(v);return 'sats'+(v>0&&f?' · '+f:'')}const s=posSats(v);return cur+(v>0&&s!=null?' · ≈ '+fmt(s)+' sats':'')}
+function posUnitSegHTML(){if(!pos.cur||pos.cur==='sats')return '';const u=posUnit();return `<div style="text-align:center"><div class="unitseg" id="posUnitSeg"><button type="button" data-unit="sats" class="${u==='sats'?'on':''}">sats</button><button type="button" data-unit="fiat" class="${u==='fiat'?'on':''}">${esc(posCurLabel())}</button></div></div>`}
 const posCartTotal=()=>pos.cart.reduce((n,l)=>n+l.price*l.qty,0);
 async function posLoadRate(){try{const cfg=await api('/api/pos/config');pos.cur=(cfg.currency||'').toLowerCase();const qs=new URLSearchParams({vs_currency:pos.cur||'sats'});if(cfg.rateModifier)qs.set('modifier',cfg.rateModifier);const p=await api('/api/price?'+qs.toString());pos.rate=Number(p&&p.price)>0?Number(p.price):null}catch(e){pos.rate=null}}
 async function vPos(version=renderVersion){
@@ -923,11 +934,12 @@ function posCartHTML(){
   <div class="posfoot"><span class="pfiat">${esc(posMoney(total))}</span><span class="psats">${sats!=null?'≈ '+fmt(sats)+' sats':''}</span></div></div>`;
 }
 function posNumpadHTML(){
-  const val=pos.num,fv=Number(val||0),sats=posSats(fv);
+  const val=pos.num;
   const keys=['1','2','3','4','5','6','7','8','9','.','0','⌫'];
   return `<div>
+    ${posUnitSegHTML()}
     <div class="posamount">${val?esc(val):'0'}</div>
-    <div style="text-align:center;font-size:13px;color:var(--text3)">${esc(posCurLabel())}${sats!=null&&fv>0?' · ≈ '+fmt(sats)+' sats':''}</div>
+    <div style="text-align:center;font-size:13px;color:var(--text3)" id="posAmtSub">${posAmtSub()}</div>
     <div class="posnumpad">${keys.map(k=>`<button type="button" data-key="${k}">${k}</button>`).join('')}<button type="button" data-key="C" style="grid-column:1/4">Clear</button></div>
   </div>`;
 }
@@ -936,10 +948,19 @@ function posPaintBody(){
   const body=$('#posBody');if(!body)return;
   if(pos.stage==='pay'){posPaintPay();return}
   if(pos.stage==='done'||pos.stage==='closed'){posPaintResult();return}
-  const chargeVal=pos.mode==='numpad'?(Number(pos.num)||0):posCartTotal();
-  const chargeSats=posSats(chargeVal);
-  const canCharge=pos.canSell&&chargeVal>0&&chargeSats!=null;
-  const label='Charge'+(chargeVal>0?' '+posMoney(chargeVal)+(chargeSats!=null&&pos.cur!=='sats'?' · '+fmt(chargeSats)+' sats':''):'');
+  const seg=$('#posUnitSeg');if(seg){seg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{const to=b.dataset.unit;if(to===posUnit())return;pos.num=posConvert(to);pos.unit=to;amtUnitSet(to);posPaintBody()}})}
+  const custom=pos.mode==='numpad';
+  const chargeSats=custom?posEnteredSats():posSats(posCartTotal());
+  const canCharge=pos.canSell&&chargeSats!=null&&chargeSats>0;
+  let label='Charge';
+  if(chargeSats>0){
+    if(custom){
+      if(posUnit()==='sats'){label+=' '+fmt(chargeSats)+' sats';const pf=posFiatOfSats(chargeSats);if(pf)label+=' · '+pf}
+      else{label+=' '+posMoney(Number(pos.num)||0)+(pos.cur!=='sats'&&chargeSats!=null?' · ≈ '+fmt(chargeSats)+' sats':'')}
+    }else{
+      label+=' '+posMoney(posCartTotal())+(pos.cur!=='sats'&&chargeSats!=null?' · '+fmt(chargeSats)+' sats':'');
+    }
+  }
   body.innerHTML=`${pos.mode==='items'?posItemsHTML():posNumpadHTML()}
     ${posCartHTML()}
     <div style="margin-top:14px">
@@ -954,7 +975,7 @@ function posKey(k){
   if(k==='C'){pos.num='';posPaintBody();return}
   if(k==='⌫'){pos.num=pos.num.slice(0,-1);posPaintBody();return}
   if(pos.num.length>=10)return;
-  if(k==='.'&&(pos.cur==='sats'||pos.num.includes('.')))return;
+  if(k==='.'&&(pos.cur==='sats'||posUnit()==='sats'||pos.num.includes('.')))return;
   pos.num=pos.num?pos.num+k:k;
   posPaintBody();
 }
@@ -975,10 +996,11 @@ function posBodyClick(e){
 }
 async function posCharge(){
   if(pos.busy)return;
-  const fv=pos.mode==='numpad'?(Number(pos.num)||0):posCartTotal();
-  if(!(fv>0)){toast('Add something to charge');return}
+  const custom=pos.mode==='numpad';
+  const fv=custom?Number(pos.num||0):posCartTotal();
+  if(!(fv>0)){toast(custom?'Enter an amount first':'Add something to charge');return}
   if(!pos.canSell){toast('Connect a wallet first');return}
-  const sats=posSats(fv);
+  const sats=custom?posEnteredSats():posSats(fv);
   if(sats==null||sats<1){toast('Exchange rate unavailable. Try again in a moment.');return}
   const lines=pos.mode==='numpad'?'':pos.cart.map(l=>(l.qty>1?l.qty+'x ':'')+l.name).join(', ');
   const memo=[lines||'POS sale',pos.note.trim()].filter(Boolean).join(' · ').slice(0,140);
@@ -986,7 +1008,8 @@ async function posCharge(){
   const btn=$('#posCharge');if(btn)btn.disabled=true;
   try{
     const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:sats,memo,purpose:'sale'})});
-    pos.inv={paymentHash:inv.paymentHash,amountSats:Number(inv.amountSats)||sats,feeSats:Number(inv.feeSats)||0,fiat:fv,memo,expiresAt:inv.expiresAt};
+    let fiatVal=fv;if(custom&&pos.cur!=='sats'&&posUnit()==='sats')fiatVal=(pos.rate||0)>0?sats*(pos.rate||0)/1e8:0;
+    pos.inv={paymentHash:inv.paymentHash,amountSats:Number(inv.amountSats)||sats,feeSats:Number(inv.feeSats)||0,fiat:fiatVal,memo,expiresAt:inv.expiresAt};
     pos.stage='pay';
     posPaintBody();
     posStartPoll();
@@ -1165,9 +1188,12 @@ function receiveModal(){
     <div class="copyrow" style="margin-top:6px"><input class="input mono" id="lnaddrInput" readonly value=""><button class="btn ghost sm" id="lnaddrCopy">Copy</button></div>
   </div>
   <form id="rf">
-    <div class="amtfield"><input name="amountSats" type="number" min="1" placeholder="0" inputmode="numeric" required autofocus><span class="suffix">sats</span></div>
-    <div class="amtchips"><button type="button" data-amt="100">100</button><button type="button" data-amt="500">500</button><button type="button" data-amt="1000">1k</button><button type="button" data-amt="10000">10k</button></div>
-    <label class="field" style="margin-top:14px"><span>Memo <span class="dim">optional</span></span><input class="input" name="memo" placeholder="Payment for..."></label>
+    <div style="text-align:center" id="rUnitWrap"></div>
+    <div class="sndamt" id="rAmt" style="margin-top:2px">0</div>
+    <div class="dim" id="rAmtSub" style="text-align:center;font-size:13px">sats</div>
+    <div class="posnumpad" id="rPad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>`<button type="button" data-rkey="${k}">${k}</button>`).join('')}<button type="button" data-rkey="C" style="grid-column:1/4">Clear</button></div>
+    <div class="hint" id="rAmtErr" style="color:var(--err);text-align:center;margin-top:8px;min-height:16px"></div>
+    <label class="field" style="margin-top:2px"><span>Memo <span class="dim">optional</span></span><input class="input" name="memo" placeholder="Payment for..."></label>
     <label class="field" style="margin-top:10px"><span>Books</span><select class="input" name="purpose"><option value="top_up">Top-up: my own funds, not income</option><option value="sale">Sale: a customer is paying me</option></select></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:12px;margin-top:4px">Create invoice</button>
   </form><div id="rres"></div>`);
@@ -1179,17 +1205,36 @@ function receiveModal(){
       m.querySelector('#lnaddrCopy').onclick=()=>{navigator.clipboard.writeText(addr);toast('Lightning address copied')};
     }
   }).catch(()=>{});
-  m.querySelectorAll('.amtchips button').forEach(ch=>ch.onclick=()=>{m.querySelector('[name=amountSats]').value=ch.dataset.amt;m.querySelector('[name=amountSats]').focus()});
+  const rc={num:'',unit:''};
+  const rfx={cur:'',rate:0};
+  const rUnit=()=>{if(!rfx.cur||rfx.cur==='sats')return 'sats';if(rc.unit==='sats'||rc.unit==='fiat')return rc.unit;return (rc.unit=amtUnitPref())};
+  const rSats=()=>{const v=Number(rc.num||0);if(!(v>0))return 0;if(rUnit()==='sats')return Math.round(v);return rfx.rate>0?Math.round(v/rfx.rate*1e8):0};
+  const rSub=()=>{const v=Number(rc.num||0);if(!rfx.cur||rfx.cur==='sats')return 'sats';if(rUnit()==='sats'){const f=rfx.rate>0&&v>0?' · ≈ '+fmtFiat(v/1e8*rfx.rate,rfx.cur):'';return 'sats'+f}return rfx.cur.toUpperCase()+(v>0&&rfx.rate>0?' ≈ '+fmt(Math.round(v/rfx.rate*1e8))+' sats':'')};
+  const rPaint=()=>{
+    const a=m.querySelector('#rAmt');if(a)a.textContent=rc.num||'0';
+    const s=m.querySelector('#rAmtSub');if(s)s.textContent=rSub();
+    const w=m.querySelector('#rUnitWrap');if(!w)return;
+    if(!rfx.cur||rfx.cur==='sats'){w.innerHTML='';return}
+    const u=rUnit();
+    w.innerHTML=`<div class="unitseg" id="rUnitSeg"><button type="button" data-runit="sats" class="${u==='sats'?'on':''}">sats</button><button type="button" data-runit="fiat" class="${u==='fiat'?'on':''}">${esc(rfx.cur.toUpperCase())}</button></div>`;
+    w.querySelectorAll('button').forEach(b=>{b.onclick=()=>{const to=b.dataset.runit;if(to===u)return;const v=Number(rc.num||0);if(v>0){if(to==='sats')rc.num=String(rfx.rate>0?Math.round(v/rfx.rate*1e8):v);else if(rfx.rate>0)rc.num=String(Math.round(v*rfx.rate/1e8*100)/100)}rc.unit=to;amtUnitSet(to);rPaint()}});
+  };
+  const rKey=k=>{if(k==='C')rc.num='';else if(k==='⌫')rc.num=rc.num.slice(0,-1);else{if(rc.num.length>=10)return;if(k==='.'&&(rUnit()==='sats'||rc.num.includes('.')))return;rc.num=(rc.num==='0'?'':rc.num)+k}const e=m.querySelector('#rAmtErr');if(e)e.textContent='';rPaint()};
+  m.querySelectorAll('[data-rkey]').forEach(b=>b.onclick=()=>rKey(b.getAttribute('data-rkey')));
+  (async()=>{try{const cfg=await api('/api/pos/config');rfx.cur=String(cfg.currency||'').toLowerCase();if(rfx.cur&&rfx.cur!=='sats'){const qs=new URLSearchParams({vs_currency:rfx.cur});if(cfg.rateModifier)qs.set('modifier',cfg.rateModifier);const p=await api('/api/price?'+qs.toString());if(Number(p&&p.price)>0)rfx.rate=Number(p.price)}}catch(e){}if(!rc.unit)rc.unit=amtUnitPref();rPaint()})();
+  rPaint();
   m.querySelector('#rf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
+    const sats=rSats();
+    if(sats<1){const er=m.querySelector('#rAmtErr');if(er)er.textContent=(rUnit()==='fiat'&&!(rfx.rate>0))?'Exchange rate unavailable. Try again in a moment.':'Enter an amount first';return}
     m.querySelector('#rres').innerHTML=`<div style="text-align:center;padding:18px"><span class="spin"></span></div>`;
     try{
-      const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:Number(b.amountSats),memo:b.memo||'Payment',purpose:b.purpose||'top_up'})});
+      const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:sats,memo:b.memo||'Payment',purpose:b.purpose||'top_up'})});
       const fee=inv.feeSats??0;
       m.querySelector('#rf').style.display='none';
       m.querySelector('#rres').innerHTML=`
         <div class="qrwrap"><img src="/api/payments/${inv.paymentHash}/qr" alt="invoice QR" width="240" height="240"></div>
         <div class="invstatus wait" id="rstat"><span class="pulse"></span>Waiting for payment…</div>
-        ${fee?`<p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">Service fee · ${fmt(fee)} sats · your wallet receives ${fmt(Number(b.amountSats)-fee)} sats</p>`:''}
+        ${fee?`<p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">Service fee · ${fmt(fee)} sats · your wallet receives ${fmt(sats-fee)} sats</p>`:''}
         <div class="copyrow"><input class="input mono" id="rinv" readonly value="${esc(inv.bolt11)}"><button class="btn ghost sm" id="rcopy">Copy</button></div>`;
       m.querySelector('#rcopy').onclick=()=>{navigator.clipboard.writeText(inv.bolt11);toast('Invoice copied')};
       const iv=setInterval(async()=>{try{const s=await api(`/api/payments/${inv.paymentHash}/status`);
@@ -1217,7 +1262,7 @@ function receiveWithdrawModal(t){
    resolves through /api/wallet/resolve (minting the payee invoice when an
    amount is chosen) and pays through the ordinary /api/wallet/pay route.
    The address book is device-local (localStorage). */
-let snd={stage:'scan',root:null,stream:null,scanning:false,loopId:0,tickT:null,torch:false,input:'',target:null,invoice:null,amount:'',comment:'',purpose:'spend',busy:false,fired:false,msg:'',tx:'',retryStage:'',fx:null};
+let snd={stage:'scan',root:null,stream:null,scanning:false,loopId:0,tickT:null,torch:false,input:'',target:null,invoice:null,unit:'',amount:'',comment:'',purpose:'spend',busy:false,fired:false,msg:'',tx:'',retryStage:'',fx:null};
 const SND_BOOK_KEY='openln_addr_book';
 function sndBookList(){try{const a=JSON.parse(localStorage.getItem(SND_BOOK_KEY)||'[]');return Array.isArray(a)?a.filter(x=>typeof x==='string'):[]}catch(e){return[]}}
 function sndBookHas(a){return sndBookList().indexOf(a)>-1}
@@ -1231,12 +1276,16 @@ function sndCur(){return (snd.fx&&snd.fx.cur)||''}
 function sndFiatOf(sats){const cur=sndCur(),rate=snd.fx&&snd.fx.rate;if(!cur||cur==='sats'||!rate||!sats)return'';return '≈ '+fmtFiat(sats/1e8*rate,cur)}
 function sndSatsOf(fv){const cur=sndCur(),rate=snd.fx&&snd.fx.rate;if(cur&&cur!=='sats'){if(!rate||rate<=0)return null;return Math.round(fv/rate*1e8)}return Math.round(fv)}
 function sndAmtSats(){const fv=Number(snd.amount||0);if(!(fv>0))return null;const s=sndSatsOf(fv);return s&&s>0?s:null}
-function sndAmtSub(){const cur=sndCur();const fv=Number(snd.amount||0);if(fv<=0)return !cur||cur==='sats'?'sats':cur.toUpperCase();if(!cur||cur==='sats'){const f=sndFiatOf(Math.round(fv));return 'sats'+(f?' · '+f:'')}const s=sndAmtSats();return cur.toUpperCase()+(s?' ≈ '+fmt(s)+' sats':'')}
+function sndUnit(){const cur=sndCur();if(!cur||cur==='sats')return 'sats';if(snd.unit==='sats'||snd.unit==='fiat')return snd.unit;return (snd.unit=amtUnitPref())}
+function sndFiatOfSats(s){const cur=sndCur(),rate=snd.fx&&snd.fx.rate;if(!cur||cur==='sats'||!rate||!(s>0))return'';return '≈ '+fmtFiat(s/1e8*rate,cur)}
+function sndConv(to){const v=Number(snd.amount||0);if(!(v>0))return snd.amount;if(to==='sats'){const s=sndSatsOf(v);return s!=null?String(s):snd.amount}const rate=snd.fx&&snd.fx.rate;if(!rate||rate<=0)return snd.amount;return String(Math.round(v*rate/1e8*100)/100)}
+function sndEnteredSats(){const v=Number(snd.amount||0);if(!(v>0))return null;if(sndUnit()==='sats')return Math.round(v);return sndAmtSats()}
+function sndAmtSub(){const cur=sndCur();const fv=Number(snd.amount||0);if(!cur||cur==='sats'||sndUnit()==='sats'){const f=fv>0?sndFiatOfSats(Math.round(fv)):'';return 'sats'+(fv>0&&f?' · '+f:'')}if(fv<=0)return cur.toUpperCase();const s=sndAmtSats();return cur.toUpperCase()+(s?' ≈ '+fmt(s)+' sats':'')}
 function sndPayee(){const t=snd.target||{};if(t.kind==='lnurl_pay')return t.source||'Lightning';return 'Lightning invoice'}
 function sndKey(k){
   if(k==='C')snd.amount='';
   else if(k==='<')snd.amount=snd.amount.slice(0,-1);
-  else if(k==='.'){const cur=sndCur();if((!cur||cur!=='sats')&&snd.amount.indexOf('.')===-1)snd.amount=(snd.amount||'0')+'.'}
+  else if(k==='.'){if(sndUnit()!=='sats'&&snd.amount.indexOf('.')===-1)snd.amount=(snd.amount||'0')+'.'}
   else{snd.amount=(snd.amount==='0'?'':snd.amount)+k;if(snd.amount.length>12)snd.amount=snd.amount.slice(0,12)}
   const el=sndEl('#sndAmt');if(el)el.textContent=snd.amount||'0';
   const sub=sndEl('#sndAmtSub');if(sub)sub.textContent=sndAmtSub();
@@ -1353,7 +1402,7 @@ async function sndResolve(raw){
   sndRender();
 }
 function sndAmountGo(){
-  const t=snd.target||{};const err=sndEl('#sndAmtErr');const sats=sndAmtSats();
+  const t=snd.target||{};const err=sndEl('#sndAmtErr');const sats=sndEnteredSats();
   if(!sats){if(err)err.textContent='Enter an amount first';return}
   if(t.minSendableSats&&sats<t.minSendableSats){if(err)err.textContent='Minimum is '+fmt(t.minSendableSats)+' sats';return}
   if(t.maxSendableSats&&sats>t.maxSendableSats){if(err)err.textContent='Maximum is '+fmt(t.maxSendableSats)+' sats';return}
@@ -1404,7 +1453,8 @@ function sndSheetHTML(){
     const cur=sndCur();
     return `<div class="sndstage">
       <h3>Pay ${esc(t.source||'')}</h3>
-      <p class="hint" style="margin-bottom:12px">Amount between ${fmt(t.minSendableSats||1)} and ${fmt(t.maxSendableSats||100000000)} sats</p>
+      <p class="hint" style="margin-bottom:10px">Amount between ${fmt(t.minSendableSats||1)} and ${fmt(t.maxSendableSats||100000000)} sats</p>
+      ${cur&&cur!=='sats'?`<div style="text-align:center"><div class="unitseg" id="sndUnitSeg"><button type="button" data-unit="sats" class="${sndUnit()==='sats'?'on':''}">sats</button><button type="button" data-unit="fiat" class="${sndUnit()==='fiat'?'on':''}">${esc(cur.toUpperCase())}</button></div></div>`:''}
       <div class="sndamt" id="sndAmt">${snd.amount?esc(snd.amount):'0'}</div>
       <div class="dim" id="sndAmtSub" style="font-size:13px;text-align:center;margin-top:2px">${sndAmtSub()}</div>
       ${t.commentAllowed>0?`<label class="field" style="margin-top:14px"><span>Message <span class="dim">optional, up to ${t.commentAllowed} characters</span></span><input class="input" id="sndAmtComment" maxlength="${t.commentAllowed}" placeholder="What is it for?" value="${esc(snd.comment||'')}"></label>`:''}
@@ -1495,6 +1545,7 @@ function sndBind(){
   if(stage==='amount'){
     snd.root.querySelectorAll('button[data-k]').forEach(el=>{el.onclick=()=>sndKey(el.getAttribute('data-k'))});
     const go=sndEl('#sndAmtGo');if(go)go.onclick=()=>sndAmountGo();
+    const seg=sndEl('#sndUnitSeg');if(seg){seg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{const to=b.dataset.unit;if(to===sndUnit())return;snd.amount=sndConv(to);snd.unit=to;amtUnitSet(to);sndRender()}})}
   }
   if(stage==='confirm'){
     const pay=sndEl('#sndPay');if(pay)pay.onclick=()=>sndPay();

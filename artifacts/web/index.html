@@ -948,7 +948,6 @@ function posPaintBody(){
   const body=$('#posBody');if(!body)return;
   if(pos.stage==='pay'){posPaintPay();return}
   if(pos.stage==='done'||pos.stage==='closed'){posPaintResult();return}
-  const seg=$('#posUnitSeg');if(seg){seg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{const to=b.dataset.unit;if(to===posUnit())return;pos.num=posConvert(to);pos.unit=to;amtUnitSet(to);posPaintBody()}})}
   const custom=pos.mode==='numpad';
   const chargeSats=custom?posEnteredSats():posSats(posCartTotal());
   const canCharge=pos.canSell&&chargeSats!=null&&chargeSats>0;
@@ -968,6 +967,7 @@ function posPaintBody(){
       <button type="button" class="btn pos" id="posCharge" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:var(--r-md)" ${canCharge?'':'disabled'}>${esc(label)}</button>
       <p class="hint" style="text-align:center;margin-top:8px">${posRateLine()}</p>
     </div>`;
+  const seg=$('#posUnitSeg');if(seg){seg.querySelectorAll('button').forEach(b=>{b.onclick=()=>{const to=b.dataset.unit;if(to===posUnit())return;pos.num=posConvert(to);pos.unit=to;amtUnitSet(to);posPaintBody()}})}
 }
 function posAdd(id){const it=pos.items.find(x=>x.id===id);if(!it)return;const line=pos.cart.find(l=>l.id===id);if(line)line.qty++;else pos.cart.push({id:it.id,name:it.name,price:Number(it.price)||0,qty:1});posPaintBody()}
 function posBump(id,d){const i=pos.cart.findIndex(l=>l.id===id);if(i<0)return;pos.cart[i].qty+=d;if(pos.cart[i].qty<=0)pos.cart.splice(i,1);posPaintBody()}

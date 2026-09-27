@@ -143,11 +143,14 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname.startsWith("/card-writer/")) {
       let rel = u.pathname.slice("/card-writer/".length).replace(/[^a-zA-Z0-9._/-]/g, "");
       const top = rel.split("/")[0];
-      const dir = top === "engine" || top === "bridge" || top === "extension" ? top + "/" : "";
-      if (dir) rel = rel.slice(top.length + 1);
+      const rootFiles = ["install.sh", "install-windows.ps1", "README.md"];
+      let dir: string;
+      if (rootFiles.includes(rel)) dir = "";
+      else if (top === "engine" || top === "bridge" || top === "extension") { dir = top + "/"; rel = rel.slice(top.length + 1); }
+      else dir = "web/";
       if (!rel || rel.includes("..") || rel.startsWith("/") || rel.includes("//")) return json(res, 404, { error: "Not found" });
       try {
-        const data = await readFile(new URL("../../card-writer/" + (dir || "web/") + rel, import.meta.url));
+        const data = await readFile(new URL("../../card-writer/" + dir + rel, import.meta.url));
         const type = rel.endsWith(".html") ? "text/html; charset=utf-8" : rel.endsWith(".js") || rel.endsWith(".mjs") ? "text/javascript; charset=utf-8" : rel.endsWith(".css") ? "text/css; charset=utf-8" : rel.endsWith(".json") ? "application/json; charset=utf-8" : rel.endsWith(".svg") ? "image/svg+xml" : "text/plain; charset=utf-8";
         res.writeHead(200, { "content-type": type, "cache-control": "no-cache" });
         return res.end(data);

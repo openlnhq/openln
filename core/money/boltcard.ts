@@ -256,3 +256,35 @@ export function encodeLnurl(url: string): string {
   const checksum = bech32CreateChecksum("lnurl", converted);
   return "lnurl" + "1" + [...converted, ...checksum].map(d => BECH32_CHARSET[d]).join("");
 }
+
+/**
+ * Decode an LNURL bech32 string back to its URL (checksum verified).
+ * Accepts lower or upper case (mixed case is invalid by BIP-173); returns
+ * null when the checksum or the payload is malformed.
+ */
+export function decodeLnurl(lnurl: string): string | null {
+  const lower = lnurl.trim().toLowerCase();
+  if (!lower.startsWith("lnurl1")) return null;
+  const sepIdx = lower.lastIndexOf("1");
+  const values: number[] = [];
+  for (const ch of lower.slice(sepIdx + 1)) {
+    const v = BECH32_CHARSET.indexOf(ch);
+    if (v === -1) return null;
+    values.push(v);
+  }
+  if (values.length < 7) return null;
+  if (bech32Polymod(bech32HrpExpand("lnurl").concat(values)) !== 1) return null;
+  const words = values.slice(0, -6);
+  let acc = 0, bits = 0;
+  const bytes: number[] = [];
+  for (const w of words) {
+    acc = (acc << 5) | w;
+    bits += 5;
+    if (bits >= 8) { bits -= 8; bytes.push((acc >> bits) & 0xff); }
+  }
+  try {
+    return Buffer.from(bytes).toString("utf8");
+  } catch {
+    return null;
+  }
+}

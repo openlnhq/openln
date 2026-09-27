@@ -353,6 +353,24 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { status: "completed", ...result }); } catch (e) { if (e instanceof AmbiguousPaymentError) return json(res, 202, { status: "pending", pendingTxId: e.pendingTxId, error: "Payment outcome is unknown; check Activity before retrying" }); return json(res, 400, { error: e instanceof Error ? e.message : "Payment failed" }); }
     }
 
+    // Send scanner target resolution: accepts BOLT11, lightning addresses, LNURL
+    // (bech32 / LUD-17 / raw https) and BIP21 bitcoin: URIs. Never pays; when an
+    // LNURL-pay target comes with amountSats it mints the provider invoice so the
+    // client can confirm and then pay it through /api/wallet/pay as usual.
+    if (req.method === "POST" && u.pathname === "/api/wallet/resolve") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req); const input = String(v.input ?? "").trim();
+      if (!input) return json(res, 400, { error: "Nothing to read" });
+      if (input.length > 2000) return json(res, 400, { error: "That code is too long to read" });
+      const amountSats = Number(v.amountSats);
+      const comment = typeof v.comment === "string" ? v.comment.slice(0, 200) : undefined;
+      try {
+        const { resolveSendTarget } = await import("./money/lnurlTarget.js");
+        const target = await resolveSendTarget(input, { amountSats: Number.isSafeInteger(amountSats) && amountSats > 0 ? amountSats : undefined, comment });
+        return json(res, 200, target);
+      } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Could not read that code" }); }
+    }
+
     // POS invoice endpoint uses the identical wrapped hold path. The device
     // polls the payment status endpoint below; no direct-success shortcut.
 

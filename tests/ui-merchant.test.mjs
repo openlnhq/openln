@@ -44,3 +44,18 @@ test('POS ships an item pad, numpad, checkout and a wallet entry point',()=>{
   assert.ok(html.includes("['wallet','ric','cards','books','pos','settings','partner','adminpayments'].includes(view)"),'pos is a routable view');
   assert.ok(html.includes("localStorage.getItem('openln_pos_launch')==='1'?'pos':'wallet'"),'Open POS at launch is honored on load');
 });
+test('send opens a camera-first scanner with Paste, Keyboard and Images for every lightning code',()=>{
+  const send=html.slice(html.indexOf('/* ---- SEND ---- */'),html.indexOf('/* ---- WALLET CONNECT ---- */'));
+  assert.ok(html.includes('st.connected?sendScan:walletModal'),'Send opens the fullscreen scanner, not a form');
+  assert.ok(send.includes('function sendScan('),'fullscreen scanner exists');
+  assert.ok(send.includes('sndVid')&&send.includes('getUserMedia'),'scanner attaches the live camera');
+  assert.ok(send.includes('sndPaste')&&send.includes('Clipboard'),'Paste button reads the clipboard');
+  assert.ok(send.includes('sndKeys')&&send.includes('sndInput'),'Keyboard button opens the text entry sheet');
+  assert.ok(send.includes('sndGallery')&&send.includes('sndDecodeImage'),'Images button loads a QR from the gallery');
+  assert.ok(send.includes("import('/media/jsqr.mjs')"),'fallback decoder is vendored and lazy-loaded');
+  assert.ok(send.includes("api('/api/wallet/resolve'"),'scans resolve through the target endpoint');
+  assert.ok(send.includes("api('/api/wallet/pay'"),'paying reuses the wallet pay route');
+  assert.ok(send.includes('lnurl_withdraw')&&html.includes('receiveWithdrawModal'),'withdraw codes explain and hand off to Receive');
+  assert.ok(send.includes('openln_addr_book'),'the address book is device-local');
+  assert.ok(send.includes('sndBookSave(')&&send.includes('sndBookRemove('),'addresses can be saved and removed');
+});

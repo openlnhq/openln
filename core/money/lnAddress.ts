@@ -161,8 +161,13 @@ export async function fetchLnurlpMetadata(address: string): Promise<LnurlpMetada
     throw new Error(`Provider does not recognize this lightning address (${resp.status})`);
   }
   const meta = await resp.json() as Record<string, unknown>;
+  return lnurlpMetaFromBody(meta, "Address");
+}
+
+/** Build payRequest metadata from a response body; the callback is safety-checked. */
+export async function lnurlpMetaFromBody(meta: Record<string, unknown>, what = "Endpoint"): Promise<LnurlpMetadata> {
   if (meta.status === "ERROR") throw new Error(`Provider error: ${meta.reason}`);
-  if (meta.tag !== "payRequest") throw new Error("Address did not return a valid LNURL-pay response");
+  if (meta.tag !== "payRequest") throw new Error(`${what} did not return a valid LNURL-pay response`);
 
   const callback = String(meta.callback ?? "");
   if (!callback) throw new Error("Provider returned no callback URL");
@@ -174,6 +179,19 @@ export async function fetchLnurlpMetadata(address: string): Promise<LnurlpMetada
     maxSendableMsats: Number(meta.maxSendable ?? 100_000_000_000),
     commentAllowed: Number(meta.commentAllowed ?? 0),
   };
+}
+
+/**
+ * Fetch any LNURL endpoint by URL (SSRF-guarded); returns the parsed body.
+ * Used by the send scanner for raw https links and decoded lnurl1 codes.
+ */
+export async function fetchLnurlRequest(raw: string): Promise<Record<string, unknown>> {
+  const url = await assertSafeUrl(raw, "LNURL");
+  const resp = await fetch(url.toString(), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), redirect: "error" });
+  if (!resp.ok) throw new Error(`Provider did not answer (${resp.status})`);
+  const data = await resp.json() as Record<string, unknown>;
+  if (data.status === "ERROR") throw new Error(`Provider error: ${data.reason ?? "unknown"}`);
+  return data;
 }
 
 export interface LnurlInvoice {
@@ -193,10 +211,23 @@ export async function requestLnurlInvoice(
   memo?: string,
 ): Promise<LnurlInvoice> {
   const meta = await fetchLnurlpMetadata(address);
+  return requestLnurlInvoiceFromMeta(meta, amountSats, memo, "this address");
+}
+
+/**
+ * Request an invoice for `amountSats` from already-fetched payRequest metadata.
+ * `what` names the payee in out-of-range errors (address or scanned link).
+ */
+export async function requestLnurlInvoiceFromMeta(
+  meta: LnurlpMetadata,
+  amountSats: number,
+  memo?: string,
+  what = "this payee",
+): Promise<LnurlInvoice> {
   const amountMsats = amountSats * 1000;
   if (amountMsats < meta.minSendableMsats || amountMsats > meta.maxSendableMsats) {
     throw new Error(
-      `Amount out of range for this address (min ${Math.ceil(meta.minSendableMsats / 1000)} sats, max ${Math.floor(meta.maxSendableMsats / 1000)} sats)`,
+      `Amount out of range for ${what} (min ${Math.ceil(meta.minSendableMsats / 1000)} sats, max ${Math.floor(meta.maxSendableMsats / 1000)} sats)`,
     );
   }
 
@@ -221,7 +252,7 @@ export async function requestLnurlInvoice(
       await assertSafeUrl(data.verify, "verify");
       verifyUrl = data.verify;
     } catch (err) {
-      logger.warn({ err, address }, "Provider verify URL rejected as unsafe");
+      logger.warn({ err }, "Provider verify URL rejected as unsafe");
     }
   }
 

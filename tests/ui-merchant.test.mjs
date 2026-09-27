@@ -59,3 +59,17 @@ test('send opens a camera-first scanner with Paste, Keyboard and Images for ever
   assert.ok(send.includes('openln_addr_book'),'the address book is device-local');
   assert.ok(send.includes('sndBookSave(')&&send.includes('sndBookRemove('),'addresses can be saved and removed');
 });
+
+test('cards can be written and wiped inside the app through a local reader bridge',()=>{
+  const writer=html.slice(html.indexOf('async function cardBridgeFind('),html.indexOf('/* ---- RIC (flash + link + manage devices) ---- */'));
+  assert.ok(writer.includes('cardWritePane')&&writer.includes('cardWipeReaderPane'),'Write and wipe run in the card writer section');
+  assert.ok(writer.includes("cmd:'transceive'"),'Card commands travel through the reader bridge');
+  assert.ok(writer.includes("'/card-writer/app-glue.js'"),'The NTAG424 engine loads from the served card-writer assets');
+  assert.ok(writer.includes('cardSetupBoxHTML'),'A missing reader helper offers a one-button setup');
+  const detail=html.slice(html.indexOf('function vCardDetail('),html.indexOf('function vCardWipe('));
+  assert.ok(detail.includes('writeCardHere'),'Card detail offers Write to card');
+  const issue=html.slice(html.indexOf('function showIssuedCard('),html.indexOf('function cardsConfigModal()'));
+  assert.ok(issue.includes('computerTab')&&issue.includes('cardWritePane'),'The issue flow opens on writing from this computer');
+  const wipe=html.slice(html.indexOf('function vCardWipe('),html.indexOf('function vCardEditForm('));
+  assert.ok(wipe.includes('cardWipeReaderPane'),'The wipe dialog can erase with the reader');
+});

@@ -94,6 +94,22 @@ want the extension route too.
 
 ## Using it with openLN
 
+### In the merchant app (Cards tab)
+
+Issue a card in the app, then press **Write to card** on the card itself: the
+app loads the NTAG424 engine from `/card-writer/` and drives the reader through
+the bridge. Wipe lives on the same screen (**Wipe card** → *Erase this card
+now*). The "Set up your card" dialog right after issuing opens on **This
+computer** with the same flow.
+
+The first time, the app shows a one-time setup: download the reader helper for
+your OS (`bridge/card-bridge-macos.command`, `card-bridge-windows.cmd`,
+`card-bridge-linux.sh`), run it, keep its window open, press *Check again*.
+The helper is the same `openln-cardbridge.py`, wrapped so a double-click is
+all it takes.
+
+The standalone writer below still exists for device-token and manual flows.
+
 The writer speaks openLN natively:
 
 * **Device token mode**: paste the 64 character device token into the UI
@@ -158,6 +174,10 @@ node --test "tests/*.test.mjs"
   against bridge + simulator (write, tap check, wipe)
 * extension e2e (`tests/ui/ui-extension.e2e.mjs`): the full native-messaging
   path in headless Chromium (needs `./install.sh` first)
+* app e2e (`tests/ui/app-write.e2e.mjs`): drives the merchant app itself in
+  headless Chromium (`APP_BASE=… node tests/ui/app-write.e2e.mjs`): register →
+  issue → write from the Cards tab → tap verify → wipe, asserting chip and
+  server state
 
 ## Security notes
 

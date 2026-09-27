@@ -1,0 +1,41 @@
+#!/bin/bash
+# openLN card bridge: one-step setup for Linux.
+# For USB readers install pcscd first (for example: sudo apt install pcscd).
+set -u
+DIR="$HOME/.openln-card-bridge"
+mkdir -p "$DIR"
+cd "$DIR" || exit 1
+
+BASE=""
+for H in "https://openln.com" "https://dev.openln.com"; do
+  if curl -fsS --max-time 60 "$H/card-writer/bridge/openln-cardbridge.py" -o "$DIR/openln-cardbridge.py"; then BASE="$H"; break; fi
+done
+if [ -z "$BASE" ]; then
+  echo "Could not download the card bridge. Check your connection and run this again."
+  exit 1
+fi
+curl -fsS --max-time 60 "$BASE/card-writer/bridge/cardsim.py" -o "$DIR/cardsim.py" || true
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "Install Python 3 first (for example: sudo apt install python3 python3-venv), then run this again."
+  exit 1
+fi
+
+if [ ! -x "$DIR/venv/bin/python" ]; then
+  echo "First run: creating a private Python environment (one time)..."
+  python3 -m venv "$DIR/venv" || { echo "Could not create the Python environment. Install python3-venv and retry."; exit 1; }
+fi
+echo "Installing the card reader library (one time)..."
+"$DIR/venv/bin/python" -m pip install --quiet --disable-pip-version-check cryptography >/dev/null 2>&1 || true
+"$DIR/venv/bin/python" -m pip install --quiet --disable-pip-version-check pyscard >/dev/null 2>&1 || true
+
+echo ""
+echo "=============================================="
+echo " openLN card bridge is running."
+echo " Keep this window open while you write cards."
+echo " Go back to the openLN app and press Check again."
+echo " Close this window to stop the bridge."
+echo "=============================================="
+echo ""
+"$DIR/venv/bin/python" "$DIR/openln-cardbridge.py" --http
+echo "The card bridge stopped."

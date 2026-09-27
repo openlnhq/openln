@@ -1563,24 +1563,26 @@ async function loadAuthedImage(path, imgEl){
 function showIssuedCard(out, keyText=''){
   const qr=out.provisionUrl||'';
   const m=modal(`<div class="modalhead"><div><h2>Set up your card</h2><p class="muted" style="font-size:13px;margin-top:5px">Keys issued. Now write a blank NTAG424 card.</p></div><button class="xbtn" aria-label="Close card setup">✕</button></div>
-    <div class="setup-tabs" role="tablist" aria-label="Card writer"><button class="on" id="creatorTab" role="tab" aria-selected="true">With your phone</button><button id="ricTab" role="tab" aria-selected="false">With your RIC</button></div>
-    <section id="creatorSetup">
+    <div class="setup-tabs" role="tablist" aria-label="Card writer"><button class="on" id="computerTab" role="tab" aria-selected="true">This computer</button><button id="creatorTab" role="tab" aria-selected="false">With your phone</button><button id="ricTab" role="tab" aria-selected="false">With your RIC</button></div>
+    <section id="computerSetup"><div id="cwrite"><div style="text-align:center;padding:10px"><span class="spin"></span></div></div></section>
+    <section id="creatorSetup" hidden>
       <div class="qrbox" id="provisionQr" role="img" aria-label="One-time card setup QR"></div>
       <p class="muted setup-copy">Scan with <a href="https://play.google.com/store/search?q=bolt%20card%20nfc%20creator&amp;c=apps" target="_blank" rel="noopener noreferrer">Bolt Card NFC Creator</a> on Android, then hold the blank card against your phone.</p>
       <button class="btn ghost" id="copyProvision" style="width:100%;justify-content:center;margin-top:12px">Copy setup link</button>
       <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser. It reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
     </section>
     <section id="ricSetup" hidden><ol class="setup-steps"><li>Use the RIC linked to this account.</li><li>On its screen, open Settings → Issue Card.</li><li>Hold a blank NTAG424 card against the reader until the RIC confirms the write.</li></ol><p class="muted setup-copy">The RIC fetches your next unwritten card automatically. There is no QR to scan and no keys to type.</p><p id="ricQueue" class="hint"></p><div id="ricWriteState" role="status" class="hint">Waiting for the RIC to confirm…</div></section>
-    <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">Standard browser NFC cannot change NTAG424 security keys. Use the Android creator app or the RIC for the physical write. This page handles issuance and setup.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
+    <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">With the reader helper installed, this page writes the card itself from This computer. Phones use the Android creator app; a linked RIC fetches from the write queue.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
   const qrBox=m.querySelector('#provisionQr');
   if(out.provisionQr){const image=new Image();image.alt='One-time card setup QR';image.src=URL.createObjectURL(new Blob([out.provisionQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);qrBox.append(image)}
   else qrBox.textContent='Setup QR unavailable. Close this and generate a new setup link.';
   m.querySelector('#copyProvision').disabled=!qr;
   m.querySelector('#copyProvision').onclick=()=>navigator.clipboard.writeText(qr).then(()=>toast('Setup link copied'));
   m.querySelector('#copyKeys').onclick=async()=>{try{if(!keyText){const keys=await api('/api/cards/'+out.cardId+'/keys',{method:'POST',body:'{}'});keyText=Object.entries(keys).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>k+': '+v).join('\n');m.querySelector('#rawCardKeys').textContent=keyText+'\n'+out.lnurlwTemplate}await navigator.clipboard.writeText(keyText+'\n'+out.lnurlwTemplate);toast('Keys copied')}catch(e){toast(e.message)}};
-  for(const [tab,other,panel,hide] of [['creatorTab','ricTab','creatorSetup','ricSetup'],['ricTab','creatorTab','ricSetup','creatorSetup']])m.querySelector('#'+tab).onclick=()=>{m.querySelector('#'+panel).hidden=false;m.querySelector('#'+hide).hidden=true;m.querySelector('#'+tab).classList.add('on');m.querySelector('#'+other).classList.remove('on');m.querySelector('#'+tab).setAttribute('aria-selected','true');m.querySelector('#'+other).setAttribute('aria-selected','false')};
+  for(const [tab,panel] of [['computerTab','computerSetup'],['creatorTab','creatorSetup'],['ricTab','ricSetup']])m.querySelector('#'+tab).onclick=()=>{for(const [t2,p2] of [['computerTab','computerSetup'],['creatorTab','creatorSetup'],['ricTab','ricSetup']]){m.querySelector('#'+p2).hidden=p2!==panel;m.querySelector('#'+t2).classList.toggle('on',t2===tab);m.querySelector('#'+t2).setAttribute('aria-selected',t2===tab?'true':'false')}};
   api('/api/pos/next-provision').then(next=>{if(next.cardId!==out.cardId)m.querySelector('#ricQueue').textContent='Another card is first in the RIC queue: '+(next.name||'unnamed card')+'. Finish or cancel that setup first.'}).catch(()=>{});
   const watch=setInterval(async()=>{if(!m.isConnected){clearInterval(watch);return}try{const cards=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards');const card=cards.find(c=>c.id===out.cardId);if(card?.lastUsedAt){clearInterval(watch);m.querySelector('#ricWriteState').textContent='Card written and linked to your wallet.';renderCardsList()}}catch(e){}},2500);
+  cardWritePane(m.querySelector('#cwrite'),{id:out.cardId,name:out.name||''},{onDone:()=>{m.remove();renderCardsList()}});
 }
 function cardsConfigModal(){ VIEW='cards'; render(); }
 /* ---- CARDS (full management view) ---- */
@@ -1694,7 +1696,7 @@ async function renderCardsList(){
         </button>
         ${cards.map(c=>cardTile(c)).join('')}
       </div>
-      ${cards.length?'':'<p class="dim" style="font-size:12.5px;margin-top:16px">No cards yet. Issue one to get a provisioning QR you can write with a Bolt Card creator app or a RIC.</p>'}
+      ${cards.length?'':'<p class="dim" style="font-size:12.5px;margin-top:16px">No cards yet. Issue one, then write it right here with a USB reader, or with a phone app or RIC.</p>'}
     `;
     $('#issueCardTile').onclick=()=>vCardIssueForm();
     body.querySelectorAll('[data-card-id]').forEach(b=>b.onclick=()=>vCardDetail(cards.find(c=>c.id===b.dataset.cardId)));
@@ -1790,9 +1792,10 @@ function vCardDetail(card){
         </div>
       </div>
       <div class="manage-section"><div class="dim label">Card writing</div>
-        <p class="dim" style="font-size:11.5px;line-height:1.4">Reveal the provisioning QR, URL and Bolt Card keys to write this card with a creator app or RIC.</p>
+        <p class="dim" style="font-size:11.5px;line-height:1.4">Write this card on this computer with a USB reader, or reveal the provisioning QR and keys for a phone or RIC.</p>
         <div class="manage-actions" style="margin-top:8px">
-          ${!card.lastUsedAt && st==='active'?'<button class="btn teal" id="setupCard">Set up card</button>':''}
+          ${st==='active'?'<button class="btn teal sm" id="writeCardHere">Write to card</button>':''}
+          ${!card.lastUsedAt && st==='active'?'<button class="btn ghost sm" id="setupCard">Set up card</button>':''}
           <button class="btn ghost sm" id="viewCardKeys">View keys</button>
           <button class="btn ghost sm dangerText" id="wipeCard">Wipe card</button>
         </div>
@@ -1801,6 +1804,7 @@ function vCardDetail(card){
   $('#cardsBack').onclick=renderCardsList;
   $('#editCard').onclick=()=>vCardEditForm(card);
   $('#setupCard')?.addEventListener('click',async()=>{try{const out=await api('/api/cards/'+card.id+'/provision',{method:'POST',body:'{}'});showIssuedCard(out)}catch(e){toast(e.message)}});
+  $('#writeCardHere')?.addEventListener('click',()=>cardWriteModal(card));
   $('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:'{}'});const text=Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>k+': '+v).join('\n')+'\n'+out.lnurlwTemplate;const m=modal(`<div class="modalhead"><h2>Card keys</h2><button class="xbtn" aria-label="Close keys">✕</button></div><p class="muted setup-copy">These keys control this card. Keep them private.</p><pre class="codebox mono" style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(text)}</pre><button class="btn ghost" id="copyCardSecrets">Copy keys</button>`);m.querySelector('#copyCardSecrets').onclick=()=>navigator.clipboard.writeText(text).then(()=>toast('Keys copied'))}catch(e){toast(e.message)}};
   $('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:st==='frozen'?'active':'frozen'})});toast(st==='frozen'?'Card enabled':'Card frozen');renderCardsList()}catch(e){toast(e.message)}};
   $('#disableCard').onclick=async()=>{if(!confirm('Cancel this card? Future payments will be blocked. This does not erase the physical card.'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});toast('Card cancelled');renderCardsList()}catch(e){toast(e.message)}};
@@ -1812,8 +1816,10 @@ function vCardDetail(card){
 }
 function vCardWipe(card){
   const m=modal(`<div class="modalhead"><div><h2>Wipe card</h2><p class="dim" style="font-size:12px;margin-top:4px">Reset the physical NTAG424 to factory defaults</p></div><button class="xbtn">✕</button></div>
-    <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">This reveals the card's current keys and the NTAG424 factory-default settings so a creator app or RIC can erase it. Once you confirm the physical wipe, this card record is marked <b>cancelled</b> and cannot be reused.</p>
-    <div id="wipeBody"><button class="btn teal" id="loadWipeKeys" style="width:100%;justify-content:center;padding:11px">Reveal wipe keys</button></div>`);
+    <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">Erase the physical card here with a USB reader, or reveal the reset data for a phone or RIC. Once the wipe is confirmed, this card record is marked <b>cancelled</b> and cannot be reused.</p>
+    <div id="wipeReader" style="margin-bottom:12px"><div class="dim" style="font-size:12px">Checking for a card reader...</div></div>
+    <div id="wipeBody"><button class="btn ghost sm" id="loadWipeKeys" style="width:100%;justify-content:center;padding:9px">Reset from a phone or RIC instead</button></div>`);
+  cardWipeReaderPane(m.querySelector('#wipeReader'),card,()=>{m.remove();renderCardsList()});
   m.querySelector('#loadWipeKeys').onclick=async()=>{
     const box=m.querySelector('#wipeBody');
     box.innerHTML=`<div style="text-align:center;padding:14px"><span class="spin"></span></div>`;
@@ -1823,7 +1829,7 @@ function vCardWipe(card){
       box.innerHTML=`<p class="setup-copy muted"><b>With your phone:</b> In Bolt Card NFC Creator, choose Reset → hold the card against the phone → Scan QR Code.</p><div class="qrbox" id="wipeQr"></div>
         <p class="setup-copy muted"><b>With your RIC:</b> Open Settings → Wipe Card on the linked device. Hold the card on the reader until it confirms.</p>
         <button class="btn ghost sm" id="copyWipeKeys" style="width:100%;justify-content:center;margin-top:12px">Copy reset data</button>
-        <p class="hint">This page cannot erase the physical chip by itself. Keep the keys until your phone or RIC confirms the reset.</p>
+        <p class="hint">Keep the reset data until your phone or RIC confirms the erase.</p>
         <button class="btn danger" id="confirmWiped" style="width:100%;justify-content:center;margin-top:14px;padding:11px">My phone confirmed the wipe. Cancel card</button>`;
       const image=new Image();image.alt='Card reset QR';image.src=URL.createObjectURL(new Blob([out.wipeQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);box.querySelector('#wipeQr').append(image);
       box.querySelector('#copyWipeKeys').onclick=()=>navigator.clipboard.writeText(wipeJson).then(()=>toast('Reset data copied'));
@@ -1876,7 +1882,170 @@ function vCardPinForm(card){
     catch(x){$('#pinFormErr').textContent=displayText(x.message)}
   };
 }
+/* ---- CARD WRITER (write and wipe NTAG424 cards with a local USB reader) ---- */
+let CARD_BRIDGE=null;let CARD_ENGINE_P=null;
+function cardBridgeForget(){CARD_BRIDGE=null}
+async function cardBridgeFind(){
+  if(CARD_BRIDGE)return CARD_BRIDGE;
+  if(window.openlnBridge&&typeof window.openlnBridge.request==='function'){
+    const request=p=>window.openlnBridge.request(p);
+    let status=null;try{status=await request({cmd:'status'})}catch(e){}
+    CARD_BRIDGE={kind:'extension',label:'browser extension',sim:!!(status&&status.sim),reader:(status&&status.reader)||null,request};
+    return CARD_BRIDGE;
+  }
+  try{
+    const base='http://127.0.0.1:17777';
+    const res=await fetch(base+'/api/status',{cache:'no-store'});
+    if(res.ok){
+      const st=await res.json();
+      if(st&&st.ok){
+        const request=async payload=>{
+          if(payload.cmd==='status')return fetch(base+'/api/status',{cache:'no-store'}).then(r=>r.json());
+          const r=await fetch(base+'/api/'+payload.cmd,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+          return r.json();
+        };
+        CARD_BRIDGE={kind:'helper',label:'local helper',sim:!!st.sim,reader:st.reader||null,request};
+        return CARD_BRIDGE;
+      }
+    }
+  }catch(e){}
+  return null;
+}
+function cardBridgeLabel(b){
+  if(!b)return 'no reader';
+  let l=b.kind==='extension'?'browser extension':'local helper';
+  if(b.sim)l+=' · simulator (no reader attached)';
+  else if(b.reader)l+=' · '+b.reader;
+  return l;
+}
+function ensureCardEngine(){
+  if(window.openlnCardEngine)return Promise.resolve(window.openlnCardEngine);
+  if(CARD_ENGINE_P)return CARD_ENGINE_P;
+  CARD_ENGINE_P=new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>reject(new Error('The card engine did not load. Reload the page and try again.')),15000);
+    window.addEventListener('openln-card-engine',()=>{if(window.openlnCardEngine){clearTimeout(timer);resolve(window.openlnCardEngine)}},{once:true});
+    const s=document.createElement('script');s.type='module';s.src='/card-writer/app-glue.js';
+    s.onerror=()=>{clearTimeout(timer);reject(new Error('The card engine could not be loaded from the server.'))};
+    document.head.appendChild(s);
+  }).catch(e=>{CARD_ENGINE_P=null;throw e});
+  return CARD_ENGINE_P;
+}
+function cardTransport(bridge){
+  return {transceive:async apdu=>{
+    const hex=[...apdu].map(b=>b.toString(16).padStart(2,'0')).join('');
+    const res=await bridge.request({cmd:'transceive',apdu:hex});
+    if(!res||!res.ok)throw new Error((res&&res.error)||'reader error');
+    const hx=res.response||'';
+    const out=new Uint8Array(Math.floor(hx.length/2));
+    for(let i=0;i<out.length;i++)out[i]=parseInt(hx.substr(i*2,2),16);
+    return out;
+  }};
+}
+function cardSetupBoxHTML(){
+  const ua=(navigator.userAgent||'')+' '+(navigator.platform||'');
+  const os=/Mac/i.test(ua)?'mac':/Win/i.test(ua)?'win':'lin';
+  const b=(file,label,kind)=>`<a class="btn ${kind} sm" href="/card-writer/bridge/${file}" download>${label}</a>`;
+  return `<div class="card" style="padding:14px;background:var(--surface2);margin:0">
+    <b style="font-size:13px">One-time setup: reader helper</b>
+    <p class="dim" style="font-size:12px;line-height:1.55;margin-top:6px">Cards are written through a small helper on this computer that talks to your USB reader. It runs locally and only passes card commands; your keys never leave your machine.</p>
+    <ol class="setup-steps" style="margin:10px 0"><li>Download and run the file for this computer.</li><li>Keep its window open while you write cards.</li><li>Come back here and press Check again.</li></ol>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${b('card-bridge-macos.command','Download for macOS',os==='mac'?'teal':'ghost')}${b('card-bridge-windows.cmd','Download for Windows',os==='win'?'teal':'ghost')}${b('card-bridge-linux.sh','Download for Linux',os==='lin'?'teal':'ghost')}</div>
+    <p class="hint" style="margin-top:8px">If Chrome asks to allow access to your local network, choose Allow. Writing with a phone or RIC still works from this card.</p>
+    <button class="btn ghost sm" id="cwRetry" style="margin-top:10px">Check again</button>
+  </div>`;
+}
+function cardWireSetup(box,onRetry){
+  const r=box.querySelector('#cwRetry');if(r)r.onclick=()=>{cardBridgeForget();onRetry()};
+}
+function cardWriteModal(card){
+  const m=modal(`<div class="modalhead"><div><h2>Write to card</h2><p class="dim" style="font-size:12px;margin-top:4px">${esc(card.name||'Bolt card')}</p></div><button class="xbtn">✕</button></div>
+    <div id="cwrite"><div style="text-align:center;padding:14px"><span class="spin"></span></div></div>`);
+  cardWritePane(m.querySelector('#cwrite'),card,{onDone:()=>{m.remove();renderCardsList()}});
+}
+async function cardWritePane(box,card,opts={}){
+  if(!box)return;
+  const bridge=await cardBridgeFind();
+  if(!box.isConnected)return;
+  if(!bridge){
+    box.innerHTML=cardSetupBoxHTML();
+    cardWireSetup(box,()=>cardWritePane(box,card,opts));
+    return;
+  }
+  box.innerHTML=`
+    <p class="muted setup-copy" style="margin-bottom:8px">Reader: <b>${esc(cardBridgeLabel(bridge))}</b></p>
+    <p class="muted setup-copy"><b>Place the blank card flat on the reader</b> and keep it there. Then press Write.</p>
+    <button class="btn teal" id="cwGo" style="width:100%;justify-content:center;padding:11px;margin-top:12px">Write card</button>
+    <div class="codebox mono" id="cwLog" style="font-size:11px;margin-top:12px;display:none;max-height:170px;overflow:auto"></div>`;
+  const logline=t=>{const l=box.querySelector('#cwLog');if(!l)return;l.style.display='block';const line=document.createElement('div');line.textContent=t;l.append(line);l.scrollTop=l.scrollHeight};
+  const go=box.querySelector('#cwGo');
+  go.onclick=async()=>{
+    go.disabled=true;go.textContent='Writing...';
+    try{
+      const engine=await ensureCardEngine();
+      logline('Loading card data');
+      const data=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:'{}'});
+      const keys={k0:data.k0,k1:data.k1,k2:data.k2,k3:data.k3,k4:data.k4};
+      for(const k of ['k0','k1','k2','k3','k4'])if(!/^[0-9a-f]{32}$/i.test(keys[k]||''))throw new Error('Card keys look wrong. Close this and try again.');
+      const base=String(data.lnurlwTemplate||'').split('?')[0]||('lnurlw://openln.com/card/'+card.id);
+      const transport=cardTransport(bridge);
+      const res=await engine.writeBoltCard({transport,lnurlwBase:base,keys,onProgress:logline});
+      try{await api('/api/pos/mark-written/'+card.id,{method:'POST',body:'{}'})}catch(e){}
+      logline('Card written. UID '+res.uid);
+      go.remove();
+      box.insertAdjacentHTML('beforeend',`<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" id="cwVerify">Verify tap</button><button class="btn teal sm" id="cwDone">Done</button></div><p class="hint" id="cwAfter" style="margin-top:8px">Written. Hold the card on the reader again and press Verify tap to check it the way a phone would.</p>`);
+      box.querySelector('#cwDone').onclick=()=>{opts.onDone?opts.onDone():renderCardsList()};
+      box.querySelector('#cwVerify').onclick=async()=>{
+        const vb=box.querySelector('#cwVerify');vb.disabled=true;
+        try{
+          const engine2=await ensureCardEngine();
+          logline('Reading the card the way a phone would');
+          const r=await engine2.tapSelfTest({transport:cardTransport(bridge),keys});
+          if(r.ok)logline('Tap check OK · uid '+r.uid+' · counter '+r.counter+' · the tap decrypts with k1 and verifies with k2');
+          else logline('Tap check: '+r.reason);
+        }catch(e){logline('Tap check failed: '+(e.message||e))}
+        vb.disabled=false;
+      };
+    }catch(e){
+      logline('Write failed: '+(e.message||e));
+      if(e&&(e.sw===0x91ae||e.sw===0x6982))logline('The card is not blank (or was programmed elsewhere). Use Wipe card first, then write again.');
+      go.disabled=false;go.textContent='Try again';
+    }
+  };
+}
+async function cardWipeReaderPane(box,card,onDone){
+  if(!box)return;
+  const bridge=await cardBridgeFind();
+  if(!box.isConnected)return;
+  if(!bridge){
+    box.innerHTML=cardSetupBoxHTML();
+    cardWireSetup(box,()=>cardWipeReaderPane(box,card,onDone));
+    return;
+  }
+  box.innerHTML=`<button class="btn danger" id="wipeHere" style="width:100%;justify-content:center;padding:11px">Erase this card now</button>
+    <p class="hint" style="margin-top:6px">Reader: ${esc(cardBridgeLabel(bridge))}. Hold the card on the reader while it erases.</p>
+    <div class="codebox mono" id="cwWipeLog" style="font-size:11px;margin-top:10px;display:none;max-height:150px;overflow:auto"></div>`;
+  const logline=t=>{const l=box.querySelector('#cwWipeLog');if(!l)return;l.style.display='block';const line=document.createElement('div');line.textContent=t;l.append(line);l.scrollTop=l.scrollHeight};
+  const btn=box.querySelector('#wipeHere');
+  btn.onclick=async()=>{
+    btn.disabled=true;btn.textContent='Erasing...';
+    try{
+      const engine=await ensureCardEngine();
+      const data=await api('/api/cards/'+card.id+'/wipe',{method:'POST',body:'{}'});
+      const keys=(data&&data.wipeKeys)||{};
+      for(const k of ['k0','k1','k2','k3','k4'])if(!/^[0-9a-f]{32}$/i.test(keys[k]||''))throw new Error('Reset keys look wrong. Close this and try again.');
+      await engine.wipeBoltCard({transport:cardTransport(bridge),keys,factorySettingsHex:data.factorySettings||null,onProgress:logline});
+      try{await api('/api/pos/mark-wiped/'+card.id,{method:'POST',body:'{}'})}catch(e){}
+      logline('Card erased and marked cancelled.');
+      toast('Card wiped and cancelled');
+      if(onDone)onDone();
+    }catch(e){
+      logline('Wipe failed: '+(e.message||e));
+      btn.disabled=false;btn.textContent='Try again';
+    }
+  };
+}
 /* ---- RIC (flash + link + manage devices) ---- */
+
 const RIC_BLE_SERVICE_UUID  = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 const RIC_CHAR_SSID_UUID    = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 const RIC_CHAR_PASS_UUID    = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";

@@ -1618,12 +1618,14 @@ function showIssuedCard(out, keyText=''){
     <section id="computerSetup"><div id="cwrite"><div style="text-align:center;padding:10px"><span class="spin"></span></div></div></section>
     <section id="creatorSetup" hidden>
       <div class="qrbox" id="provisionQr" role="img" aria-label="One-time card setup QR"></div>
-      <p class="muted setup-copy">Scan with <a href="https://play.google.com/store/search?q=bolt%20card%20nfc%20creator&amp;c=apps" target="_blank" rel="noopener noreferrer">Bolt Card NFC Creator</a> on Android, then hold the blank card against your phone.</p>
+      <p class="muted setup-copy">Open the <b>card writer app</b> on an Android phone, scan this QR, then hold the blank card against the phone.</p>
+      <a class="btn ghost" id="downloadCardWriter" href="/media/card-writer-1.0.0.apk" download style="width:100%;justify-content:center;margin-top:12px">Download the card writer app (.apk)</a>
+      <p class="hint" style="margin-top:6px">Install it once. Your phone will ask to allow installs from this site.</p>
       <button class="btn ghost" id="copyProvision" style="width:100%;justify-content:center;margin-top:12px">Copy setup link</button>
       <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser. It reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
     </section>
     <section id="ricSetup" hidden><ol class="setup-steps"><li>Use the RIC linked to this account.</li><li>On its screen, open Settings → Issue Card.</li><li>Hold a blank NTAG424 card against the reader until the RIC confirms the write.</li></ol><p class="muted setup-copy">The RIC fetches your next unwritten card automatically. There is no QR to scan and no keys to type.</p><p id="ricQueue" class="hint"></p><div id="ricWriteState" role="status" class="hint">Waiting for the RIC to confirm…</div></section>
-    <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">With the reader helper installed, this page writes the card itself from This computer. Phones use the Android creator app; a linked RIC fetches from the write queue.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
+    <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">With the reader helper installed, this page writes the card itself from This computer. Phones use the card writer app; a linked RIC fetches from the write queue.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
   const qrBox=m.querySelector('#provisionQr');
   if(out.provisionQr){const image=new Image();image.alt='One-time card setup QR';image.src=URL.createObjectURL(new Blob([out.provisionQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);qrBox.append(image)}
   else qrBox.textContent='Setup QR unavailable. Close this and generate a new setup link.';
@@ -1877,7 +1879,7 @@ function vCardWipe(card){
     try{
       const out=await api('/api/cards/'+card.id+'/wipe',{method:'POST',body:'{}'});
       const wipeJson=JSON.stringify(out.wipeKeys);
-      box.innerHTML=`<p class="setup-copy muted"><b>With your phone:</b> In Bolt Card NFC Creator, choose Reset → hold the card against the phone → Scan QR Code.</p><div class="qrbox" id="wipeQr"></div>
+      box.innerHTML=`<p class="setup-copy muted"><b>With your phone:</b> Open the card writer app → Wipe tab → paste the reset data, then hold the card against the phone.</p><p class="hint" style="margin-bottom:6px">Or scan this reset code with an app that can read it.</p><div class="qrbox" id="wipeQr"></div>
         <p class="setup-copy muted"><b>With your RIC:</b> Open Settings → Wipe Card on the linked device. Hold the card on the reader until it confirms.</p>
         <button class="btn ghost sm" id="copyWipeKeys" style="width:100%;justify-content:center;margin-top:12px">Copy reset data</button>
         <p class="hint">Keep the reset data until your phone or RIC confirms the erase.</p>

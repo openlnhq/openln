@@ -1620,7 +1620,7 @@ function showIssuedCard(out, keyText=''){
       <p class="muted setup-copy">Open the <b>openLN Card Writer</b> app on an Android phone, scan this QR, then hold the blank card against the phone.</p>
       <a class="btn teal" id="openWriterApp" href="#" style="display:none;width:100%;justify-content:center;margin-top:12px">Open the openLN Card Writer app</a>
       <p class="hint" id="openWriterHint" style="display:none;margin-top:6px">The app opens on Write with this card already loaded. Hold the blank card against the phone and tap Write.</p>
-      <a class="btn ghost" id="downloadCardWriter" href="/media/card-writer-1.2.0.apk" download style="width:100%;justify-content:center;margin-top:12px">Download the openLN Card Writer app (.apk)</a>
+      <a class="btn ghost" id="downloadCardWriter" href="/media/card-writer-1.2.1.apk" download style="width:100%;justify-content:center;margin-top:12px">Download the openLN Card Writer app (.apk)</a>
       <p class="hint" id="downloadWriterHint" style="margin-top:6px">Install it once. Your phone will ask to allow installs from this site.</p>
       <button class="btn ghost" id="copyProvision" style="width:100%;justify-content:center;margin-top:12px">Copy setup link</button>
       <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser. It reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
@@ -1944,7 +1944,7 @@ function vCardPinForm(card){
 }
 /* ---- OPENLN CARD WRITER APP (hand off card setup to the phone app) ---- */
 const WRITER_APP_PACKAGE='app.bitpos.cardwriter';
-const WRITER_APP_APK='/media/card-writer-1.2.0.apk';
+const WRITER_APP_APK='/media/card-writer-1.2.1.apk';
 async function writerAppInstalled(){
   try{
     if(!navigator.getInstalledRelatedApps)return false;

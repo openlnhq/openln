@@ -120,15 +120,57 @@ const server = createServer(async (req, res) => {
         return res.end(data);
       } catch { return json(res, 404, { error: "Not found" }); }
     }
-    if (req.method === "GET" && u.pathname.startsWith("/media/")) {
+    if ((req.method === "GET" || req.method === "HEAD") && u.pathname.startsWith("/media/")) {
       const name = u.pathname.slice(7).replace(/[^a-zA-Z0-9._/-]/g, "");
       if (!name || name.includes("..") || name.startsWith("/") || name.endsWith("/")) return json(res, 404, { error: "Not found" });
       try {
-        const data = await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/media/" + name, import.meta.url));
+        const { createReadStream } = await import("node:fs");
+        const { stat } = await import("node:fs/promises");
+        const file = new URL("../../artifacts/web/media/" + name, import.meta.url);
+        const st = await stat(file);
         const type = name.endsWith(".mjs") ? "text/javascript; charset=utf-8" : name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "application/octet-stream";
-        res.writeHead(200, { "content-type": type, "cache-control": "public, max-age=86400" });
+        const headers: Record<string, string> = { "content-type": type, "cache-control": "public, max-age=86400", "accept-ranges": "bytes", "x-content-type-options": "nosniff" };
+        // Range support: large downloads (the card writer APK) must be resumable
+        // on flaky phone connections; a partial file reads as "problem parsing
+        // the package" at install time.
+        const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ""));
+        if (m && (m[1] || m[2])) {
+          const start = m[1] ? parseInt(m[1], 10) : Math.max(0, st.size - parseInt(m[2], 10));
+          let end = m[1] && m[2] ? parseInt(m[2], 10) : st.size - 1;
+          if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= st.size) {
+            res.writeHead(416, { ...headers, "content-range": `bytes */${st.size}` });
+            return res.end();
+          }
+          end = Math.min(end, st.size - 1);
+          res.writeHead(206, { ...headers, "content-range": `bytes ${start}-${end}/${st.size}`, "content-length": String(end - start + 1) });
+          if (req.method === "HEAD") return res.end();
+          return createReadStream(file, { start, end }).pipe(res);
+        }
+        res.writeHead(200, { ...headers, "content-length": String(st.size) });
+        if (req.method === "HEAD") return res.end();
+        return createReadStream(file).pipe(res);
+      } catch { return json(res, 404, { error: "Not found" }); }
+    }
+    if (req.method === "GET" && u.pathname === "/manifest.webmanifest") {
+      try {
+        const data = await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/manifest.webmanifest", import.meta.url), "utf8");
+        res.writeHead(200, { "content-type": "application/manifest+json; charset=utf-8", "cache-control": "public, max-age=3600" });
         return res.end(data);
       } catch { return json(res, 404, { error: "Not found" }); }
+    }
+    // Digital Asset Links: tells Android this site is related to the openLN
+    // Card Writer app (app.bitpos.cardwriter), which enables
+    // navigator.getInstalledRelatedApps() in the browser and https app links.
+    if (req.method === "GET" && u.pathname === "/.well-known/assetlinks.json") {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=3600" });
+      return res.end(JSON.stringify([{
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: {
+          namespace: "android_app",
+          package_name: "app.bitpos.cardwriter",
+          sha256_cert_fingerprints: ["0F:78:13:08:8E:A8:79:8D:7D:05:E9:AB:5B:81:BB:70:A4:19:47:BE:3A:BB:08:C8:05:AC:B3:75:1B:E5:69:06"],
+        },
+      }], null, 2));
     }
     if (req.method === "GET" && u.pathname === "/") {
       try { return res.end(await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/landing.html", import.meta.url), "utf8")); }

@@ -69,16 +69,20 @@ test('receive uses the same numpad entry as send, with a sats and fiat toggle',(
   assert.ok(source.includes("api('/api/pos/invoice'"),'Receive still creates invoices through the pos route');
 });
 
-test('cards can be written and wiped inside the app through a local reader bridge',()=>{
-  const writer=html.slice(html.indexOf('async function cardBridgeFind('),html.indexOf('/* ---- RIC (flash + link + manage devices) ---- */'));
-  assert.ok(writer.includes('cardWritePane')&&writer.includes('cardWipeReaderPane'),'Write and wipe run in the card writer section');
-  assert.ok(writer.includes("cmd:'transceive'"),'Card commands travel through the reader bridge');
-  assert.ok(writer.includes("'/card-writer/app-glue.js'"),'The NTAG424 engine loads from the served card-writer assets');
-  assert.ok(writer.includes('cardSetupBoxHTML'),'A missing reader helper offers a one-button setup');
-  const detail=html.slice(html.indexOf('function vCardDetail('),html.indexOf('function vCardWipe('));
-  assert.ok(detail.includes('writeCardHere'),'Card detail offers Write to card');
+test('card setup hands off to the openLN Card Writer app or the RIC',()=>{
+  const helper=html.slice(html.indexOf('/* ---- OPENLN CARD WRITER APP'),html.indexOf('/* ---- RIC (flash + link + manage devices) ---- */'));
+  assert.ok(helper.includes('getInstalledRelatedApps'),'The handoff checks whether the writer app is installed');
+  assert.ok(helper.includes('scheme=openlnwriter'),'Deep links use the openlnwriter scheme');
+  assert.ok(helper.includes('S.browser_fallback_url'),'A missing app falls back to the APK download');
+  assert.ok(helper.includes("'/media/card-writer-"),'The APK is served from the staged /media path');
+  assert.ok(!html.includes('cardWritePane')&&!html.includes('cardWipeReaderPane')&&!html.includes('cardBridgeFind'),'The USB reader bridge is gone; the phone app and RIC are the write paths');
   const issue=html.slice(html.indexOf('function showIssuedCard('),html.indexOf('function cardsConfigModal()'));
-  assert.ok(issue.includes('computerTab')&&issue.includes('cardWritePane'),'The issue flow opens on writing from this computer');
+  assert.ok(issue.includes('openWriterApp')&&issue.includes('downloadCardWriter'),'The issue dialog offers Open the app and the APK download');
+  assert.ok(issue.includes('With the openLN app'),'The phone tab names the openLN app');
+  assert.ok(!issue.includes('computerTab'),'No This computer tab remains');
   const wipe=html.slice(html.indexOf('function vCardWipe('),html.indexOf('function vCardEditForm('));
-  assert.ok(wipe.includes('cardWipeReaderPane'),'The wipe dialog can erase with the reader');
+  assert.ok(wipe.includes('openWriterWipe'),'The wipe dialog can hand off to the app');
+  assert.ok(!wipe.includes('wipeReader'),'The wipe dialog no longer probes for a USB reader');
+  const detail=html.slice(html.indexOf('function vCardDetail('),html.indexOf('function vCardWipe('));
+  assert.ok(!detail.includes('writeCardHere')&&detail.includes('setupCard'),'Card detail drops Write to card and keeps Set up card');
 });

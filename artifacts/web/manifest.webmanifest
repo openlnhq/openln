@@ -1,0 +1,17 @@
+{
+  "name": "openLN",
+  "short_name": "openLN",
+  "start_url": "/app",
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "app.bitpos.cardwriter",
+      "fingerprints": [
+        {
+          "type": "sha256_cert",
+          "value": "0F:78:13:08:8E:A8:79:8D:7D:05:E9:AB:5B:81:BB:70:A4:19:47:BE:3A:BB:08:C8:05:AC:B3:75:1B:E5:69:06"
+        }
+      ]
+    }
+  ]
+}

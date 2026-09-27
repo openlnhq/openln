@@ -1483,8 +1483,8 @@ function sndBind(){
   const amt=sndEl('#sndBackAmt');if(amt)amt.onclick=()=>{snd.stage='amount';sndRender()};
   if(stage==='keys'){
     const inp=sndEl('#sndInput');
-    if(inp){inp.focus();inp.oninput=()=>{const b=sndEl('#sndSave');if(b)b.hidden=!(inp.value.indexOf('@')>-1)};inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();sndKeysGo()}}}
-    const save=sndEl('#sndSave');if(save)save.onclick=()=>{const i=sndEl('#sndInput');const v=(i?i.value:'').trim().toLowerCase();if(v.indexOf('@')>-1){sndBookSave(v);sndRender()}};
+    if(inp){inp.focus();inp.oninput=()=>{snd.input=inp.value;const b=sndEl('#sndSave');if(b)b.hidden=!(inp.value.indexOf('@')>-1)};inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();sndKeysGo()}}}
+    const save=sndEl('#sndSave');if(save)save.onclick=()=>{const i=sndEl('#sndInput');const v=(i?i.value:'').trim().toLowerCase();if(v.indexOf('@')>-1){sndBookSave(v);snd.input=v;sndRender()}};
     const go=sndEl('#sndGo');if(go)go.onclick=()=>sndKeysGo();
     const book=sndEl('#sndBook');
     if(book){

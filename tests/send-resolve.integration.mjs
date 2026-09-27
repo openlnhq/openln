@@ -108,6 +108,7 @@ test('lightning address resolves to a pay target and mints the invoice when give
   j=await (await resolve(a.token,'alice@ln.test',{amountSats:500})).json();
   assert.ok(j.invoice,'amount present mints the invoice');
   assert.match(j.invoice.bolt11,/^lnbc1/);assert.match(j.invoice.paymentHash,/^[0-9a-f]{64}$/);
+  assert.equal(j.invoice.amountSats,500,'the mint echoes the requested amount for the confirm screen');
 });
 
 test('lnurl bech32, LUD-17 and raw https all resolve to the same pay target',async()=>{
@@ -176,6 +177,7 @@ test('a scanned pay target pays end to end through /api/wallet/pay',async()=>{
   assert.equal(c.status,200);
   const j=await (await resolve(a.token,'carol@ln.test',{amountSats:200})).json();
   assert.ok(j.invoice);
+  assert.equal(j.invoice.amountSats,200,'the mint echoes the requested amount for the confirm screen');
   const pay=await fetch(base+'/api/wallet/pay',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({bolt11:j.invoice.bolt11,purpose:'spend'})});
   assert.equal(pay.status,200);
   const pj=await pay.json();

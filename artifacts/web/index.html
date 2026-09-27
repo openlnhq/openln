@@ -1362,7 +1362,7 @@ function sndAmountGo(){
   const body={input:snd.input,amountSats:sats};if(snd.comment)body.comment=snd.comment;
   api('/api/wallet/resolve',{method:'POST',body:JSON.stringify(body)}).then(r=>{
     snd.target=Object.assign({},snd.target,r);
-    if(r.invoice){snd.invoice=r.invoice;snd.fired=false;snd.stage='confirm'}
+    if(r.invoice){if(!r.invoice.amountSats)r.invoice.amountSats=sats;snd.invoice=r.invoice;snd.fired=false;snd.stage='confirm'}
     else{snd.stage='msg';snd.retryStage='amount';snd.msg='The payee did not return an invoice. Try again in a moment.'}
     sndRender();
   }).catch(x=>{snd.stage='msg';snd.retryStage='amount';snd.msg=(x&&x.message)?x.message:'Could not get an invoice.';sndRender()});

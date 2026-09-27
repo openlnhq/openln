@@ -16,7 +16,7 @@ import { decodeLnurl, parseBolt11AmountSats } from "./boltcard.js";
 
 export type SendTarget =
   | { kind: "bolt11"; bolt11: string; amountSats: number | null }
-  | { kind: "lnurl_pay"; source: string; minSendableSats: number; maxSendableSats: number; commentAllowed: number; invoice?: { bolt11: string; paymentHash: string } }
+  | { kind: "lnurl_pay"; source: string; minSendableSats: number; maxSendableSats: number; commentAllowed: number; invoice?: { bolt11: string; paymentHash: string; amountSats: number } }
   | { kind: "lnurl_withdraw"; source: string; input: string; maxWithdrawableSats: number | null; defaultDescription: string }
   | { kind: "unsupported"; source?: string; message: string };
 
@@ -117,7 +117,7 @@ export async function resolveSendTarget(raw: string, opts: { amountSats?: number
   };
   if (Number.isSafeInteger(opts.amountSats) && (opts.amountSats as number) > 0) {
     const inv = await requestLnurlInvoiceFromMeta(meta, opts.amountSats as number, opts.comment, "this payee").catch((e) => { throw friendlyNet(e); });
-    out.invoice = { bolt11: inv.bolt11, paymentHash: inv.paymentHash };
+    out.invoice = { bolt11: inv.bolt11, paymentHash: inv.paymentHash, amountSats: opts.amountSats as number };
   }
   return out;
 }

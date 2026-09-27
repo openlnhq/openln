@@ -7,6 +7,7 @@ export * from './paymentEvents.js';
 export * from './cards.js';
 
 export * from './posboxDevices.js';
+export * from './posItems.js';
 export * from './deviceTokens.js';
 export * from './ricDeviceTelemetry.js';
 

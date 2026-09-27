@@ -25,6 +25,7 @@ import { handleCardsRoute } from "../plugins/cards.js";
 import { handleReportsRoute } from "../plugins/reports.js";
 import { handleExtensionsRoute } from "../plugins/extensions.js";
 import { handlePosboxRoute } from "../plugins/posbox.js";
+import { handlePosItemsRoute } from "../plugins/pos-items.js";
 import { handleShopRoute } from "../plugins/shop.js";
 import { handlePartnerRoute } from "../plugins/partner.js";
 import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
@@ -105,6 +106,8 @@ const server = createServer(async (req, res) => {
     }
     if (await handlePartnerRoute(req,res,u)) return;
     if (await handlePosboxRoute(req,res,u,currentAccount ? {...currentAccount,authType:/^[0-9a-f]{64}$/.test(cardToken ?? "") ? "device" : "session"} : undefined)) return;
+    // Web POS item catalog (session only; device tokens are refused above).
+    if (await handlePosItemsRoute(req, res, u, currentAccount)) return;
     if (handleShopRoute(req,res,u)) return;
     if (await handleExtensionsRoute(req,res,u,currentAccount)) return;
     if (await handleReportsRoute(req,res,u,currentAccount)) return;

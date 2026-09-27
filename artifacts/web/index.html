@@ -218,12 +218,52 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .wos-hist{flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:7px;margin:4px 0 12px;color:var(--text3);font-size:13.5px;font-weight:510;cursor:pointer;padding:9px 18px;border-radius:999px;transition:.14s;width:fit-content;margin-left:auto;margin-right:auto}
 .wos-hist:hover{color:var(--text2);background:var(--surface)}
 .wos-spacer{flex:1 1 auto}
-.wos-actions{position:sticky;bottom:0;display:flex;gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--bg) 30%)}
+.wos-actions{position:sticky;bottom:0;display:flex;flex-direction:column;gap:10px;padding:14px 16px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--bg) 30%)}
+.wos-actions .actrow{display:flex;gap:10px}
 .wos-actions .btn{flex:1;justify-content:center;padding:15px 10px;font-size:15.5px;border-radius:999px}
 .btn.receive{background:transparent;border:1.5px solid var(--teal);color:var(--teal)}
 .btn.receive:hover{background:rgba(14,131,136,.1)}
 .btn.send{background:var(--teal);color:#eaffff;border:1.5px solid var(--teal)}
 .btn.send:hover{background:#0f9499;filter:brightness(1.02)}
+/* POS */
+.btn.pos{background:var(--gold);color:#101314;border:1.5px solid var(--gold);font-weight:590}
+.btn.pos:hover{filter:brightness(1.04)}
+.btn.pos[disabled]{opacity:.55;cursor:default}
+.poshead{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:6px 0 14px;flex-wrap:wrap}
+.posmodes{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;width:fit-content}
+.posmodes button{padding:8px 18px;border-radius:999px;font-size:13.5px;font-weight:510;color:var(--text2);transition:.13s}
+.posmodes button.on{background:var(--surface3);color:var(--text)}
+.posgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(146px,1fr));gap:10px}
+.postile{position:relative;display:flex;flex-direction:column;gap:7px;padding:11px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);text-align:left;transition:.13s}
+.postile:hover{background:var(--surface2);border-color:var(--line2)}
+.postile .pimg,.postile .pmono{width:100%;aspect-ratio:1/1;border-radius:7px;object-fit:cover;background:var(--surface2)}
+.postile .pmono{display:grid;place-items:center;font-size:30px;font-weight:590;color:var(--text3)}
+.postile .pname{font-size:13.5px;font-weight:590;letter-spacing:-.1px;line-height:1.25}
+.postile .pprice{font-size:12px;color:var(--text2)}
+.postile .pdesc{font-size:11.5px;color:var(--text3);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.postile .pqty{position:absolute;top:7px;right:7px;background:var(--gold);color:#101314;font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px}
+.posempty{border:1px dashed var(--line2);border-radius:var(--r-md);padding:26px 18px;text-align:center;display:grid;gap:12px;justify-items:center}
+.poscart{margin-top:14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.posline{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--line)}
+.posline:first-child{border-top:0}
+.posline .lname{flex:1;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.posline .lqty{display:flex;align-items:center;gap:7px}
+.posline .qb{width:30px;height:30px;min-width:30px;border:1px solid var(--line2);border-radius:8px;background:var(--surface2);font-size:15px;line-height:1;display:grid;place-items:center}
+.posline .qb:hover{border-color:var(--teal-line)}
+.posline .ltot{font-size:13px;min-width:78px;text-align:right;font-variant-numeric:tabular-nums}
+.posfoot{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:11px 12px;background:var(--surface2)}
+.posfoot .pfiat{font-size:19px;font-weight:600;letter-spacing:-.3px}
+.posfoot .psats{font-size:12px;color:var(--text3)}
+.posamount{text-align:center;font-family:'JetBrains Mono',monospace;font-size:42px;font-weight:600;letter-spacing:-1.5px;margin:8px 0 2px;min-height:52px}
+.posnumpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:330px;margin:16px auto 0}
+.posnumpad button{padding:15px 0;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);font-size:19px;font-weight:510}
+.posnumpad button:hover{background:var(--surface2);border-color:var(--line2)}
+.pospay{text-align:center}
+.pospay .plines{font-size:12.5px;color:var(--text3);margin-top:6px;overflow-wrap:anywhere}
+.posdone{text-align:center;padding:26px 0 8px}
+.posdone .pcheck{font-size:46px;line-height:1;color:var(--ok)}
+.pimgpick{width:64px;height:64px;border:1px dashed var(--line2);border-radius:10px;display:grid;place-items:center;overflow:hidden;cursor:pointer;font-size:10.5px;color:var(--text3);text-align:center;line-height:1.2}
+.pimgpick img{width:100%;height:100%;object-fit:cover}
 @media(max-width:760px){
   .wos-hero{padding:36px 20px 18px}
   .wos-bal{font-size:38px;letter-spacing:-1.3px}
@@ -496,19 +536,19 @@ function modal(html){const w=document.createElement('div');w.className='modal';w
 </script>
 <script>
 /* ============ APP ============ */
-let VIEW=['wallet','ric','cards','settings','partner','adminpayments'].includes(location.hash.slice(1))?location.hash.slice(1):(location.pathname.startsWith('/partner')?'partner':'wallet');
+let VIEW=['wallet','ric','cards','pos','settings','partner','adminpayments'].includes(location.hash.slice(1))?location.hash.slice(1):(location.pathname.startsWith('/partner')?'partner':(localStorage.getItem('openln_pos_launch')==='1'?'pos':'wallet'));
 let IS_ADMIN=false;
 async function probeAdmin(){
   try{ await api('/api/admin/payments/treasury'); IS_ADMIN=true; }
   catch(e){ IS_ADMIN=false; }
 }
-const NAV_ICONS={wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 8h18m-5 5h5m-5 0v3h5"/>',ric:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 6h6M9 10h6m-6 5h1m4 0h1m-6 3h1m4 0h1"/>',cards:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20m-16 5h4"/>',books:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 0-3 3V4z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6m-6 4h4"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>'};
+const NAV_ICONS={wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 8h18m-5 5h5m-5 0v3h5"/>',ric:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 6h6M9 10h6m-6 5h1m4 0h1m-6 3h1m4 0h1"/>',cards:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20m-16 5h4"/>',books:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 0-3 3V4z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6m-6 4h4"/>',pos:'<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 7h6M9 11h2m3 0h1M9 15h2m3 0h1"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>'};
 const navIcon=name=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[name]||NAV_ICONS.wallet}</svg>`;
 let activeDrawer=null;
 function closeDrawer(restoreFocus=true){if(activeDrawer)activeDrawer(restoreFocus)}
 function navigate(view){
   closeDrawer(false);document.querySelectorAll('.toast').forEach(t=>t.remove());
-  VIEW=['wallet','ric','cards','books','settings','partner','adminpayments'].includes(view)?view:'wallet';
+  VIEW=['wallet','ric','cards','books','pos','settings','partner','adminpayments'].includes(view)?view:'wallet';
   history.replaceState(null,'','#'+VIEW);
   window.scrollTo(0,0);
   return render();
@@ -526,7 +566,7 @@ function openDrawer(){
   el.innerHTML=`<aside class="drawer" role="dialog" aria-modal="true" aria-label="openLN menu">
     <div class="drawer-head"><a class="brand" href="#wallet" id="drawerHome">${MARK}<span>open<em>LN</em></span></a><button class="xbtn" id="closeDrawer" aria-label="Close menu">✕</button></div>
     <nav class="drawer-nav" aria-label="Your account">
-      ${[['wallet','Wallet','Your connected balance'],['ric','RIC','Your counter devices'],['cards','Cards','Your tap-to-pay cards'],['books','Books','Statements for your accountant']].map(([v,label,hint])=>`<button class="drawer-link ${VIEW===v?'on':''}" data-drawer-view="${v}" ${VIEW===v?'aria-current="page"':''}>${navIcon(v)}<span class="drawer-label">${label}<small>${hint}</small></span><span class="arrow">›</span></button>`).join('')}
+      ${[['wallet','Wallet','Your connected balance'],['pos','POS','Take payments at the counter'],['ric','RIC','Your counter devices'],['cards','Cards','Your tap-to-pay cards'],['books','Books','Statements for your accountant']].map(([v,label,hint])=>`<button class="drawer-link ${VIEW===v?'on':''}" data-drawer-view="${v}" ${VIEW===v?'aria-current="page"':''}>${navIcon(v)}<span class="drawer-label">${label}<small>${hint}</small></span><span class="arrow">›</span></button>`).join('')}
       <div class="drawer-divider"></div>
       <button class="drawer-link ${VIEW==='settings'?'on':''}" id="drawerSettings">${navIcon('settings')}<span class="drawer-label">Settings</span><span class="arrow">›</span></button>
       ${IS_ADMIN?'<button class="drawer-link" data-drawer-view="adminpayments"><span class="drawer-label">Treasury</span><span class="arrow">›</span></button>':''}
@@ -665,13 +705,14 @@ async function render(){
       $('#brandHome').onclick=e=>{e.preventDefault();location.reload()};
     }
     if(window.applyThemeToggle)window.applyThemeToggle();
-    document.title='openLN | '+({wallet:'Wallet',ric:'RIC',cards:'Cards',settings:'Settings',partner:'Partners',adminpayments:'Treasury'}[view]||'Wallet');
-    $('#view').innerHTML='<div class="view-loading" role="status"><span class="spin"></span><span>Loading '+esc(view==='ric'?'RIC':view)+'…</span></div>';
+    document.title='openLN | '+({wallet:'Wallet',ric:'RIC',cards:'Cards',pos:'Point of sale',settings:'Settings',partner:'Partners',adminpayments:'Treasury'}[view]||'Wallet');
+    $('#view').innerHTML='<div class="view-loading" role="status"><span class="spin"></span><span>Loading '+esc(view==='ric'?'RIC':view==='pos'?'POS':view)+'…</span></div>';
     if(view==='wallet'){
       const [st,bal]=await Promise.all([api('/api/wallet/status'),api('/api/wallet/balance').catch(()=>({balanceSats:null,connected:false,unavailable:true}))]);
       if(version!==renderVersion)return;
       await vWallet(st,bal,version);
     }
+    else if(view==='pos')await vPos(version);
     else if(view==='cards')await vCards();
     else if(view==='books')await vBooks();
     else if(view==='ric')await vRic();
@@ -709,8 +750,11 @@ async function vWallet(st,bal,version=renderVersion){
     <button class="wos-hist" id="bhist" aria-expanded="false">▾ History</button>
     <div class="wos-spacer"></div>
     <div class="wos-actions">
-      <button class="btn receive" id="brecv">Receive</button>
-      <button class="btn send" id="bsend">Send</button>
+      <button class="btn pos" id="bpos" title="Point of sale">POS</button>
+      <div class="actrow">
+        <button class="btn receive" id="brecv">Receive</button>
+        <button class="btn send" id="bsend">Send</button>
+      </div>
     </div>
   </div>`;
   $('#connectWalletHome')?.addEventListener('click',walletModal);
@@ -719,6 +763,7 @@ async function vWallet(st,bal,version=renderVersion){
   if(st.connected && !localStorage.getItem('openln_pin_nudge_dismissed')){
     api('/api/account/send-pin').then(p=>{const n=$('#pinNudge');if(!n||p.set||VIEW!=='wallet')return;n.innerHTML=`<div class="card" style="margin:0 16px 10px;padding:12px 14px;border-color:var(--accent);display:flex;gap:10px;align-items:center"><div style="flex:1"><b style="font-size:13px">Set your 6-digit send PIN</b><div class="dim" style="font-size:12px;margin-top:2px">Needed before your RIC or this wallet can send sats.</div></div><button class="btn teal sm" id="pinNudgeGo">Set</button><button class="xbtn" id="pinNudgeX" title="Later">✕</button></div>`;$('#pinNudgeGo').onclick=()=>navigate('settings');$('#pinNudgeX').onclick=()=>{localStorage.setItem('openln_pin_nudge_dismissed','1');n.innerHTML='';};}).catch(()=>{});
   }
+  $('#bpos').onclick=()=>navigate('pos');
   $('#brecv').onclick=(st.connected||receiveOnly)?receiveModal:walletModal;
   $('#bsend').onclick=receiveOnly?()=>toast('Receive-only: sending needs a full wallet (NWC or a Blink API key)'):(st.connected?sendModal:walletModal);
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
@@ -793,6 +838,301 @@ function txDetail(t){
 }
 const emptyTx=()=>`<div style="padding:34px 0;text-align:center"><div class="dim" style="font-size:13px">No payments yet.<br>Your wallet activity appears here.</div></div>`;
 const extGlyph=id=>({cards:'◧',pos:'▦',reports:'▤',posbox:'▣',shop:'⌂',stripe:'₿',satora:'◈'}[id]||'◆');
+
+/* ---- POS ---- */
+let pos={items:[],cart:[],mode:'items',note:'',num:'',stage:'shop',cur:'',rate:null,inv:null,canSell:false,busy:false,pollT:null,tickT:null};
+const posCurLabel=()=>!pos.cur?'':(pos.cur==='sats'?'sats':pos.cur.toUpperCase());
+function posMoney(v){if(v==null||v==='')return'';if(!pos.cur)return String(v);return pos.cur==='sats'?fmt(v)+' sats':fmtFiat(v,pos.cur)}
+function posSats(fv){if(!Number.isFinite(fv)||fv<=0)return null;if(pos.cur==='sats')return Math.round(fv);if(!pos.rate||pos.rate<=0)return null;return Math.round(fv/pos.rate*1e8)}
+const posCartTotal=()=>pos.cart.reduce((n,l)=>n+l.price*l.qty,0);
+async function posLoadRate(){try{const cfg=await api('/api/pos/config');pos.cur=(cfg.currency||'').toLowerCase();const qs=new URLSearchParams({vs_currency:pos.cur||'sats'});if(cfg.rateModifier)qs.set('modifier',cfg.rateModifier);const p=await api('/api/price?'+qs.toString());pos.rate=Number(p&&p.price)>0?Number(p.price):null}catch(e){pos.rate=null}}
+async function vPos(version=renderVersion){
+  closeDrawer(false);
+  pos.busy=false;
+  if(pos.pollT){clearInterval(pos.pollT);pos.pollT=null}
+  if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
+  const [st,resp]=await Promise.all([api('/api/wallet/status').catch(()=>({connected:false})),api('/api/pos/items').catch(()=>({items:[]}))]);
+  await posLoadRate();
+  pos.items=(resp&&resp.items)||[];
+  if(version!==renderVersion||VIEW!=='pos')return;
+  pos.canSell=!!(st.connected||st.receiveOnly);
+  $('#view').innerHTML=`<div style="max-width:900px;margin:0 auto">
+    <div class="poshead">
+      <div>
+        <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 7px">Point of sale</div>
+        <div class="posmodes"><button type="button" data-pmode="items">Items</button><button type="button" data-pmode="numpad">Numpad</button></div>
+      </div>
+      <div style="display:flex;gap:8px"><button class="btn ghost sm" id="posManage">Edit items</button><button class="btn ghost sm" id="posMenu" aria-label="POS settings">⚙</button></div>
+    </div>
+    ${pos.canSell?'':'<div class="card" style="border-color:var(--teal-line);margin-bottom:12px"><b>Connect a wallet to start selling</b><p class="dim" style="font-size:12.5px;margin-top:6px">Sales are paid straight into your wallet.</p><button class="btn teal sm" id="posConnect" style="margin-top:10px">Connect wallet</button></div>'}
+    <div id="posBody"></div>
+  </div>`;
+  document.querySelectorAll('[data-pmode]').forEach(b=>b.onclick=()=>{pos.mode=b.dataset.pmode;posPaintBody()});
+  $('#posManage').onclick=()=>posItemsModal();
+  $('#posMenu').onclick=()=>posMenuModal();
+  const pc=$('#posConnect');if(pc)pc.onclick=()=>walletModal();
+  $('#posBody').addEventListener('click',posBodyClick);
+  $('#posBody').addEventListener('input',posBodyInput);
+  posPaintBody();
+  if(pos.stage==='pay'&&pos.inv)posStartPoll();
+}
+function posRateLine(){if(!pos.canSell)return 'Connect a wallet to take payments.';if(pos.cur==='sats')return 'Amounts are in sats.';if(pos.rate)return 'Rate: 1 BTC = '+Number(pos.rate).toLocaleString()+' '+posCurLabel();return 'Exchange rate unavailable right now. Try again in a moment.'}
+function posItemsHTML(){
+  if(!pos.items.length)return `<div class="posempty"><span class="dim" style="font-size:13.5px">No items yet. Add your first one, like Cola 25 ${esc(posCurLabel())}.</span><button type="button" class="btn ghost sm" data-act="manage">Add items</button></div>`;
+  return `<div class="posgrid">${pos.items.map(it=>{const q=(pos.cart.find(l=>l.id===it.id)||{}).qty||0;return `<button type="button" class="postile" data-add="${esc(it.id)}">
+    ${it.photo?`<img class="pimg" src="${esc(it.photo)}" alt="">`:`<span class="pmono">${esc((it.name||'?').trim().charAt(0).toUpperCase())}</span>`}
+    <span class="pname">${esc(it.name)}</span>
+    <span class="pprice">${esc(posMoney(Number(it.price)))}</span>
+    ${it.description?`<span class="pdesc">${esc(it.description)}</span>`:''}
+    ${q?`<span class="pqty">${q}</span>`:''}
+  </button>`}).join('')}</div>`;
+}
+function posCartHTML(){
+  if(pos.mode!=='items'||!pos.cart.length)return '';
+  const total=posCartTotal(),sats=posSats(total);
+  return `<div class="poscart">${pos.cart.map(l=>`<div class="posline">
+    <span class="lname">${esc(l.name)}</span>
+    <span class="lqty"><button type="button" class="qb" data-dec="${esc(l.id)}" aria-label="Fewer">−</button><b>${l.qty}</b><button type="button" class="qb" data-inc="${esc(l.id)}" aria-label="More">+</button></span>
+    <span class="ltot mono">${esc(posMoney(l.price*l.qty))}</span>
+    <button type="button" class="qb" data-rm="${esc(l.id)}" aria-label="Remove">✕</button>
+  </div>`).join('')}
+  <div class="posfoot"><span class="pfiat">${esc(posMoney(total))}</span><span class="psats">${sats!=null?'≈ '+fmt(sats)+' sats':''}</span></div></div>`;
+}
+function posNumpadHTML(){
+  const val=pos.num,fv=Number(val||0),sats=posSats(fv);
+  const keys=['1','2','3','4','5','6','7','8','9','.','0','⌫'];
+  return `<div>
+    <div class="posamount">${val?esc(val):'0'}</div>
+    <div style="text-align:center;font-size:13px;color:var(--text3)">${esc(posCurLabel())}${sats!=null&&fv>0?' · ≈ '+fmt(sats)+' sats':''}</div>
+    <div class="posnumpad">${keys.map(k=>`<button type="button" data-key="${k}">${k}</button>`).join('')}<button type="button" data-key="C" style="grid-column:1/4">Clear</button></div>
+  </div>`;
+}
+function posPaintBody(){
+  document.querySelectorAll('[data-pmode]').forEach(b=>b.classList.toggle('on',b.dataset.pmode===pos.mode));
+  const body=$('#posBody');if(!body)return;
+  if(pos.stage==='pay'){posPaintPay();return}
+  if(pos.stage==='done'||pos.stage==='closed'){posPaintResult();return}
+  const chargeVal=pos.mode==='numpad'?(Number(pos.num)||0):posCartTotal();
+  const chargeSats=posSats(chargeVal);
+  const canCharge=pos.canSell&&chargeVal>0&&chargeSats!=null;
+  const label='Charge'+(chargeVal>0?' '+posMoney(chargeVal)+(chargeSats!=null&&pos.cur!=='sats'?' · '+fmt(chargeSats)+' sats':''):'');
+  body.innerHTML=`${pos.mode==='items'?posItemsHTML():posNumpadHTML()}
+    ${posCartHTML()}
+    <div style="margin-top:14px">
+      <label class="field" style="margin:0 0 10px"><span>Note <span class="dim">optional</span></span><input class="input" id="posNote" maxlength="120" placeholder="Table 5, delivery..." value="${esc(pos.note)}"></label>
+      <button type="button" class="btn pos" id="posCharge" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:var(--r-md)" ${canCharge?'':'disabled'}>${esc(label)}</button>
+      <p class="hint" style="text-align:center;margin-top:8px">${posRateLine()}</p>
+    </div>`;
+}
+function posAdd(id){const it=pos.items.find(x=>x.id===id);if(!it)return;const line=pos.cart.find(l=>l.id===id);if(line)line.qty++;else pos.cart.push({id:it.id,name:it.name,price:Number(it.price)||0,qty:1});posPaintBody()}
+function posBump(id,d){const i=pos.cart.findIndex(l=>l.id===id);if(i<0)return;pos.cart[i].qty+=d;if(pos.cart[i].qty<=0)pos.cart.splice(i,1);posPaintBody()}
+function posKey(k){
+  if(k==='C'){pos.num='';posPaintBody();return}
+  if(k==='⌫'){pos.num=pos.num.slice(0,-1);posPaintBody();return}
+  if(pos.num.length>=10)return;
+  if(k==='.'&&(pos.cur==='sats'||pos.num.includes('.')))return;
+  pos.num=pos.num?pos.num+k:k;
+  posPaintBody();
+}
+function posBodyInput(e){if(e.target&&e.target.id==='posNote')pos.note=e.target.value}
+function posBodyClick(e){
+  const t=e.target.closest('button');if(!t)return;
+  const d=t.dataset;
+  if(d.add){posAdd(d.add);return}
+  if(d.inc){posBump(d.inc,1);return}
+  if(d.dec){posBump(d.dec,-1);return}
+  if(d.rm){pos.cart=pos.cart.filter(l=>l.id!==d.rm);posPaintBody();return}
+  if(d.key){posKey(d.key);return}
+  if(t.id==='posCharge'){posCharge();return}
+  if(t.id==='posCancel'){posCancelSale();return}
+  if(t.id==='posNew'){posReset();return}
+  if(t.id==='posBack'){pos.stage='shop';pos.inv=null;posPaintBody();return}
+  if(d.act==='manage'){posItemsModal()}
+}
+async function posCharge(){
+  if(pos.busy)return;
+  const fv=pos.mode==='numpad'?(Number(pos.num)||0):posCartTotal();
+  if(!(fv>0)){toast('Add something to charge');return}
+  if(!pos.canSell){toast('Connect a wallet first');return}
+  const sats=posSats(fv);
+  if(sats==null||sats<1){toast('Exchange rate unavailable. Try again in a moment.');return}
+  const lines=pos.mode==='numpad'?'':pos.cart.map(l=>(l.qty>1?l.qty+'x ':'')+l.name).join(', ');
+  const memo=[lines||'POS sale',pos.note.trim()].filter(Boolean).join(' · ').slice(0,140);
+  pos.busy=true;
+  const btn=$('#posCharge');if(btn)btn.disabled=true;
+  try{
+    const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:sats,memo,purpose:'sale'})});
+    pos.inv={paymentHash:inv.paymentHash,amountSats:Number(inv.amountSats)||sats,feeSats:Number(inv.feeSats)||0,fiat:fv,memo,expiresAt:inv.expiresAt};
+    pos.stage='pay';
+    posPaintBody();
+    posStartPoll();
+  }catch(x){toast(/wallet not configured/i.test(String(x.message))?'Connect a wallet to start selling first':x.message||'Could not create the invoice');posPaintBody()}
+  finally{pos.busy=false}
+}
+function posStartPoll(){
+  if(pos.pollT)clearInterval(pos.pollT);
+  const hash=pos.inv.paymentHash;
+  const tick=async()=>{
+    if(VIEW!=='pos'||pos.stage!=='pay'){clearInterval(pos.pollT);pos.pollT=null;return}
+    try{
+      const s=await api('/api/pos/invoice/'+encodeURIComponent(hash)+'/status');
+      if(s.status==='paid'){clearInterval(pos.pollT);pos.pollT=null;posToDone();return}
+      if(['expired','cancelled','unknown','needs_reconciliation'].includes(s.status)){clearInterval(pos.pollT);pos.pollT=null;posToClosed(s.status);return}
+      posPayStatus(s.status);
+    }catch(e){}
+  };
+  pos.pollT=setInterval(tick,3000);tick();
+  if(pos.tickT)clearInterval(pos.tickT);
+  pos.tickT=setInterval(posCountdown,1000);posCountdown();
+}
+function posPayStatus(status){const el=$('#posStatText');if(!el)return;el.textContent=['accepted','forwarding','forwarded'].includes(status)?'Payment received · finishing up':'Waiting for payment…'}
+function posCountdown(){const el=$('#posCount');if(!el||!pos.inv)return;const exp=pos.inv.expiresAt?new Date(pos.inv.expiresAt).getTime():0;if(!exp){el.textContent='';return}const left=Math.max(0,Math.round((exp-Date.now())/1000));el.textContent=left>0?('Expires in '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0')):'Holding the quote, checking with the network…'}
+function posPaintPay(){
+  const body=$('#posBody');if(!body||!pos.inv)return;
+  const inv=pos.inv;
+  body.innerHTML=`<div class="pospay">
+    <div class="mono" style="font-size:34px;font-weight:600;letter-spacing:-1px">${esc(posMoney(inv.fiat))}</div>
+    <div style="font-size:13px;color:var(--text3);margin-top:3px">${fmt(inv.amountSats)} sats${inv.feeSats?' · fee '+fmt(inv.feeSats)+' sats':''}</div>
+    <div class="plines">${esc(inv.memo)}</div>
+    <div class="qrwrap" style="margin-top:12px"><img src="/api/payments/${encodeURIComponent(inv.paymentHash)}/qr" alt="Invoice QR" width="240" height="240"></div>
+    <div class="invstatus wait" id="posStat" style="margin-top:10px"><span class="pulse"></span><span id="posStatText">Waiting for payment…</span></div>
+    <p class="hint" id="posCount" style="margin-top:6px"></p>
+    <button type="button" class="btn ghost" id="posCancel" style="margin-top:14px;padding:12px 26px">Cancel sale</button>
+  </div>`;
+  posCountdown();
+}
+async function posCancelSale(){
+  if(pos.busy||!pos.inv)return;pos.busy=true;
+  try{
+    const r=await api('/api/pos/invoice/'+encodeURIComponent(pos.inv.paymentHash)+'/cancel',{method:'POST'});
+    if(r&&r.status==='paid'){posToDone();return}
+    if(r&&['accepted','forwarding','forwarded'].includes(r.status)){toast('Payment is already in progress');return}
+    if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
+    pos.stage='shop';pos.inv=null;posPaintBody();
+  }catch(x){toast(x.message||'Could not cancel the sale')}
+  finally{pos.busy=false}
+}
+function posToDone(){
+  if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
+  if(pos.pollT){clearInterval(pos.pollT);pos.pollT=null}
+  pos.stage='done';posPaintBody();toast('Payment received');
+  setTimeout(()=>{if(VIEW==='pos'&&pos.stage==='done')posReset()},5000);
+}
+function posToClosed(status){
+  if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
+  pos.closedReason=status==='needs_reconciliation'?'The payment could not be completed. Nothing was charged.':status==='expired'?'The invoice expired before payment.':'The sale was cancelled.';
+  pos.stage='closed';posPaintBody();
+}
+function posPaintResult(){
+  const body=$('#posBody');if(!body)return;
+  if(pos.stage==='done'){
+    const inv=pos.inv||{};
+    body.innerHTML=`<div class="posdone">
+      <div class="pcheck">✓</div>
+      <div class="mono" style="font-size:30px;font-weight:600;margin-top:10px">${esc(posMoney(inv.fiat))}</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px">${fmt(inv.amountSats||0)} sats</div>
+      <div class="invstatus paid" style="margin-top:14px"><span class="pulse ok"></span>Payment received</div>
+      <button type="button" class="btn pos" id="posNew" style="width:100%;max-width:340px;justify-content:center;padding:14px;margin-top:20px">New sale</button>
+    </div>`;
+  }else{
+    body.innerHTML=`<div class="posdone">
+      <div style="font-size:40px;line-height:1">✕</div>
+      <b style="display:block;margin-top:10px;font-size:15px">Sale not completed</b>
+      <p class="dim" style="font-size:13px;margin-top:6px">${esc(pos.closedReason||'')}</p>
+      <button type="button" class="btn ghost" id="posBack" style="width:100%;max-width:340px;justify-content:center;padding:13px;margin-top:18px">Back to the sale</button>
+    </div>`;
+  }
+}
+function posReset(){
+  pos.stage='shop';pos.cart=[];pos.note='';pos.num='';pos.inv=null;
+  if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
+  posPaintBody();
+}
+function posMenuModal(){
+  const m=modal(`<div class="modalhead"><h2>POS settings</h2><button class="xbtn" aria-label="Close">✕</button></div>
+    <label style="display:flex;gap:12px;align-items:flex-start;padding:4px 0;cursor:pointer">
+      <input type="checkbox" id="posLaunch" ${localStorage.getItem('openln_pos_launch')==='1'?'checked':''} style="margin-top:3px;width:18px;height:18px;accent-color:var(--gold)">
+      <span><b style="font-size:13.5px">Open POS at launch</b><div class="dim" style="font-size:12.5px;margin-top:3px">On this device only: opening openLN goes straight to the point of sale. Good for a counter tablet.</div></span>
+    </label>`);
+  m.querySelector('#posLaunch').onchange=e=>{if(e.target.checked){localStorage.setItem('openln_pos_launch','1');toast('This device now opens in the POS')}else{localStorage.removeItem('openln_pos_launch');toast('This device opens in the wallet again')}};
+}
+function posItemsModal(){
+  const m=modal(`<div class="modalhead"><h2>Items</h2><button class="xbtn" aria-label="Close">✕</button></div>
+    <p class="muted" style="font-size:12.5px;margin-bottom:10px">These tiles appear on the POS pad. Tap an item at the counter to add it to the sale.</p>
+    <div id="pilist"></div>
+    <button class="btn ghost" id="piadd" style="width:100%;justify-content:center;margin-top:12px">Add item</button>`);
+  const refresh=async()=>{try{const r=await api('/api/pos/items');pos.items=(r&&r.items)||[]}catch(e){}paintList();if(VIEW==='pos')posPaintBody()};
+  const paintList=()=>{
+    const list=m.querySelector('#pilist');
+    list.innerHTML=pos.items.length?pos.items.map(it=>`<div style="display:flex;align-items:center;gap:11px;padding:9px 2px;border-top:1px solid var(--line)">
+      ${it.photo?`<img src="${esc(it.photo)}" alt="" style="width:38px;height:38px;border-radius:9px;object-fit:cover;flex-shrink:0">`:`<span style="width:38px;height:38px;border-radius:9px;background:var(--surface2);display:grid;place-items:center;font-weight:590;color:var(--text3);flex-shrink:0">${esc((it.name||'?').charAt(0).toUpperCase())}</span>`}
+      <span style="flex:1;min-width:0"><b style="font-size:13.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</b><span class="dim" style="font-size:12px">${esc(posMoney(Number(it.price)))}${it.description?' · '+esc(it.description):''}</span></span>
+      <button class="btn ghost sm" data-pedit="${esc(it.id)}">Edit</button>
+    </div>`).join(''):'<p class="dim" style="font-size:13px;padding:8px 0">No items yet.</p>';
+    list.querySelectorAll('[data-pedit]').forEach(b=>b.addEventListener('click',()=>{const it=pos.items.find(x=>x.id===b.dataset.pedit);if(it)posItemForm(it,refresh)}));
+  };
+  paintList();
+  m.querySelector('#piadd').onclick=()=>posItemForm(null,refresh);
+}
+function posItemForm(it,onSaved){
+  const m=modal(`<div class="modalhead"><h2>${it?'Edit item':'New item'}</h2><button class="xbtn" aria-label="Close">✕</button></div>
+    <form id="pif">
+      <label class="field"><span>Photo <span class="dim">optional</span></span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <label class="pimgpick" id="pipick" title="Add a photo">${it&&it.photo?`<img src="${esc(it.photo)}" alt="">`:'<span>Add<br>photo</span>'}<input type="file" accept="image/*" id="piphoto" hidden></label>
+          <button type="button" class="btn ghost sm" id="piclear" ${it&&it.photo?'':'style="display:none"'}>Remove photo</button>
+        </div>
+      </label>
+      <label class="field" style="margin-top:12px"><span>Name</span><input class="input" name="name" maxlength="60" required placeholder="Cola" value="${it?esc(it.name):''}"></label>
+      <label class="field" style="margin-top:10px"><span>Price <span class="dim">in ${esc(posCurLabel()||'your currency')}</span></span><input class="input" name="price" inputmode="decimal" required placeholder="25" value="${it?esc(it.price):''}"></label>
+      <label class="field" style="margin-top:10px"><span>Description <span class="dim">optional</span></span><input class="input" name="description" maxlength="200" placeholder="Chilled can, 330 ml" value="${it&&it.description?esc(it.description):''}"></label>
+      <button class="btn gold" style="width:100%;justify-content:center;padding:12px;margin-top:6px">${it?'Save changes':'Add item'}</button>
+      <div id="pierr"></div>
+    </form>
+    ${it?'<button type="button" class="btn ghost sm" id="pidel" style="width:100%;justify-content:center;margin-top:10px;color:var(--err)">Delete item</button>':''}`);
+  let photo=it&&it.photo?it.photo:null;
+  const pick=m.querySelector('#pipick');
+  m.querySelector('#piphoto').addEventListener('change',async e=>{
+    const f=e.target.files&&e.target.files[0];if(!f)return;
+    try{photo=await posShrinkImage(f);pick.innerHTML=`<img src="${esc(photo)}" alt="">`;m.querySelector('#piclear').style.display=''}catch(x){toast('Could not read that image')}
+  });
+  m.querySelector('#piclear').addEventListener('click',()=>{photo=null;pick.innerHTML='<span>Add<br>photo</span>';m.querySelector('#piclear').style.display='none'});
+  m.querySelector('#pif').onsubmit=async e=>{
+    e.preventDefault();
+    const b=Object.fromEntries(new FormData(e.target));
+    const err=m.querySelector('#pierr');err.innerHTML='';
+    const payload={name:b.name,price:Number(String(b.price).replace(',','.')),description:b.description||null,photo};
+    try{
+      if(it)await api('/api/pos/items/'+encodeURIComponent(it.id),{method:'PATCH',body:JSON.stringify(payload)});
+      else await api('/api/pos/items',{method:'POST',body:JSON.stringify(payload)});
+      m.remove();if(onSaved)await onSaved();
+    }catch(x){err.innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${prose(x.message||'Could not save')}</p>`}
+  };
+  const del=m.querySelector('#pidel');
+  if(del)del.onclick=async()=>{
+    if(!confirm('Delete '+it.name+'? Paid invoices are not affected.'))return;
+    try{await api('/api/pos/items/'+encodeURIComponent(it.id),{method:'DELETE'});m.remove();if(onSaved)await onSaved()}catch(x){toast(x.message||'Could not delete')}
+  };
+}
+function posShrinkImage(file,size=256,q=0.72){
+  return new Promise((res,rej)=>{
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=async()=>{
+      try{
+        let w=img.naturalWidth||size,h=img.naturalHeight||size;
+        if(w>=h&&w>size){h=Math.round(h*size/w);w=size}else if(h>w&&h>size){w=Math.round(w*size/h);h=size}
+        const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
+        const data=c.toDataURL('image/jpeg',q);
+        URL.revokeObjectURL(url);
+        if(data.length>45000&&size>160){res(await posShrinkImage(file,160,0.6));return}
+        res(data);
+      }catch(e){URL.revokeObjectURL(url);rej(e)}
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(Error('image'))};
+    img.src=url;
+  });
+}
+
 /* ---- RECEIVE ---- */
 function receiveModal(){
   const m=modal(`<div class="modalhead"><h2>Receive sats</h2><button class="xbtn">✕</button></div>

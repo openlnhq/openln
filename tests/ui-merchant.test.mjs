@@ -31,3 +31,16 @@ test('every inline script in index.html parses (a syntax error blanks the whole 
   assert.ok(blocks.length>=2,'index.html is expected to keep its inline scripts');
   for(const [i,block] of blocks.entries()) assert.doesNotThrow(()=>new vm.Script(block,{filename:`index.html script ${i}`}),`inline script ${i} must compile`);
 });
+test('POS ships an item pad, numpad, checkout and a wallet entry point',()=>{
+  const pos=html.slice(html.indexOf('/* ---- POS ---- */'),html.indexOf('/* ---- RECEIVE ---- */'));
+  assert.ok(pos.includes('async function vPos('),'POS view exists');
+  assert.ok(pos.includes("api('/api/pos/items'"),'POS loads the item catalog');
+  assert.ok(pos.includes('openln_pos_launch'),'Launch preference is stored per device');
+  assert.ok(pos.includes("purpose:'sale'"),'POS charges create sale invoices');
+  assert.ok(pos.includes("'/status'"),'POS polls the sale status');
+  assert.ok(pos.includes('posShrinkImage('),'Item photos are downscaled before saving');
+  const wallet=html.slice(html.indexOf('async function vWallet('),html.indexOf('function txDetail('));
+  assert.ok(wallet.includes('id="bpos"'),'Wallet dashboard has the POS button');
+  assert.ok(html.includes("['wallet','ric','cards','books','pos','settings','partner','adminpayments'].includes(view)"),'pos is a routable view');
+  assert.ok(html.includes("localStorage.getItem('openln_pos_launch')==='1'?'pos':'wallet'"),'Open POS at launch is honored on load');
+});

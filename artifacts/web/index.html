@@ -1890,7 +1890,7 @@ async function cardBridgeFind(){
   if(window.openlnBridge&&typeof window.openlnBridge.request==='function'){
     const request=p=>window.openlnBridge.request(p);
     let status=null;try{status=await request({cmd:'status'})}catch(e){}
-    CARD_BRIDGE={kind:'extension',label:'browser extension',sim:!!(status&&status.sim),reader:(status&&status.reader)||null,request};
+    CARD_BRIDGE={kind:'extension',label:'browser extension',sim:!!(status&&status.sim),reader:(status&&status.reader)||null,note:(status&&status.note)||null,request};
     return CARD_BRIDGE;
   }
   try{
@@ -1904,7 +1904,7 @@ async function cardBridgeFind(){
           const r=await fetch(base+'/api/'+payload.cmd,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
           return r.json();
         };
-        CARD_BRIDGE={kind:'helper',label:'local helper',sim:!!st.sim,reader:st.reader||null,request};
+        CARD_BRIDGE={kind:'helper',label:'local helper',sim:!!st.sim,reader:st.reader||null,note:st.note||null,request};
         return CARD_BRIDGE;
       }
     }
@@ -1973,6 +1973,7 @@ async function cardWritePane(box,card,opts={}){
   }
   box.innerHTML=`
     <p class="muted setup-copy" style="margin-bottom:8px">Reader: <b>${esc(cardBridgeLabel(bridge))}</b></p>
+    ${bridge.sim?`<p class="hint" style="margin-bottom:8px;color:#e0a83a">Simulator mode: the helper has no card reader attached, so nothing is written to a physical card.${bridge.note?' '+esc(bridge.note)+'.':''} Connect the reader, then restart the helper to write real cards.</p>`:''}
     <p class="muted setup-copy"><b>Place the blank card flat on the reader</b> and keep it there. Then press Write.</p>
     <button class="btn teal" id="cwGo" style="width:100%;justify-content:center;padding:11px;margin-top:12px">Write card</button>
     <div class="codebox mono" id="cwLog" style="font-size:11px;margin-top:12px;display:none;max-height:170px;overflow:auto"></div>`;
@@ -2023,6 +2024,7 @@ async function cardWipeReaderPane(box,card,onDone){
   }
   box.innerHTML=`<button class="btn danger" id="wipeHere" style="width:100%;justify-content:center;padding:11px">Erase this card now</button>
     <p class="hint" style="margin-top:6px">Reader: ${esc(cardBridgeLabel(bridge))}. Hold the card on the reader while it erases.</p>
+    ${bridge.sim?`<p class="hint" style="margin-top:6px;color:#e0a83a">Simulator mode: no card reader attached, so a physical card is not erased.${bridge.note?' '+esc(bridge.note)+'.':''}</p>`:''}
     <div class="codebox mono" id="cwWipeLog" style="font-size:11px;margin-top:10px;display:none;max-height:150px;overflow:auto"></div>`;
   const logline=t=>{const l=box.querySelector('#cwWipeLog');if(!l)return;l.style.display='block';const line=document.createElement('div');line.textContent=t;l.append(line);l.scrollTop=l.scrollHeight};
   const btn=box.querySelector('#wipeHere');

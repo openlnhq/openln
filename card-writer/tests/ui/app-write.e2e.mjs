@@ -72,7 +72,9 @@ const setVal = (page, sel, v) =>
 const spawned = await ensureBridge();
 const browser = await puppeteer.launch({
   executablePath: SHELL,
-  args: ["--no-sandbox", "--disable-gpu"],
+  // DISABLE_LNA=1 relaxes Chrome's local network access check for http://127.0.0.1
+  // when testing against a remote https origin (the browser would normally prompt).
+  args: ["--no-sandbox", "--disable-gpu", ...(process.env.DISABLE_LNA ? ["--disable-features=LocalNetworkAccessChecks"] : [])],
   defaultViewport: { width: 1400, height: 1050 },
 });
 

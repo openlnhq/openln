@@ -35,6 +35,8 @@ globalThis.fetch=async (input,init)=>{
   if(u.hostname==='ln.test'){
     if(u.pathname==='/.well-known/lnurlp/alice')return json({status:'OK',tag:'payRequest',callback:'https://ln.test/pay/alice',minSendable:1000,maxSendable:100000000000,commentAllowed:255});
     if(u.pathname==='/.well-known/lnurlp/carol')return json({status:'OK',tag:'payRequest',callback:'https://ln.test/pay/carol',minSendable:1000,maxSendable:500000,commentAllowed:10});
+    if(u.pathname==='/.well-known/lnurlp/dave')return json({status:'OK',tag:'payRequest',callback:'https://ln.test/pay/dave',minSendable:1000,maxSendable:100000000000,commentAllowed:0});
+    if(u.pathname==='/pay/dave')return json({error:true,message:'Recipient wallet error. Please contact the recipient.'}); // getalby-style failure shape
     if(u.pathname==='/pay/alice')return json({pr:mkBolt11(randomHash())});
     if(u.pathname==='/pay/carol'){
       carolComment=u.searchParams.get('comment');
@@ -152,6 +154,13 @@ test('login codes and unclassifiable input are explained, not paid',async()=>{
   assert.equal(j.kind,'unsupported');
   j=await (await resolve(a.token,'lno1pqps7sjq')).json();
   assert.equal(j.kind,'unsupported');assert.match(j.message,/BOLT12/i);
+});
+
+test('provider-side invoice errors surface the provider message',async()=>{
+  const a=await register();
+  const r=await resolve(a.token,'dave@ln.test',{amountSats:100});
+  assert.equal(r.status,400);
+  assert.match((await r.json()).error,/Recipient wallet error/);
 });
 
 test('an unreachable payee is explained without leaking network errors',async()=>{

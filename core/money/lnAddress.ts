@@ -241,6 +241,8 @@ export async function requestLnurlInvoiceFromMeta(
   if (!resp.ok) throw new Error(`Provider invoice request failed (${resp.status})`);
   const data = await resp.json() as Record<string, unknown>;
   if (data.status === "ERROR") throw new Error(`Provider invoice error: ${data.reason}`);
+  // Some providers (e.g. getalby) report failures as {error:true, message:"..."}.
+  if (data.error && typeof data.message === "string") throw new Error(String(data.message).slice(0, 200));
 
   const bolt11 = String(data.pr ?? "");
   if (!bolt11) throw new Error("Provider returned no invoice");

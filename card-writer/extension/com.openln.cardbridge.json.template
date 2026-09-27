@@ -1,0 +1,7 @@
+{
+  "name": "com.openln.cardbridge",
+  "description": "openLN Card Bridge — local NTAG424 DNA APDU transport for the openLN card writer",
+  "path": "__BRIDGE_PATH__",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://iikjoajfihdnhkeaglmidonioplochdg/"]
+}

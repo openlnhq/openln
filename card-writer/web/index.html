@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>openLN card writer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="bolt">⚡</span>
+      <span class="name">openLN</span>
+      <span class="sub">card writer</span>
+    </div>
+    <div class="bridge-pill" id="bridge-pill" title="Local card bridge status">
+      <span class="dot" id="bridge-dot"></span>
+      <span id="bridge-label">checking bridge…</span>
+    </div>
+  </header>
+
+  <main>
+    <nav class="tabs" id="tabs">
+      <button data-tab="write" class="active">Write card</button>
+      <button data-tab="wipe">Wipe card</button>
+      <button data-tab="info">Card info</button>
+      <button data-tab="setup">Setup</button>
+    </nav>
+
+    <!-- ── WRITE ─────────────────────────────────────────────────────────── -->
+    <section id="tab-write" class="tab">
+      <div class="grid">
+        <div class="panel">
+          <h2>1 · Card data</h2>
+          <div class="radios">
+            <label><input type="radio" name="src" value="token" checked /> openLN device token</label>
+            <label><input type="radio" name="src" value="link" /> Provision link or JSON</label>
+            <label><input type="radio" name="src" value="manual" /> Manual keys</label>
+          </div>
+
+          <div id="src-token" class="src-pane">
+            <p class="hint">Pulls the next card waiting for programming from your openLN server.</p>
+            <label>Device token</label>
+            <input id="device-token" type="password" placeholder="64 character device token" autocomplete="off" spellcheck="false" />
+            <button id="btn-next" class="ghost">Get next card</button>
+          </div>
+
+          <div id="src-link" class="src-pane" hidden>
+            <p class="hint">Paste the card's provision link (from the QR) or a saved JSON payload.</p>
+            <label>Provision link or JSON</label>
+            <textarea id="provision-input" rows="4" spellcheck="false" placeholder="https://openln.com/api/provision/… or { &quot;lnurlw_base&quot;: … }"></textarea>
+            <button id="btn-parse" class="ghost">Load</button>
+          </div>
+
+          <div id="src-manual" class="src-pane" hidden>
+            <p class="hint">For lab cards or offline provisioning. Keys are 32 hex characters each.</p>
+            <label>lnurlw base</label>
+            <input id="manual-base" spellcheck="false" placeholder="lnurlw://openln.com/card/&lt;uuid&gt;" />
+            <div class="keys">
+              <input id="manual-k0" placeholder="k0" spellcheck="false" />
+              <input id="manual-k1" placeholder="k1" spellcheck="false" />
+              <input id="manual-k2" placeholder="k2" spellcheck="false" />
+              <input id="manual-k3" placeholder="k3" spellcheck="false" />
+              <input id="manual-k4" placeholder="k4" spellcheck="false" />
+            </div>
+            <button id="btn-manual" class="ghost">Load keys</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>2 · Program</h2>
+          <dl id="write-summary" class="summary"><div class="empty-note">No card data loaded yet.</div></dl>
+          <label class="row check">
+            <input id="opt-rid" type="checkbox" />
+            <span>Set random UID (privacy)<span class="hint inline"> · irreversible, chip stops showing its real UID</span></span>
+          </label>
+          <button id="btn-write" class="primary" disabled>Write card</button>
+          <pre id="write-log" class="log" hidden></pre>
+          <div id="write-result" class="result" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── WIPE ──────────────────────────────────────────────────────────── -->
+    <section id="tab-wipe" class="tab" hidden>
+      <div class="grid">
+        <div class="panel">
+          <h2>1 · Card to wipe</h2>
+          <p class="hint">Wiping resets the chip to factory keys and clears its NDEF. The card stops working as a Bolt Card. It can be programmed again afterwards.</p>
+          <label>Card id (uuid)</label>
+          <input id="wipe-card-id" spellcheck="false" placeholder="123e4567-e89b-12d3-a456-426614174000" />
+          <label>Device token (if fetching keys from openLN)</label>
+          <input id="wipe-token" type="password" placeholder="optional, otherwise paste keys below" autocomplete="off" spellcheck="false" />
+          <button id="btn-wipe-fetch" class="ghost">Fetch wipe keys</button>
+          <details class="manual">
+            <summary>Or paste keys manually</summary>
+            <div class="keys">
+              <input id="wipe-k0" placeholder="k0" spellcheck="false" />
+              <input id="wipe-k1" placeholder="k1" spellcheck="false" />
+              <input id="wipe-k2" placeholder="k2" spellcheck="false" />
+              <input id="wipe-k3" placeholder="k3" spellcheck="false" />
+              <input id="wipe-k4" placeholder="k4" spellcheck="false" />
+            </div>
+            <button id="btn-wipe-manual" class="ghost">Use these keys</button>
+          </details>
+        </div>
+
+        <div class="panel">
+          <h2>2 · Erase</h2>
+          <dl id="wipe-summary" class="summary"><div class="empty-note">No keys loaded yet.</div></dl>
+          <button id="btn-wipe" class="danger" disabled>Wipe card</button>
+          <pre id="wipe-log" class="log" hidden></pre>
+          <div id="wipe-result" class="result" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── INFO ──────────────────────────────────────────────────────────── -->
+    <section id="tab-info" class="tab" hidden>
+      <div class="grid">
+        <div class="panel">
+          <h2>Read card</h2>
+          <p class="hint">Reads the chip in front of the reader: NDEF content, version, key versions. Enter k0 to also verify the master key and read the UID.</p>
+          <label>k0 (optional)</label>
+          <input id="info-k0" placeholder="32 hex characters" spellcheck="false" />
+          <button id="btn-info" class="ghost">Read</button>
+        </div>
+        <div class="panel">
+          <h2>Card details</h2>
+          <pre id="info-log" class="log" hidden></pre>
+          <div id="info-result" class="result" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SETUP ─────────────────────────────────────────────────────────── -->
+    <section id="tab-setup" class="tab" hidden>
+      <div class="grid">
+        <div class="panel">
+          <h2>Connection</h2>
+          <dl id="setup-status" class="summary"><div class="empty-note">…</div></dl>
+          <label>openLN server</label>
+          <input id="setup-server" spellcheck="false" placeholder="https://openln.com" />
+          <label>Device token (saved locally in this browser)</label>
+          <input id="setup-token" type="password" autocomplete="off" spellcheck="false" placeholder="64 character device token" />
+          <button id="btn-save-setup" class="ghost">Save</button>
+          <div class="sim-box" id="sim-box" hidden>
+            <h3>Simulator</h3>
+            <p class="hint">No NFC reader is in use. Writes and wipes run against a built-in chip simulation, so you can click through the whole flow. Plug in a reader and restart the bridge for hardware.</p>
+            <button id="btn-sim-reset" class="ghost">Reset simulated card</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Install hints</h2>
+          <ol class="steps">
+            <li><strong>Reader</strong>: plug in a PC/SC NFC reader (ACR122U, ACR1252U, PN532 kits work). Install pyscard on the machine running the bridge: <code>pip install pyscard</code>.</li>
+            <li><strong>Bridge</strong>: run <code>python3 bridge/openln-cardbridge.py --http</code> and open this page, or install the Chrome extension for hands-free use from openln.com.</li>
+            <li><strong>Extension</strong>: chrome://extensions → Developer mode → Load unpacked → pick the <code>extension/</code> folder. The native host is registered by <code>./install.sh</code>.</li>
+          </ol>
+          <p class="hint">Simulation mode lets you try everything before any hardware shows up.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>openLN card writer</span>
+    <span id="footer-bridge"></span>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

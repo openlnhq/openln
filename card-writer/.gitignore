@@ -1,0 +1,5 @@
+node_modules/
+tests/oracle/lawalletio-ntag424.mjs
+tests/ui/shots/
+*.log
+__pycache__/

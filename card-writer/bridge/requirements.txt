@@ -1,0 +1,8 @@
+# openLN card bridge — Python dependencies
+#
+# Always needed (simulator mode + openLN API forwarding):
+cryptography>=41
+#
+# Required for real USB NFC readers (not needed for --sim):
+#   pip install pyscard
+#   Linux also needs the pcscd daemon and libpcsclite (e.g. apt install pcscd).

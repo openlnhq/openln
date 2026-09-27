@@ -135,6 +135,24 @@ const server = createServer(async (req, res) => {
       catch { return res.end("<!doctype html><title>openLN</title><h1>openLN</h1><a href='/app'>Open wallet</a>"); }
     }
     if (req.method === "GET" && (u.pathname === "/app" || u.pathname === "/app/" || u.pathname === "/partner" || u.pathname === "/partner/")) { try { const html = await readFile(join(process.cwd(), "artifacts/web/index.html"), "utf8"); res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(html); } catch { return json(res, 500, { error: "Web application unavailable" }); } }
+    // Card writer (/card-writer/): browser-based NTAG424 write/wipe tool for
+    // BoltCards. Static page + engine served straight from the repo; the page
+    // talks to a local bridge (Chrome extension or http://127.0.0.1:17777)
+    // for the actual APDU transport, so no server-side crypto is involved.
+    if (req.method === "GET" && (u.pathname === "/card-writer" || u.pathname === "/card-writer/")) { try { return res.end(await readFile(new URL("../../card-writer/web/index.html", import.meta.url), "utf8")); } catch { return json(res, 404, { error: "Card writer not found" }); } }
+    if (req.method === "GET" && u.pathname.startsWith("/card-writer/")) {
+      let rel = u.pathname.slice("/card-writer/".length).replace(/[^a-zA-Z0-9._/-]/g, "");
+      const top = rel.split("/")[0];
+      const dir = top === "engine" || top === "bridge" || top === "extension" ? top + "/" : "";
+      if (dir) rel = rel.slice(top.length + 1);
+      if (!rel || rel.includes("..") || rel.startsWith("/") || rel.includes("//")) return json(res, 404, { error: "Not found" });
+      try {
+        const data = await readFile(new URL("../../card-writer/" + (dir || "web/") + rel, import.meta.url));
+        const type = rel.endsWith(".html") ? "text/html; charset=utf-8" : rel.endsWith(".js") || rel.endsWith(".mjs") ? "text/javascript; charset=utf-8" : rel.endsWith(".css") ? "text/css; charset=utf-8" : rel.endsWith(".json") ? "application/json; charset=utf-8" : rel.endsWith(".svg") ? "image/svg+xml" : "text/plain; charset=utf-8";
+        res.writeHead(200, { "content-type": type, "cache-control": "no-cache" });
+        return res.end(data);
+      } catch { return json(res, 404, { error: "Not found" }); }
+    }
     if (req.method === "GET" && u.pathname === "/api/plugins") return json(res, 200, registry.list());
     if (req.method === "POST" && u.pathname === "/api/auth/register") { const v = await body(req); try { return json(res, 201, await auth.register(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { return json(res, 200, await auth.login(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }

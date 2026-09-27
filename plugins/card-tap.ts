@@ -73,13 +73,10 @@ async function tap(req: Request, res: Response): Promise<void> {
   // The Bolt Card NFC Creator app verifies the lnurlw endpoint is reachable
   // after programming by sending all-zero p and c values. We must respond with
   // a valid withdrawRequest - AES-SUN cannot be verified with zero inputs.
-  // Web (phone-written) cards have no chip keys, so zero p/c values are real
-  // taps for them, not a reachability probe; they are handled further down.
-  const isWebCard = card.writeMode === "web";
   const isProvisioningTest =
     /^0+$/.test(pHex) && /^0+$/.test(cHex) && pHex.length > 0 && cHex.length > 0;
 
-  if (isProvisioningTest && !isWebCard) {
+  if (isProvisioningTest) {
     logger.info({ cardId }, "Bolt Card provisioning verification test received");
     const provTestResp: Record<string, unknown> = {
       tag: "withdrawRequest",
@@ -98,87 +95,70 @@ async function tap(req: Request, res: Response): Promise<void> {
   // Balance is NOT checked here - Veil is the source of truth and the live
   // balance check happens at the callback stage. Keeping the tap fast and
   // reliable matters more than an early balance error.
-  if ((!pHex || !cHex) && !isWebCard) {
+  if (!pHex || !cHex) {
     res.json({ status: "ERROR", reason: "Missing p or c parameter" });
     return;
   }
 
+  // ── AES SUN verification - decrypt stored keys first ─────────────────────
+  let key1Hex: string;
+  let key2Hex: string;
+  try {
+    key1Hex = resolveKey(card.aesKey1);
+    key2Hex = resolveKey(card.aesKey2);
+  } catch {
+    logger.error({ cardId }, "Failed to decrypt card AES keys");
+    res.json({ status: "ERROR", reason: "Internal error" });
+    return;
+  }
+
+  const sunData = decryptSunP(key1Hex, pHex);
+  if (!sunData) {
+    logger.warn({ cardId }, "Bolt Card p-parameter decryption failed - card keys likely out of sync with DB");
+    res.json({ status: "ERROR", reason: "Card authentication failed. If you recently wiped this card, please re-provision it." });
+    return;
+  }
+
+  if (!verifySunC(key2Hex, sunData.uid, sunData.counter, cHex)) {
+    logger.warn({ cardId }, "Bolt Card CMAC verification failed");
+    res.json({ status: "ERROR", reason: "Card authentication failed (CMAC mismatch). Please re-provision the card." });
+    return;
+  }
+
+  // ── Counter replay protection ─────────────────────────────────────────────
+  // Row-level lock ensures only one concurrent tap can advance the counter.
   const k1 = generateK1();
   const k1ExpiresAt = new Date(Date.now() + K1_TTL_MS);
 
-  if (isWebCard) {
-    // ── Web (phone-written) card: no chip crypto ─────────────────────────────
-    // The chip carries a plain link with no keys, so there is nothing to
-    // decrypt or verify. Issue a fresh single-use k1; per-tap and daily limits
-    // and the PIN are enforced by the callback exactly as for SUN cards.
-    const [live] = await db
+  const advanced = await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ counter: cardsTable.counter })
+      .from(cardsTable)
+      .where(eq(cardsTable.id, cardId))
+      .for("update");
+
+    if (!current) return false;
+    if (sunData.counter <= current.counter) return false;
+
+    await tx
       .update(cardsTable)
-      .set({ pendingK1: k1, pendingK1ExpiresAt: k1ExpiresAt, lastUsedAt: new Date() })
-      .where(and(eq(cardsTable.id, cardId), eq(cardsTable.status, "active")))
-      .returning({ id: cardsTable.id });
+      .set({
+        counter: sunData.counter,
+        lastUsedAt: new Date(),
+        pendingK1: k1,
+        pendingK1ExpiresAt: k1ExpiresAt,
+        // Bind UID to this physical chip on first tap; never overwrite once set
+        ...(card.uid == null ? { uid: sunData.uid.toString("hex") } : {}),
+      })
+      .where(eq(cardsTable.id, cardId));
 
-    if (!live) {
-      res.json({ status: "ERROR", reason: "Card is not active" });
-      return;
-    }
-  } else {
-    // ── AES SUN verification - decrypt stored keys first ───────────────────
-    let key1Hex: string;
-    let key2Hex: string;
-    try {
-      key1Hex = resolveKey(card.aesKey1);
-      key2Hex = resolveKey(card.aesKey2);
-    } catch {
-      logger.error({ cardId }, "Failed to decrypt card AES keys");
-      res.json({ status: "ERROR", reason: "Internal error" });
-      return;
-    }
+    return true;
+  });
 
-    const sunData = decryptSunP(key1Hex, pHex);
-    if (!sunData) {
-      logger.warn({ cardId }, "Bolt Card p-parameter decryption failed - card keys likely out of sync with DB");
-      res.json({ status: "ERROR", reason: "Card authentication failed. If you recently wiped this card, please re-provision it." });
-      return;
-    }
-
-    if (!verifySunC(key2Hex, sunData.uid, sunData.counter, cHex)) {
-      logger.warn({ cardId }, "Bolt Card CMAC verification failed");
-      res.json({ status: "ERROR", reason: "Card authentication failed (CMAC mismatch). Please re-provision the card." });
-      return;
-    }
-
-    // ── Counter replay protection ───────────────────────────────────────────
-    // Row-level lock ensures only one concurrent tap can advance the counter.
-    const advanced = await db.transaction(async (tx) => {
-      const [current] = await tx
-        .select({ counter: cardsTable.counter })
-        .from(cardsTable)
-        .where(eq(cardsTable.id, cardId))
-        .for("update");
-
-      if (!current) return false;
-      if (sunData.counter <= current.counter) return false;
-
-      await tx
-        .update(cardsTable)
-        .set({
-          counter: sunData.counter,
-          lastUsedAt: new Date(),
-          pendingK1: k1,
-          pendingK1ExpiresAt: k1ExpiresAt,
-          // Bind UID to this physical chip on first tap; never overwrite once set
-          ...(card.uid == null ? { uid: sunData.uid.toString("hex") } : {}),
-        })
-        .where(eq(cardsTable.id, cardId));
-
-      return true;
-    });
-
-    if (!advanced) {
-      logger.warn({ cardId, counter: sunData.counter }, "Counter replay rejected");
-      res.json({ status: "ERROR", reason: "Counter replay detected" });
-      return;
-    }
+  if (!advanced) {
+    logger.warn({ cardId, counter: sunData.counter }, "Counter replay rejected");
+    res.json({ status: "ERROR", reason: "Counter replay detected" });
+    return;
   }
 
   // ── Daily limit check ─────────────────────────────────────────────────────

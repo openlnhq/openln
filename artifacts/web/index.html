@@ -1614,7 +1614,7 @@ async function loadAuthedImage(path, imgEl){
 function showIssuedCard(out, keyText=''){
   const qr=out.provisionUrl||'';
   const m=modal(`<div class="modalhead"><div><h2>Set up your card</h2><p class="muted" style="font-size:13px;margin-top:5px">Keys issued. Now write a blank NTAG424 card.</p></div><button class="xbtn" aria-label="Close card setup">✕</button></div>
-    <div class="setup-tabs" role="tablist" aria-label="Card writer"><button class="on" id="computerTab" role="tab" aria-selected="true">This computer</button><button id="creatorTab" role="tab" aria-selected="false">With your phone</button><button id="ricTab" role="tab" aria-selected="false">With your RIC</button></div>
+    <div class="setup-tabs" role="tablist" aria-label="Card writer"><button class="on" id="computerTab" role="tab" aria-selected="true">${cardNfcSupported()?'This phone':'This computer'}</button><button id="creatorTab" role="tab" aria-selected="false">With your phone</button><button id="ricTab" role="tab" aria-selected="false">With your RIC</button></div>
     <section id="computerSetup"><div id="cwrite"><div style="text-align:center;padding:10px"><span class="spin"></span></div></div></section>
     <section id="creatorSetup" hidden>
       <div class="qrbox" id="provisionQr" role="img" aria-label="One-time card setup QR"></div>
@@ -1623,7 +1623,7 @@ function showIssuedCard(out, keyText=''){
       <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser. It reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
     </section>
     <section id="ricSetup" hidden><ol class="setup-steps"><li>Use the RIC linked to this account.</li><li>On its screen, open Settings → Issue Card.</li><li>Hold a blank NTAG424 card against the reader until the RIC confirms the write.</li></ol><p class="muted setup-copy">The RIC fetches your next unwritten card automatically. There is no QR to scan and no keys to type.</p><p id="ricQueue" class="hint"></p><div id="ricWriteState" role="status" class="hint">Waiting for the RIC to confirm…</div></section>
-    <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">With the reader helper installed, this page writes the card itself from This computer. Phones use the Android creator app; a linked RIC fetches from the write queue.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
+    <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">This page writes from a computer with a reader helper, or straight from an Android phone in Chrome over NFC. The creator app and a linked RIC can also add full chip keys.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
   const qrBox=m.querySelector('#provisionQr');
   if(out.provisionQr){const image=new Image();image.alt='One-time card setup QR';image.src=URL.createObjectURL(new Blob([out.provisionQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);qrBox.append(image)}
   else qrBox.textContent='Setup QR unavailable. Close this and generate a new setup link.';
@@ -1867,9 +1867,9 @@ function vCardDetail(card){
 }
 function vCardWipe(card){
   const m=modal(`<div class="modalhead"><div><h2>Wipe card</h2><p class="dim" style="font-size:12px;margin-top:4px">Reset the physical NTAG424 to factory defaults</p></div><button class="xbtn">✕</button></div>
-    <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">Erase the physical card here with a USB reader, or reveal the reset data for a phone or RIC. Once the wipe is confirmed, this card record is marked <b>cancelled</b> and cannot be reused.</p>
+    <p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">Erase the physical card right here, or reveal the reset data for another phone or device. Once the wipe is confirmed, this card record is marked <b>cancelled</b> and cannot be reused.</p>
     <div id="wipeReader" style="margin-bottom:12px"><div class="dim" style="font-size:12px">Checking for a card reader...</div></div>
-    <div id="wipeBody"><button class="btn ghost sm" id="loadWipeKeys" style="width:100%;justify-content:center;padding:9px">Reset from a phone or RIC instead</button></div>`);
+    <div id="wipeBody"><button class="btn ghost sm" id="loadWipeKeys" style="width:100%;justify-content:center;padding:9px">Get reset data for another device</button></div>`);
   cardWipeReaderPane(m.querySelector('#wipeReader'),card,()=>{m.remove();renderCardsList()});
   m.querySelector('#loadWipeKeys').onclick=async()=>{
     const box=m.querySelector('#wipeBody');
@@ -2013,8 +2013,104 @@ function cardWriteModal(card){
     <div id="cwrite"><div style="text-align:center;padding:14px"><span class="spin"></span></div></div>`);
   cardWritePane(m.querySelector('#cwrite'),card,{onDone:()=>{m.remove();renderCardsList()}});
 }
+/* ---- In-app card writing over Web NFC (Android Chrome) ---- */
+function cardNfcSupported(){return typeof window!=='undefined'&&'NDEFReader' in window}
+function cardNfcLog(box,id){return t=>{const l=box.querySelector('#'+id);if(!l)return;l.style.display='block';const line=document.createElement('div');line.textContent=t;l.append(line);l.scrollTop=l.scrollHeight}}
+async function cardNfcWriteUrl(url){
+  // absolute-url writes the URI as-is (no scheme abbreviation), which is what
+  // an lnurlw:// record needs; Chrome supports it. Fall back to a plain url
+  // record only if this Chrome build rejects the record type (TypeError).
+  const w1=new NDEFReader();
+  try{await w1.write({records:[{recordType:'absolute-url',data:url}]});return;}
+  catch(e1){
+    if(!(e1 instanceof TypeError))throw e1;
+    const w2=new NDEFReader();
+    await w2.write({records:[{recordType:'url',data:url}]});
+  }
+}
+async function cardNfcWrite(cardId){
+  const data=await api('/api/cards/'+cardId+'/nfc-url',{method:'POST',body:'{}'});
+  const url=String(data.url||'');
+  if(!/^lnurlw:\/\/.+\/card\/.+\?p=0{32}&c=0{16}$/.test(url))throw new Error('Card link looks wrong. Close this and try again.');
+  await cardNfcWriteUrl(url);
+  return url;
+}
+function cardNfcWritePane(box,card,opts={}){
+  if(!box)return;
+  box.innerHTML=`
+    <p class="muted setup-copy"><b>Write from this phone.</b> Hold the blank card against the back of your phone and Chrome writes the card link over NFC. No reader, no helper, no app install.</p>
+    <button class="btn teal" id="cwNfcGo" style="width:100%;justify-content:center;padding:11px;margin-top:10px">Write card</button>
+    <p class="hint" style="margin-top:8px">Press Write, then keep the card flat against the back of the phone until it says written. Allow NFC when Chrome asks.</p>
+    <p class="hint" style="margin-top:6px">A phone write puts a basic card link on the chip. Cards written by the RIC, the desktop writer or the creator app also carry secure chip keys.</p>
+    <div class="codebox mono" id="cwNfcLog" style="font-size:11px;margin-top:10px;display:none;max-height:170px;overflow:auto"></div>`;
+  const logline=cardNfcLog(box,'cwNfcLog');
+  box.querySelector('#cwNfcGo').onclick=async()=>{
+    const go=box.querySelector('#cwNfcGo');
+    go.disabled=true;go.textContent='Waiting for card...';
+    try{
+      logline('Preparing the card link');
+      const url=await cardNfcWrite(card.id);
+      try{await api('/api/pos/mark-written/'+card.id,{method:'POST',body:JSON.stringify({mode:'web'})})}catch(e){}
+      logline('Card written: '+url);
+      go.remove();
+      box.insertAdjacentHTML('beforeend',`<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" id="cwNfcCheck">Check card</button><button class="btn teal sm" id="cwNfcDone">Done</button></div><p class="hint" id="cwNfcAfter" style="margin-top:8px">Written. Hold the card to your phone again and press Check card to read it back.</p>`);
+      box.querySelector('#cwNfcDone').onclick=()=>{opts.onDone?opts.onDone():renderCardsList()};
+      box.querySelector('#cwNfcCheck').onclick=async()=>{
+        const vb=box.querySelector('#cwNfcCheck');vb.disabled=true;
+        try{
+          const reader=new NDEFReader();
+          const seen=new Promise((resolve,reject)=>{
+            const timer=setTimeout(()=>resolve(null),30000);
+            reader.onreading=e=>{clearTimeout(timer);resolve(e)};
+            reader.onreadingerror=()=>{clearTimeout(timer);reject(new Error('Could not read the card'))};
+          });
+          logline('Hold the card against the back of your phone');
+          await reader.scan();
+          const e=await seen;
+          if(!e){logline('No read yet. Press Check card and hold the card to your phone again.');vb.disabled=false;return;}
+          const rec=(e.message.records||[]).find(r=>r.recordType==='url'||r.recordType==='absolute-url');
+          const text=rec?(typeof rec.data==='string'?rec.data:new TextDecoder().decode(rec.data)):'';
+          logline(text===url?'Check OK: the card carries the exact link.':'Card link differs: '+text);
+        }catch(er){logline('Check failed: '+(er.message||er))}
+        vb.disabled=false;
+      };
+    }catch(e){
+      logline('Write failed: '+(e.message||e));
+      if(e&&e.name==='NotAllowedError')logline('Chrome needs NFC permission: press Write again and choose Allow when the prompt appears.');
+      else if(e&&e.name==='NotSupportedError')logline('This phone cannot use NFC. Check that NFC is switched on in Android settings.');
+      else logline('If this card was already programmed (by the RIC, the desktop writer, or another app), a phone cannot rewrite it. Use a blank card.');
+      go.disabled=false;go.textContent='Try again';
+    }
+  };
+}
+function cardNfcWipePane(box,card,onDone){
+  if(!box)return;
+  box.innerHTML=`<button class="btn danger" id="wipeNfcGo" style="width:100%;justify-content:center;padding:11px">Erase this card now</button>
+    <p class="hint" style="margin-top:6px">Hold the card against the back of your phone while it erases. This clears the card's link and cancels it in openLN.</p>
+    <div class="codebox mono" id="cwNfcLog" style="font-size:11px;margin-top:10px;display:none;max-height:150px;overflow:auto"></div>`;
+  const logline=cardNfcLog(box,'cwNfcLog');
+  box.querySelector('#wipeNfcGo').onclick=async()=>{
+    const btn=box.querySelector('#wipeNfcGo');
+    btn.disabled=true;btn.textContent='Waiting for card...';
+    try{
+      const writer=new NDEFReader();
+      logline('Hold the card against the back of your phone');
+      await writer.write({records:[]});
+      try{await api('/api/pos/mark-wiped/'+card.id,{method:'POST',body:'{}'})}catch(e){}
+      logline('Card erased and marked cancelled.');
+      toast('Card wiped and cancelled');
+      if(onDone)onDone();
+    }catch(e){
+      logline('Wipe failed: '+(e.message||e));
+      if(e&&e.name==='NotAllowedError')logline('Chrome needs NFC permission: press again and choose Allow when the prompt appears.');
+      else logline('A card written by the RIC, the desktop writer or the creator app carries chip keys and cannot be erased by a phone. Use the same tool that wrote it.');
+      btn.disabled=false;btn.textContent='Try again';
+    }
+  };
+}
 async function cardWritePane(box,card,opts={}){
   if(!box)return;
+  if(cardNfcSupported()){cardNfcWritePane(box,card,opts);return;}
   const bridge=await cardBridgeFind();
   if(!box.isConnected)return;
   if(!bridge){
@@ -2066,6 +2162,7 @@ async function cardWritePane(box,card,opts={}){
 }
 async function cardWipeReaderPane(box,card,onDone){
   if(!box)return;
+  if(cardNfcSupported()){cardNfcWipePane(box,card,onDone);return;}
   const bridge=await cardBridgeFind();
   if(!box.isConnected)return;
   if(!bridge){

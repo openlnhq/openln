@@ -36,6 +36,10 @@ export const cardsTable = pgTable("cards", {
   pinLimitMsats: bigint("pin_limit_msats", { mode: "number" }),
   pinFailCount: integer("pin_fail_count").notNull().default(0),
   pinLockedAt: timestamp("pin_locked_at", { withTimezone: true }),
+  // How the physical chip was written: 'sun' = chip keys programmed in (RIC,
+  // desktop writer or creator app); 'web' = plain link written from a phone
+  // browser over Web NFC (no chip keys - the server accepts it as a link tap).
+  writeMode: text("write_mode").notNull().default("sun"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -101,7 +101,9 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     if(!account)return json(res,401,{error:"Authentication required"});
     const [card]=await db.select().from(cardsTable).where(and(eq(cardsTable.id,wipeExport[1]),eq(cardsTable.accountId,account.id)));
     if(!card)return json(res,404,{error:"Card not found"});
-    const wipeKeys={protocol_name:"wipe_bolt_card_response",protocol_version:1,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4)};
+    // Web cards were never keyed (a phone cannot program NTAG424 keys), so the
+    // chip still holds factory keys - hand those out so any writer can reset it.
+    const wipeKeys=card.writeMode==="web"?{protocol_name:"wipe_bolt_card_response",protocol_version:1,k0:"0".repeat(32),k1:"0".repeat(32),k2:"0".repeat(32),k3:"0".repeat(32),k4:"0".repeat(32)}:{protocol_name:"wipe_bolt_card_response",protocol_version:1,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4)};
     // Export only. Never rotate recovery keys before the physical chip reports success.
     return json(res,200,{cardId:card.id,wipeKeys,wipeQr:await qrSvg(JSON.stringify(wipeKeys)),factorySettings:"40e0ee01ffff"});
   }
@@ -113,6 +115,16 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const v=await body(req);
     if(cardAction[2]==="pin") { const p=String(v.pin??""); if(!/^[0-9]{4}$/.test(p)) return json(res,400,{error:"PIN must be exactly 4 digits"}) as never; await db.update(cardsTable).set({pinHash:pinHash(p)}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:true}) as never; }
     return json(res,200,{cardId:card.id,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4),lnurlwTemplate:`lnurlw://${DOMAIN}/card/${card.id}?p=${"0".repeat(32)}&c=${"0".repeat(16)}`}) as never;
+  }
+  const nfcUrl = u.pathname.match(/^\/api\/cards\/([^/]+)\/nfc-url$/);
+  if (nfcUrl && req.method === "POST") {
+    if (!account) return json(res,401,{error:"Authentication required"}) as never;
+    const [card] = await db.select().from(cardsTable).where(and(eq(cardsTable.id,nfcUrl[1]),eq(cardsTable.accountId,account.id)));
+    if (!card) return json(res,404,{error:"Card not found"}) as never;
+    if (card.status !== "active") return json(res,409,{error:"Only active cards can be written"}) as never;
+    // The exact placeholder link the phone pushes to the chip over Web NFC.
+    // SUN chips replace p/c at tap time (SDM); a web card taps it as-is.
+    return json(res,200,{cardId:card.id,writeMode:card.writeMode,url:`lnurlw://${DOMAIN}/card/${card.id}?p=${"0".repeat(32)}&c=${"0".repeat(16)}`}) as never;
   }
   const deviceNext = u.pathname === "/api/pos/next-provision";
   const deviceCard = u.pathname.match(/^\/api\/pos\/(mark-written|wipe-keys|mark-wiped)\/([^/]+)$/);
@@ -129,9 +141,9 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const action=deviceCard[1], cardId=deviceCard[2];
     const [card] = await db.select().from(cardsTable).where(and(eq(cardsTable.id,cardId),eq(cardsTable.accountId,account.id)));
     if (!card) return json(res,404,{error:"Card not found"}) as never;
-    if (action === "mark-written" && req.method === "POST") { const [written]=await db.update(cardsTable).set({provisionToken:null,provisionTokenExpiresAt:null,lastUsedAt:new Date()}).where(and(eq(cardsTable.id,cardId),eq(cardsTable.accountId,account.id),eq(cardsTable.status,"active"))).returning({id:cardsTable.id}); if(!written)return json(res,409,{error:"Card is frozen or cancelled; write confirmation rejected"}); return json(res,200,{status:"OK"}); }
+    if (action === "mark-written" && req.method === "POST") { const v=await body(req).catch(()=>({} as Record<string,unknown>)); const [written]=await db.update(cardsTable).set({provisionToken:null,provisionTokenExpiresAt:null,lastUsedAt:new Date(),...(String(v.mode??"")==="web"?{writeMode:"web"}:{})}).where(and(eq(cardsTable.id,cardId),eq(cardsTable.accountId,account.id),eq(cardsTable.status,"active"))).returning({id:cardsTable.id}); if(!written)return json(res,409,{error:"Card is frozen or cancelled; write confirmation rejected"}); return json(res,200,{status:"OK"}); }
     if (action === "mark-wiped" && req.method === "POST") { await db.update(cardsTable).set({status:"cancelled",provisionToken:null,provisionTokenExpiresAt:null,pendingK1:null,pendingK1ExpiresAt:null,lastUsedAt:new Date()}).where(eq(cardsTable.id,cardId)); return json(res,200,{status:"OK"}) as never; }
-    if (action === "wipe-keys" && req.method === "GET") return json(res,200,{cardId,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4),factorySettings:"40e0ee01ffff"}) as never;
+    if (action === "wipe-keys" && req.method === "GET") return json(res,200,{cardId,...(card.writeMode==="web"?{k0:"0".repeat(32),k1:"0".repeat(32),k2:"0".repeat(32),k3:"0".repeat(32),k4:"0".repeat(32)}:{k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4)}),factorySettings:"40e0ee01ffff"}) as never;
     return json(res,405,{error:"Method not allowed"}) as never;
   }
   const provision = u.pathname.match(/^\/api\/provision\/([^/]+)$/);

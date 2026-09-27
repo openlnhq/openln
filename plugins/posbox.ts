@@ -150,18 +150,22 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   const [card] = await db.select().from(cardsTable).where(eq(cardsTable.id, cardId));
   if (!card) return json(res, 404, { error: "Card not found" });
   if (card.status === "cancelled") return json(res, 400, { error: "Card has been cancelled" });
-  let key1Hex: string, key2Hex: string;
-  try {
-   const { decrypt } = await import("../core/money/encrypt.js");
-   key1Hex = decrypt(card.aesKey1);
-   key2Hex = decrypt(card.aesKey2);
-  } catch {
-   logger.error({ cardId }, "Failed to decrypt card AES keys for send-to-card");
-   return json(res, 500, { error: "Internal error" });
+  // Web (phone-written) cards carry no chip keys - their URL is a plain link,
+  // so skip AES-SUN for them. Everything after this point is unchanged.
+  if (card.writeMode !== "web") {
+   let key1Hex: string, key2Hex: string;
+   try {
+    const { decrypt } = await import("../core/money/encrypt.js");
+    key1Hex = decrypt(card.aesKey1);
+    key2Hex = decrypt(card.aesKey2);
+   } catch {
+    logger.error({ cardId }, "Failed to decrypt card AES keys for send-to-card");
+    return json(res, 500, { error: "Internal error" });
+   }
+   const sunData = decryptSunP(key1Hex, pHex.toLowerCase());
+   if (!sunData) return json(res, 400, { error: "Card authentication failed" });
+   if (!verifySunC(key2Hex, sunData.uid, sunData.counter, cHex.toLowerCase())) return json(res, 400, { error: "Card verification failed" });
   }
-  const sunData = decryptSunP(key1Hex, pHex.toLowerCase());
-  if (!sunData) return json(res, 400, { error: "Card authentication failed" });
-  if (!verifySunC(key2Hex, sunData.uid, sunData.counter, cHex.toLowerCase())) return json(res, 400, { error: "Card verification failed" });
   const cardAccountId = card.accountId;
   const cardSource = await resolveWalletSource(cardAccountId);
   if (cardSource.kind === "none" || cardSource.kind === "lnaddress") {

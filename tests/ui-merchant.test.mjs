@@ -72,6 +72,10 @@ test('receive uses the same numpad entry as send, with a sats and fiat toggle',(
 test('cards can be written and wiped inside the app through a local reader bridge',()=>{
   const writer=html.slice(html.indexOf('async function cardBridgeFind('),html.indexOf('/* ---- RIC (flash + link + manage devices) ---- */'));
   assert.ok(writer.includes('cardWritePane')&&writer.includes('cardWipeReaderPane'),'Write and wipe run in the card writer section');
+  assert.ok(writer.includes("'NDEFReader' in window")&&writer.includes('cardNfcWritePane')&&writer.includes('cardNfcWipePane'),'Android phones with Chrome NFC get write and wipe straight from the page');
+  assert.ok(writer.includes('/nfc-url'),'The phone write pulls the link from the server, not from key material');
+  assert.ok(writer.includes("recordType:'absolute-url'"),'Custom-scheme lnurlw links are written as absolute-url records');
+  assert.ok(writer.includes("JSON.stringify({mode:'web'})"),'A phone write records the card as a web (no-keys) write');
   assert.ok(writer.includes("cmd:'transceive'"),'Card commands travel through the reader bridge');
   assert.ok(writer.includes("'/card-writer/app-glue.js'"),'The NTAG424 engine loads from the served card-writer assets');
   assert.ok(writer.includes('cardSetupBoxHTML'),'A missing reader helper offers a one-button setup');

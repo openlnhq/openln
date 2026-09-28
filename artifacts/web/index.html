@@ -1321,7 +1321,7 @@ function sndBookSave(a){a=String(a||'').trim().toLowerCase();if(!a||a.indexOf('@
 function sndBookRemove(a){try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(sndBookList().filter(x=>x!==a)))}catch(e){}toast('Removed from your address book')}
 function sndEl(sel){return snd.root?snd.root.querySelector(sel):null}
 let zx={mod:null,state:0,err:0}; // zxing-wasm camera decoder: state 0 idle, 1 loading, 2 ready, 3 failed
-const SND_BUILD='2026-09-28e'; // bump on scanner changes; shown by the ?sd=1 diagnostic
+const SND_BUILD='2026-09-28f'; // bump on scanner changes; shown by the ?sd=1 diagnostic
 const SND_DEBUG=(typeof location!=='undefined'&&/[?&]sd=1/.test(location.search||''));
 const SND_LAB=(typeof location!=='undefined'&&/[?&]sd=2/.test(location.search||''));
 let sndDbg={tick:0,detBad:0,det:'?',zxMs:0,err:'',last:'',set:'',caps:'',shot:'',timer:null,canvas:null,pAt:0,pTick:0};
@@ -1426,7 +1426,7 @@ function sndKey(k){
 }
 function sendScan(){
   sndClose();
-  snd.stage='scan';snd.input='';snd.target=null;snd.invoice=null;snd.amount='';snd.comment='';snd.msg='';snd.tx='';snd.busy=false;snd.fired=false;snd.purpose='spend';snd.retryStage='';snd.fx=null;snd.restarts=0;snd.sweep=null;
+  snd.stage='scan';snd.input='';snd.target=null;snd.invoice=null;snd.amount='';snd.comment='';snd.msg='';snd.tx='';snd.busy=false;snd.fired=false;snd.purpose='spend';snd.retryStage='';snd.fx=null;snd.restarts=0;snd.sweep=null;snd.rePicked=false;snd.camLabel='';
   const root=document.createElement('div');root.className='sndscan';
   root.innerHTML=`<video id="sndVid" playsinline muted autoplay></video>
   <button class="sndclose" id="sndClose" aria-label="Close scanner">✕</button>
@@ -1509,7 +1509,7 @@ function sndRepPush(){ // ?sd=1: upload stats + a thumbnail of the decoder input
   const now=Date.now();if(now-(snd.repAt||0)<2600)return;snd.repAt=now;snd.repCount=(snd.repCount||0)+1;
   let thumb='';
   try{if(sndDbg.canvas){if(!snd.rc){snd.rc=document.createElement('canvas');snd.rc.width=176;snd.rc.height=99}const x=snd.rc.getContext('2d');x.drawImage(sndDbg.canvas,0,0,176,99);thumb=snd.rc.toDataURL('image/jpeg',0.5)}}catch(e){}
-  try{api('/api/wallet/scan-debug',{method:'POST',body:JSON.stringify({b:SND_BUILD,set:sndDbg.set,caps:sndDbg.caps,capsFull:(snd.capsFull||'').slice(0,900),fd:sndDbg.fd,sw:snd.sweep?('i'+snd.sweep.i+'/'+snd.sweep.vals.length+(snd.sweep.on?'':' off')):'-',luma:snd.lumaVal,det:sndDbg.det,detBad:sndDbg.detBad,zx:zx.state,zxMs:sndDbg.zxMs,tick:sndDbg.tick,shot:sndDbg.shot,shotF:snd.shotFail||0,off:!!snd.shotOff,err:sndDbg.err,zoom:snd.zoom||1,ua:(navigator.userAgent||'').slice(0,150),thumb})}).catch(()=>{})}catch(e){}
+  try{api('/api/wallet/scan-debug',{method:'POST',body:JSON.stringify({b:SND_BUILD,set:sndDbg.set,caps:sndDbg.caps,capsFull:(snd.capsFull||'').slice(0,900),fd:sndDbg.fd,sw:snd.sweep?('i'+snd.sweep.i+'/'+snd.sweep.vals.length+(snd.sweep.on?'':' off')):'-',luma:snd.lumaVal,det:sndDbg.det,detBad:sndDbg.detBad,zx:zx.state,zxMs:sndDbg.zxMs,tick:sndDbg.tick,shot:sndDbg.shot,shotF:snd.shotFail||0,off:!!snd.shotOff,err:sndDbg.err,zoom:snd.zoom||1,cam:(snd.camLabel||'').slice(0,40),ua:(navigator.userAgent||'').slice(0,150),thumb})}).catch(()=>{})}catch(e){}
 }
 async function sndLabStart(){ // ?sd=2 camera calibration: try every camera x focus strategy, upload each attempt
   if(!SND_LAB||window.__labRun)return;window.__labRun=1;
@@ -1614,12 +1614,29 @@ function sndLuma(v){
     snd.dark=snd.lumaVal<42;
   }catch(e){}
 }
+async function sndPickCamera(){ // Android can expose several back cameras; Chrome's facingMode default can be an aux lens with no usable focus (user's Android 10: 'camera 2' never focuses, 'camera 0' is the main with real AF). Prefer the lowest-index back camera.
+  try{
+    const devs=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput'&&d.deviceId);
+    const backs=devs.filter(d=>/back|rear|environment|world/i.test(d.label||''));
+    if(!backs.length)return null;
+    backs.sort((a,b)=>{const ia=/camera2?\s+(\d+)/i.exec(a.label||''),ib=/camera2?\s+(\d+)/i.exec(b.label||'');return (ia?+ia[1]:99)-(ib?+ib[1]:99)});
+    return backs[0];
+  }catch(e){return null}
+}
 async function sndStartCam(){
   const v=sndEl('#sndVid');if(!v)return;
   if(snd.stream&&snd.stream.active){sndLoop();return}
   const noCam=()=>{const h=sndEl('#sndHint');if(h)h.textContent='Camera not available here. Use Paste, Keyboard or Images below.';const f=sndEl('#sndFrame');if(f)f.style.display='none'};
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){noCam();return}
-  const ladder=[
+  const pick=await sndPickCamera();
+  const pck=pick&&pick.deviceId?pick.deviceId:null;
+  const ladder=pck?[
+    {video:{deviceId:{exact:pck},width:{min:1280,ideal:3840},height:{min:720,ideal:2160}},audio:false},
+    {video:{deviceId:{exact:pck},width:{ideal:1280},height:{ideal:720}},audio:false},
+    {video:{deviceId:{exact:pck}},audio:false},
+    {video:{facingMode:{ideal:'environment'},width:{min:1280,ideal:3840},height:{min:720,ideal:2160}},audio:false},
+    {video:{facingMode:{ideal:'environment'}},audio:false}
+  ]:[
     {video:{facingMode:{ideal:'environment'},width:{min:1280,ideal:3840},height:{min:720,ideal:2160}},audio:false},
     {video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false},
     {video:{facingMode:{ideal:'environment'}},audio:false}
@@ -1628,6 +1645,20 @@ async function sndStartCam(){
   for(const cst of ladder){try{snd.stream=await navigator.mediaDevices.getUserMedia(cst);break}catch(e){lastErr=e}}
   if(!snd.stream){const h=sndEl('#sndHint');if(lastErr&&lastErr.name==='NotAllowedError'&&h)h.textContent='Camera access is blocked for this site. Allow it in your browser settings, or use Paste, Keyboard or Images below.';else noCam();return}
   v.srcObject=snd.stream;try{await v.play()}catch(e){}
+  if(pick){snd.camLabel=(pick.label||'').slice(0,40)}
+  else if(!snd.rePicked){ // labels can unlock only after permission: hop once onto the main back camera if we opened a different one
+    snd.rePicked=true;
+    try{
+      const best=await sndPickCamera();
+      let cur='';try{const st=snd.stream.getVideoTracks()[0].getSettings();cur=(st&&st.deviceId)||''}catch(e){}
+      if(best&&best.deviceId&&cur&&best.deviceId!==cur){
+        snd.camLabel=(best.label||'').slice(0,40);
+        try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}
+        snd.stream=null;v.srcObject=null;sndStartCam();return;
+      }
+      if(best)snd.camLabel=(best.label||'').slice(0,40);
+    }catch(e){}
+  }
   try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};snd.capsFull=(()=>{try{return JSON.stringify(caps)}catch(e){return''}})();if(Array.isArray(caps.focusMode)&&caps.focusMode.indexOf('continuous')>-1){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}sndSweepInit(track)}catch(e){}
   try{const tr1=sndTrack();if(tr1){const st1=tr1.getSettings?tr1.getSettings():{};sndDbg.set=(st1.width||'?')+'x'+(st1.height||'?')+(st1.frameRate?'@'+Math.round(st1.frameRate):'');sndDbg.fd=st1.focusDistance;const cp1=sndCaps(tr1);sndDbg.caps='f:'+((cp1.focusMode||[]).join('|')||'-')+' z'+(((cp1.zoom||{}).max)||1)+' t:'+(cp1.torch?1:0)}}catch(e){}
   try{const zc=sndCaps(sndTrack()).zoom;snd.zoomCap=(zc&&zc.max>=1.8)?zc:null;const zb=sndEl('#sndZoom');if(zb&&snd.zoomCap)zb.hidden=false}catch(e){}

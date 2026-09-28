@@ -61,6 +61,7 @@ test('send opens a camera-first scanner with Paste, Keyboard and Images for ever
   assert.ok(send.includes('sndSweepInit')&&send.includes('focusDistance')&&send.includes('grabFrame'),'manual-focus devices get a focusDistance sweep and freeze-proof grabFrame stills');
   assert.ok(send.includes('sndDbgPaint')&&send.includes('sd=1'),'scanner has the ?sd=1 diagnostic overlay');
   assert.ok(send.includes('sndLabStart')&&send.includes('sd=2'),'scanner has the ?sd=2 camera calibration lab');
+  assert.ok(send.includes('sndPickCamera')&&send.includes('deviceId:{exact:'),'scanner explicitly selects the main back camera (aux-camera trap)');
   assert.ok(send.includes("api('/api/wallet/resolve'"),'scans resolve through the target endpoint');
   assert.ok(send.includes("api('/api/wallet/pay'"),'paying reuses the wallet pay route');
   assert.ok(send.includes('lnurl_withdraw')&&html.includes('receiveWithdrawModal'),'withdraw codes explain and hand off to Receive');

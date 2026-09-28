@@ -16,6 +16,13 @@ test('sitemap.xml lists the landing page',async()=>{
   assert.match(r.headers.get('content-type')||'',/^application\/xml/);
   assert.match(await r.text(),/<loc>https:\/\/openln\.com\/<\/loc>/);
 });
+test('crawl routes answer HEAD like GET',async()=>{
+  for (const p of ['/robots.txt','/sitemap.xml','/favicon.ico']) {
+    const head = await fetch(base+p,{method:'HEAD'});
+    assert.equal(head.status,200,p+' HEAD should be 200, got '+head.status);
+  }
+});
+
 test('favicon.ico answers with the brand PNG',async()=>{
   const r=await fetch(base+'/favicon.ico');assert.equal(r.status,200);assert.equal(r.headers.get('content-type'),'image/png');
   assert.equal(Buffer.from(await r.arrayBuffer()).subarray(1,4).toString(),'PNG');

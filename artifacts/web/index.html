@@ -1312,7 +1312,7 @@ function sndBookSave(a){a=String(a||'').trim().toLowerCase();if(!a||a.indexOf('@
 function sndBookRemove(a){try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(sndBookList().filter(x=>x!==a)))}catch(e){}toast('Removed from your address book')}
 function sndEl(sel){return snd.root?snd.root.querySelector(sel):null}
 let zx={mod:null,state:0,err:0}; // zxing-wasm camera decoder: state 0 idle, 1 loading, 2 ready, 3 failed
-const SND_BUILD='2026-09-28c'; // bump on scanner changes; shown by the ?sd=1 diagnostic
+const SND_BUILD='2026-09-28d'; // bump on scanner changes; shown by the ?sd=1 diagnostic
 const SND_DEBUG=(typeof location!=='undefined'&&/[?&]sd=1/.test(location.search||''));
 let sndDbg={tick:0,detBad:0,det:'?',zxMs:0,err:'',last:'',set:'',caps:'',shot:'',timer:null,canvas:null,pAt:0,pTick:0};
 function sndDbgPaint(){
@@ -1344,7 +1344,7 @@ function sndFrame(v,c,n,cap,frac){
   return x.getImageData(0,0,c.width,c.height);
 }
 let sndShotAt=0; // last close-up still attempt (ms)
-function sndShot(){ // full-resolution still through the photo pipeline; resolves to ImageData or null
+function sndShot(){ // full-res frame grab via grabFrame (no photo pipeline, cannot freeze the preview); takePhoto only as last resort on low-res streams
   return new Promise(resolve=>{
     let settled=false;
     const fin=v=>{if(!settled){settled=true;clearTimeout(to);resolve(v)}};
@@ -1353,9 +1353,19 @@ function sndShot(){ // full-resolution still through the photo pipeline; resolve
       try{
         const tr=sndTrack(),v=sndEl('#sndVid');
         if(!tr||!('ImageCapture' in window)||!v){fin(null);return}
-        const blob=await new ImageCapture(tr).takePhoto();
-        if(!blob){fin(null);return}
-        const bmp=await createImageBitmap(blob);
+        const st=tr.getSettings?tr.getSettings():{};
+        const hiRes=Math.min(st.width||0,st.height||0)>=1000;
+        const ic=new ImageCapture(tr);
+        let bmp=null;
+        if(hiRes){try{bmp=await ic.grabFrame()}catch(e){bmp=null}}
+        if(!bmp){
+          if(snd.photoBad){fin(null);return}
+          try{
+            const blob=await Promise.race([ic.takePhoto(),new Promise((_,rej)=>setTimeout(()=>rej(new Error('tp-timeout')),2500))]);
+            if(!blob){snd.photoBad=true;fin(null);return}
+            bmp=await createImageBitmap(blob);
+          }catch(e){snd.photoBad=true;sndDbg.err='tp-dead';fin(null);return}
+        }
         const cap=2560,sc=Math.min(1,cap/Math.max(bmp.width,bmp.height));
         const cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(bmp.width*sc));cv.height=Math.max(1,Math.round(bmp.height*sc));
         const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,cv.width,cv.height);
@@ -1372,7 +1382,7 @@ function sndShotRun(){ // kick focus, then decode a full-res still in parallel w
   setTimeout(()=>{
     sndShot().then(g=>{
       snd.shotBusy=false;
-      if(!g){snd.shotFail=(snd.shotFail||0)+1;sndDbg.shot='null';if(snd.shotFail>5)snd.shotOff=true;return}
+      if(!g){snd.shotFail=(snd.shotFail||0)+1;sndDbg.shot='null';if(snd.shotFail>1)snd.shotOff=true;return}
       if(zx.state!==2||snd.stage!=='scan'||snd.loopId!==lid)return;
       zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,maxNumberOfSymbols:1}).then(res=>{
         const t=res&&res.length?(res[0].text||''):'';
@@ -1406,7 +1416,7 @@ function sndKey(k){
 }
 function sendScan(){
   sndClose();
-  snd.stage='scan';snd.input='';snd.target=null;snd.invoice=null;snd.amount='';snd.comment='';snd.msg='';snd.tx='';snd.busy=false;snd.fired=false;snd.purpose='spend';snd.retryStage='';snd.fx=null;
+  snd.stage='scan';snd.input='';snd.target=null;snd.invoice=null;snd.amount='';snd.comment='';snd.msg='';snd.tx='';snd.busy=false;snd.fired=false;snd.purpose='spend';snd.retryStage='';snd.fx=null;snd.restarts=0;snd.sweep=null;
   const root=document.createElement('div');root.className='sndscan';
   root.innerHTML=`<video id="sndVid" playsinline muted autoplay></video>
   <button class="sndclose" id="sndClose" aria-label="Close scanner">✕</button>
@@ -1435,6 +1445,31 @@ function sendScan(){
 }
 function sndTrack(){return snd.stream?snd.stream.getVideoTracks()[0]:null}
 function sndCaps(t){try{return (t&&t.getCapabilities?t.getCapabilities():{})||{}}catch(e){return{}}}
+function sndSweepInit(t){ // manual-focus devices (no AF modes exposed): sweep focusDistance near->far until the code reads
+  try{
+    const caps=sndCaps(t),fm=caps.focusMode||[];
+    if(!Array.isArray(fm)||fm.indexOf('manual')<0||fm.indexOf('continuous')>-1)return;
+    const fd=caps.focusDistance;if(!fd||!(fd.max>fd.min))return;
+    const vals=[1,.72,.52,.35,.22,.12,.05,0].map(f=>fd.min+(fd.max-fd.min)*f);
+    snd.sweep={vals:vals,i:0,next:0,fail:0,on:true};
+  }catch(e){}
+}
+async function sndSweepStep(){
+  const sw=snd.sweep;if(!sw||!sw.on)return;
+  const t=sndTrack();if(!t)return;
+  try{await t.applyConstraints({advanced:[{focusMode:'manual',focusDistance:sw.vals[sw.i]}]});sw.i=(sw.i+1)%sw.vals.length;sw.next=Date.now()+900}
+  catch(e){if(++sw.fail>2){sw.on=false;sndDbg.err='sweep-off'}}
+}
+async function sndCamRestart(why){ // recover from a frozen/killed preview (some devices freeze on takePhoto)
+  if((snd.restarts||0)>=3)return;
+  snd.restarts=(snd.restarts||0)+1;
+  sndDbg.err=('rst:'+(why||'')).slice(0,42);
+  const v=sndEl('#sndVid');
+  if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}
+  if(v){try{v.srcObject=null}catch(e){}}
+  await new Promise(r=>setTimeout(r,300));
+  if(snd.stage==='scan'&&snd.root)sndStartCam();
+}
 async function sndFocusKick(){
   const t=sndTrack();if(!t)return;
   const fm=sndCaps(t).focusMode||[];if(!Array.isArray(fm)||fm.indexOf('continuous')<0)return;
@@ -1462,7 +1497,7 @@ function sndRepPush(){ // ?sd=1: upload stats + a thumbnail of the decoder input
   const now=Date.now();if(now-(snd.repAt||0)<2600)return;snd.repAt=now;snd.repCount=(snd.repCount||0)+1;
   let thumb='';
   try{if(sndDbg.canvas){if(!snd.rc){snd.rc=document.createElement('canvas');snd.rc.width=176;snd.rc.height=99}const x=snd.rc.getContext('2d');x.drawImage(sndDbg.canvas,0,0,176,99);thumb=snd.rc.toDataURL('image/jpeg',0.5)}}catch(e){}
-  try{api('/api/wallet/scan-debug',{method:'POST',body:JSON.stringify({b:SND_BUILD,set:sndDbg.set,caps:sndDbg.caps,det:sndDbg.det,detBad:sndDbg.detBad,zx:zx.state,zxMs:sndDbg.zxMs,tick:sndDbg.tick,shot:sndDbg.shot,shotF:snd.shotFail||0,off:!!snd.shotOff,err:sndDbg.err,zoom:snd.zoom||1,ua:(navigator.userAgent||'').slice(0,150),thumb})}).catch(()=>{})}catch(e){}
+  try{api('/api/wallet/scan-debug',{method:'POST',body:JSON.stringify({b:SND_BUILD,set:sndDbg.set,caps:sndDbg.caps,capsFull:(snd.capsFull||'').slice(0,900),fd:sndDbg.fd,sw:snd.sweep?('i'+snd.sweep.i+'/'+snd.sweep.vals.length+(snd.sweep.on?'':' off')):'-',luma:snd.lumaVal,det:sndDbg.det,detBad:sndDbg.detBad,zx:zx.state,zxMs:sndDbg.zxMs,tick:sndDbg.tick,shot:sndDbg.shot,shotF:snd.shotFail||0,off:!!snd.shotOff,err:sndDbg.err,zoom:snd.zoom||1,ua:(navigator.userAgent||'').slice(0,150),thumb})}).catch(()=>{})}catch(e){}
 }
 function sndLuma(v){
   try{
@@ -1470,7 +1505,8 @@ function sndLuma(v){
     const x=snd.lc.getContext('2d',{willReadFrequently:true});x.drawImage(v,0,0,32,18);
     const d=x.getImageData(0,0,32,18).data;let s=0;
     for(let i=0;i<d.length;i+=4)s+=d[i]*.299+d[i+1]*.587+d[i+2]*.114;
-    snd.dark=(s/(d.length/4))<42;
+    snd.lumaVal=Math.round(s/(d.length/4));
+    snd.dark=snd.lumaVal<42;
   }catch(e){}
 }
 async function sndStartCam(){
@@ -1487,11 +1523,11 @@ async function sndStartCam(){
   for(const cst of ladder){try{snd.stream=await navigator.mediaDevices.getUserMedia(cst);break}catch(e){lastErr=e}}
   if(!snd.stream){const h=sndEl('#sndHint');if(lastErr&&lastErr.name==='NotAllowedError'&&h)h.textContent='Camera access is blocked for this site. Allow it in your browser settings, or use Paste, Keyboard or Images below.';else noCam();return}
   v.srcObject=snd.stream;try{await v.play()}catch(e){}
-  try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};if(Array.isArray(caps.focusMode)&&caps.focusMode.indexOf('continuous')>-1){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}}catch(e){}
-  try{const tr1=sndTrack();if(tr1){const st1=tr1.getSettings?tr1.getSettings():{};sndDbg.set=(st1.width||'?')+'x'+(st1.height||'?')+(st1.frameRate?'@'+Math.round(st1.frameRate):'');const cp1=sndCaps(tr1);sndDbg.caps='f:'+((cp1.focusMode||[]).join('|')||'-')+' z'+(((cp1.zoom||{}).max)||1)+' t:'+(cp1.torch?1:0)}}catch(e){}
+  try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};snd.capsFull=(()=>{try{return JSON.stringify(caps)}catch(e){return''}})();if(Array.isArray(caps.focusMode)&&caps.focusMode.indexOf('continuous')>-1){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}sndSweepInit(track)}catch(e){}
+  try{const tr1=sndTrack();if(tr1){const st1=tr1.getSettings?tr1.getSettings():{};sndDbg.set=(st1.width||'?')+'x'+(st1.height||'?')+(st1.frameRate?'@'+Math.round(st1.frameRate):'');sndDbg.fd=st1.focusDistance;const cp1=sndCaps(tr1);sndDbg.caps='f:'+((cp1.focusMode||[]).join('|')||'-')+' z'+(((cp1.zoom||{}).max)||1)+' t:'+(cp1.torch?1:0)}}catch(e){}
   try{const zc=sndCaps(sndTrack()).zoom;snd.zoomCap=(zc&&zc.max>=1.8)?zc:null;const zb=sndEl('#sndZoom');if(zb&&snd.zoomCap)zb.hidden=false}catch(e){}
-  v.onclick=ev=>{const r=v.getBoundingClientRect();if(!r.width||!r.height)return;sndTapFocus(Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height)));const f=sndEl('#sndFrame');if(f){f.classList.add('tap');setTimeout(()=>f.classList.remove('tap'),500)}if(snd.stage==='scan')sndShotRun()};
-  snd.t0=Date.now();snd.dark=false;snd.shotRaw=null;snd.shotBusy=false;snd.shotFail=0;snd.shotOff=false;snd.zoom=1;snd.zoomCap=null;snd.repCount=0;snd.repAt=0;
+  v.onclick=ev=>{const r=v.getBoundingClientRect();if(!r.width||!r.height)return;if(snd.sweep&&snd.sweep.on){sndSweepStep()}else{sndTapFocus(Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height)))}const f=sndEl('#sndFrame');if(f){f.classList.add('tap');setTimeout(()=>f.classList.remove('tap'),500)}if(snd.stage==='scan')sndShotRun()};
+  snd.t0=Date.now();snd.dark=false;snd.lumaVal=null;snd.shotRaw=null;snd.shotBusy=false;snd.shotFail=0;snd.shotOff=false;snd.photoBad=false;snd.zoom=1;snd.zoomCap=null;snd.repCount=0;snd.repAt=0;
   setTimeout(()=>{if(snd.scanning&&snd.stage==='scan')sndFocusKick()},700);
   sndLoop();
 }
@@ -1501,16 +1537,18 @@ async function sndLoop(){
   const v=sndEl('#sndVid');if(!v)return;
   let det=null;if('BarcodeDetector' in window){try{det=new BarcodeDetector({formats:['qr_code']})}catch(e){}}
   sndDbg.det=det?'ok':'off';
-  let jsqr=null,failed=false,n=0,lumaAt=0,hintNow='';
+  let jsqr=null,failed=false,n=0,lumaAt=0,hintNow='',lastCt=-1,stallAt=0;
   const c=document.createElement('canvas');sndDbg.canvas=c;
   const setHint=t=>{if(t===hintNow)return;hintNow=t;const h=sndEl('#sndHint');if(h)h.textContent=t};
   const tick=async()=>{
     if(!snd.scanning||snd.stage!=='scan'||!snd.root||snd.loopId!==id)return;
     n++;sndDbg.tick++;
     try{
+      if(v.readyState>=2){const ct=v.currentTime||0;if(ct!==lastCt){lastCt=ct;stallAt=0}else{if(!stallAt)stallAt=Date.now();if(Date.now()-stallAt>2500){stallAt=0;sndCamRestart('stall');return}}}
       if(Date.now()-lumaAt>1500){lumaAt=Date.now();sndLuma(v)}
+      if(snd.sweep&&snd.sweep.on&&Date.now()>=(snd.sweep.next||0))await sndSweepStep();
       const tb=sndEl('#sndTorch');
-      setHint((snd.dark&&tb&&!tb.hidden)?'Low light · Tap Light':((Date.now()-(snd.t0||0)>5000)?(snd.zoomCap&&(snd.zoom||1)<=1.2?'Close range · tap 2x and hold a little farther':'Fill the frame with the code · tap to refocus'):'Point the camera at a Lightning QR code'));
+      setHint((snd.lumaVal!=null&&snd.lumaVal<8)?'Too close · hold the phone about 15 cm away':((snd.dark&&tb&&!tb.hidden)?'Low light · Tap Light':((snd.sweep&&snd.sweep.on)?'Focusing... hold still, let it find the distance':((Date.now()-(snd.t0||0)>5000)?(snd.zoomCap&&(snd.zoom||1)<=1.2?'Close range · tap 2x and hold a little farther':'Fill the frame with the code · tap to refocus'):'Point the camera at a Lightning QR code'))));
       let raw=null;
       const el=Date.now()-(snd.t0||0);
       if(det){

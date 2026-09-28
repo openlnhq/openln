@@ -1296,14 +1296,14 @@ function receiveWithdrawModal(t){
    resolves through /api/wallet/resolve (minting the payee invoice when an
    amount is chosen) and pays through the ordinary /api/wallet/pay route.
    The address book is device-local (localStorage). */
-let snd={stage:'scan',root:null,stream:null,scanning:false,loopId:0,tickT:null,torch:false,input:'',target:null,invoice:null,unit:'',amount:'',comment:'',purpose:'spend',busy:false,fired:false,msg:'',tx:'',retryStage:'',fx:null};
+let snd={stage:'scan',root:null,stream:null,scanning:false,loopId:0,tickT:null,slowT:null,torch:false,input:'',target:null,invoice:null,unit:'',amount:'',comment:'',purpose:'spend',busy:false,fired:false,msg:'',tx:'',retryStage:'',fx:null};
 const SND_BOOK_KEY='openln_addr_book';
 function sndBookList(){try{const a=JSON.parse(localStorage.getItem(SND_BOOK_KEY)||'[]');return Array.isArray(a)?a.filter(x=>typeof x==='string'):[]}catch(e){return[]}}
 function sndBookHas(a){return sndBookList().indexOf(a)>-1}
 function sndBookSave(a){a=String(a||'').trim().toLowerCase();if(!a||a.indexOf('@')<0)return;if(sndBookHas(a)){toast('Already in your address book');return}const l=sndBookList();l.unshift(a);try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(l.slice(0,24)))}catch(e){}toast('Saved to your address book')}
 function sndBookRemove(a){try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(sndBookList().filter(x=>x!==a)))}catch(e){}toast('Removed from your address book')}
 function sndEl(sel){return snd.root?snd.root.querySelector(sel):null}
-function sndStopCam(){snd.scanning=false;if(snd.tickT){clearTimeout(snd.tickT);snd.tickT=null}if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}}
+function sndStopCam(){snd.scanning=false;if(snd.tickT){clearTimeout(snd.tickT);snd.tickT=null}if(snd.slowT){clearTimeout(snd.slowT);snd.slowT=null}if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}}
 function sndClose(){sndStopCam();if(snd.root){snd.root.remove();snd.root=null}}
 async function sndLoadFx(){if(snd.fx)return;try{const cfg=await api('/api/pos/config');const cur=String(cfg.currency||'').toLowerCase();const fx={cur,rate:null};if(cur&&cur!=='sats'){const qs=new URLSearchParams({vs_currency:cur});if(cfg.sendRateModifier)qs.set('modifier',cfg.sendRateModifier);const p=await api('/api/price?'+qs.toString());if(Number(p&&p.price)>0)fx.rate=Number(p.price)}snd.fx=fx}catch(e){snd.fx={cur:'',rate:null}}}
 function sndCur(){return (snd.fx&&snd.fx.cur)||''}
@@ -1355,10 +1355,12 @@ async function sndStartCam(){
   if(snd.stream&&snd.stream.active){sndLoop();return}
   const noCam=()=>{const h=sndEl('#sndHint');if(h)h.textContent='Camera not available here. Use Paste, Keyboard or Images below.';const f=sndEl('#sndFrame');if(f)f.style.display='none'};
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){noCam();return}
-  try{snd.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})}
+  try{snd.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false})}
   catch(e){noCam();return}
   v.srcObject=snd.stream;try{await v.play()}catch(e){}
-  try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}}catch(e){}
+  try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};if(Array.isArray(caps.focusMode)&&caps.focusMode.indexOf('continuous')>-1){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}}catch(e){}
+  if(snd.slowT)clearTimeout(snd.slowT);
+  snd.slowT=setTimeout(()=>{if(!snd.scanning||snd.stage!=='scan')return;const h=sndEl('#sndHint');if(!h||h.textContent!=='Point the camera at a Lightning QR code')return;const tb=sndEl('#sndTorch');h.textContent='Hold steady and let the camera focus'+(tb&&!tb.hidden?' · Tap Light if it is dark':'')},8000);
   sndLoop();
 }
 async function sndLoop(){
@@ -1371,16 +1373,16 @@ async function sndLoop(){
   const tick=async()=>{
     if(!snd.scanning||snd.stage!=='scan'||!snd.root||snd.loopId!==id)return;
     try{
-      if(!det&&!jsqr&&!failed){
-        try{const mod=await import('/media/jsqr.mjs');jsqr=mod.default||mod.jsQR}catch(e){failed=true}
-        if(failed){const h=sndEl('#sndHint');if(h)h.textContent='Scanning is not supported in this browser. Use Paste, Keyboard or Images below.';return}
-      }
       let raw=null;
-      if(det){const codes=await det.detect(v);if(codes&&codes.length)raw=codes[0].rawValue}
-      else if(jsqr){
+      if(det){try{const codes=await det.detect(v);if(codes&&codes.length)raw=codes[0].rawValue}catch(e){det=null}}
+      if(!raw&&!jsqr&&!failed){
+        try{const mod=await import('/media/jsqr.mjs');jsqr=mod.default||mod.jsQR}catch(e){failed=true}
+        if(failed&&!det){const h=sndEl('#sndHint');if(h)h.textContent='Scanning is not supported in this browser. Use Paste, Keyboard or Images below.';return}
+      }
+      if(!raw&&jsqr){
         const w=v.videoWidth||0,h=v.videoHeight||0;
         if(w&&h){
-          const scale=Math.min(1,640/Math.max(w,h));c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
+          const scale=Math.min(1,1024/Math.max(w,h));c.width=Math.max(1,Math.round(w*scale));c.height=Math.max(1,Math.round(h*scale));
           const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(v,0,0,c.width,c.height);
           const img=x.getImageData(0,0,c.width,c.height);
           const r=jsqr(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});

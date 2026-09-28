@@ -286,6 +286,15 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .snddbg{position:absolute;top:54px;right:8px;width:152px;z-index:6;background:rgba(6,10,16,.8);border:1px solid rgba(95,220,255,.35);border-radius:10px;padding:6px;pointer-events:none}
 .snddbg canvas{width:132px;height:99px;display:block;border-radius:6px;margin:0 auto 5px;background:#000}
 .snddbg pre{margin:0;font:9px/1.4 ui-monospace,Menlo,monospace;color:#9fe8ff;white-space:pre-wrap;word-break:break-word}
+.sndlab{position:fixed;inset:0;background:#05070a;z-index:60}
+.sndlab video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.labui{position:absolute;left:0;right:0;bottom:0;padding:14px 16px 18px;background:linear-gradient(transparent,rgba(4,7,11,.9));color:#e8eef7;font-size:14px}
+.labtitle{font-weight:600;color:#9fe8ff;margin-bottom:4px}
+.labstep{font-size:12.5px;color:#cfd8e6;margin-bottom:6px;font-variant-numeric:tabular-nums}
+.labhint{font-size:12px;color:#9aa7ba;margin-bottom:8px}
+.labbar{height:5px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
+.labbar i{display:block;height:100%;width:0;background:#5fdcff;transition:width .3s}
+.lablog{margin-top:8px;font:10px/1.4 ui-monospace,Menlo,monospace;color:#7f8da3;max-height:56px;overflow:hidden;white-space:pre-wrap}
 .sndbar{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;gap:10px;padding:14px 14px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,rgba(4,6,10,.9) 45%)}
 .sndbar button{flex:1;padding:13px 6px;border-radius:999px;background:rgba(10,14,20,.78);border:1px solid rgba(255,255,255,.16);color:#e8eef8;font-size:13.5px;font-weight:510;cursor:pointer}
 .sndbar button:active{background:rgba(30,38,50,.92)}
@@ -1312,8 +1321,9 @@ function sndBookSave(a){a=String(a||'').trim().toLowerCase();if(!a||a.indexOf('@
 function sndBookRemove(a){try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(sndBookList().filter(x=>x!==a)))}catch(e){}toast('Removed from your address book')}
 function sndEl(sel){return snd.root?snd.root.querySelector(sel):null}
 let zx={mod:null,state:0,err:0}; // zxing-wasm camera decoder: state 0 idle, 1 loading, 2 ready, 3 failed
-const SND_BUILD='2026-09-28d'; // bump on scanner changes; shown by the ?sd=1 diagnostic
+const SND_BUILD='2026-09-28e'; // bump on scanner changes; shown by the ?sd=1 diagnostic
 const SND_DEBUG=(typeof location!=='undefined'&&/[?&]sd=1/.test(location.search||''));
+const SND_LAB=(typeof location!=='undefined'&&/[?&]sd=2/.test(location.search||''));
 let sndDbg={tick:0,detBad:0,det:'?',zxMs:0,err:'',last:'',set:'',caps:'',shot:'',timer:null,canvas:null,pAt:0,pTick:0};
 function sndDbgPaint(){
   if(!SND_DEBUG||!snd.root||snd.stage!=='scan')return;
@@ -1449,15 +1459,17 @@ function sndSweepInit(t){ // manual-focus devices (no AF modes exposed): sweep f
   try{
     const caps=sndCaps(t),fm=caps.focusMode||[];
     if(!Array.isArray(fm)||fm.indexOf('manual')<0||fm.indexOf('continuous')>-1)return;
-    const fd=caps.focusDistance;if(!fd||!(fd.max>fd.min))return;
-    const vals=[1,.72,.52,.35,.22,.12,.05,0].map(f=>fd.min+(fd.max-fd.min)*f);
+    const fd=caps.focusDistance;
+    let vals=null;
+    if(fd&&fd.max>fd.min&&fd.max<=64)vals=[1,.72,.52,.35,.22,.12,.05,0].map(f=>fd.min+(fd.max-fd.min)*f);
+    else vals=[12,8,5.5,4,3,2.2,1.6,1.2,.9,.6,.35,.15,0]; // unbounded-range HAL (Chrome reports 2^63): use sane diopters
     snd.sweep={vals:vals,i:0,next:0,fail:0,on:true};
   }catch(e){}
 }
 async function sndSweepStep(){
   const sw=snd.sweep;if(!sw||!sw.on)return;
   const t=sndTrack();if(!t)return;
-  try{await t.applyConstraints({advanced:[{focusMode:'manual',focusDistance:sw.vals[sw.i]}]});sw.i=(sw.i+1)%sw.vals.length;sw.next=Date.now()+900}
+  try{await t.applyConstraints({advanced:[{focusMode:'manual',focusDistance:sw.vals[sw.i]}]});sw.i=(sw.i+1)%sw.vals.length;sw.next=Date.now()+900;try{sndDbg.fd=(t.getSettings()||{}).focusDistance}catch(e){}}
   catch(e){if(++sw.fail>2){sw.on=false;sndDbg.err='sweep-off'}}
 }
 async function sndCamRestart(why){ // recover from a frozen/killed preview (some devices freeze on takePhoto)
@@ -1498,6 +1510,99 @@ function sndRepPush(){ // ?sd=1: upload stats + a thumbnail of the decoder input
   let thumb='';
   try{if(sndDbg.canvas){if(!snd.rc){snd.rc=document.createElement('canvas');snd.rc.width=176;snd.rc.height=99}const x=snd.rc.getContext('2d');x.drawImage(sndDbg.canvas,0,0,176,99);thumb=snd.rc.toDataURL('image/jpeg',0.5)}}catch(e){}
   try{api('/api/wallet/scan-debug',{method:'POST',body:JSON.stringify({b:SND_BUILD,set:sndDbg.set,caps:sndDbg.caps,capsFull:(snd.capsFull||'').slice(0,900),fd:sndDbg.fd,sw:snd.sweep?('i'+snd.sweep.i+'/'+snd.sweep.vals.length+(snd.sweep.on?'':' off')):'-',luma:snd.lumaVal,det:sndDbg.det,detBad:sndDbg.detBad,zx:zx.state,zxMs:sndDbg.zxMs,tick:sndDbg.tick,shot:sndDbg.shot,shotF:snd.shotFail||0,off:!!snd.shotOff,err:sndDbg.err,zoom:snd.zoom||1,ua:(navigator.userAgent||'').slice(0,150),thumb})}).catch(()=>{})}catch(e){}
+}
+async function sndLabStart(){ // ?sd=2 camera calibration: try every camera x focus strategy, upload each attempt
+  if(!SND_LAB||window.__labRun)return;window.__labRun=1;
+  const root=document.createElement('div');root.className='sndlab';
+  root.innerHTML='<video id="labVid" playsinline muted autoplay></video><div class="labui"><div class="labtitle">openLN camera calibration</div><div class="labstep" id="labStep">starting...</div><div class="labhint">Point the camera at the QR code and hold it about 15 cm away, steady, for the whole run (~2 minutes).</div><div class="labbar"><i id="labBar"></i></div><div class="lablog" id="labLog"></div></div>';
+  document.body.append(root);
+  if(typeof tok!=='function'||!tok()){const s=root.querySelector('#labStep');if(s)s.textContent='Please log in at openln.com/app first, then reopen this page with ?sd=2';return}
+  const v=root.querySelector('#labVid');
+  const log=s=>{const el=root.querySelector('#labLog');if(el)el.textContent=String(s).slice(0,600)};
+  const step=(s,f)=>{const el=root.querySelector('#labStep');if(el)el.textContent=s;const b=root.querySelector('#labBar');if(b&&f!=null)b.style.width=Math.round(f*100)+'%'};
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const report=async o=>{try{await api('/api/wallet/scan-debug',{method:'POST',body:JSON.stringify(Object.assign({lab:1,b:SND_BUILD,ua:(navigator.userAgent||'').slice(0,150)},o))})}catch(e){}};
+  let n=0,labOk=0;
+  try{
+    let devs=[];
+    try{const all=await navigator.mediaDevices.enumerateDevices();devs=(all||[]).filter(d=>d.kind==='videoinput')}catch(e){}
+    if(!devs.length)devs=[{deviceId:null,label:'Default camera'}];
+    const backs=devs.filter(d=>/back|rear|environment|world/i.test(d.label||''));
+    devs=(backs.length?backs:devs).slice(0,3);
+    const total=devs.length*16;
+    let sup='';try{sup=JSON.stringify(navigator.mediaDevices.getSupportedConstraints&&navigator.mediaDevices.getSupportedConstraints()||{}).slice(0,300)}catch(e){}
+    log('devices '+devs.length+' · '+devs.map(d=>String(d.label||'camera').slice(0,24)).join(' | '));
+    await report({devices:devs.map((d,i)=>({i,id:String(d.deviceId||'').slice(-8),label:String(d.label||'').slice(0,40)})),sup});
+    for(let di=0;di<devs.length;di++){
+      const d=devs[di];
+      const dinfo={i:di,total:devs.length,id:String(d.deviceId||'').slice(-8),label:String(d.label||'').slice(0,40)};
+      let stream=null;
+      try{
+        const base={width:{ideal:3840},height:{ideal:2160}};
+        if(d.deviceId)base.deviceId={exact:d.deviceId};
+        stream=await navigator.mediaDevices.getUserMedia({video:base,audio:false});
+      }catch(e){
+        try{stream=await navigator.mediaDevices.getUserMedia({video:d.deviceId?{deviceId:{exact:d.deviceId}}:true,audio:false})}catch(e2){}
+      }
+      if(!stream){n++;await report({dev:dinfo,step:{label:'open-fail'}});continue}
+      v.srcObject=stream;try{await v.play()}catch(e){}
+      await sleep(1200);
+      const tr=stream.getVideoTracks()[0];
+      const caps=(tr&&tr.getCapabilities)?tr.getCapabilities():{};
+      await report({dev:dinfo,step:{label:'caps'},cap:(()=>{try{return JSON.stringify(caps).slice(0,900)}catch(e){return''}})(),set:(()=>{try{return JSON.stringify(tr.getSettings())}catch(e){return''}})()});
+      const probes=[
+        {label:'base'},
+        {label:'reset',c:{advanced:[]}},
+        {label:'none',c:{focusMode:'none'}},
+        {label:'cont',c:{focusMode:'continuous'}},
+        {label:'single',c:{focusMode:'single-shot'}},
+        {label:'manual',c:{focusMode:'manual'}},
+        {label:'fd12',c:{focusMode:'manual',focusDistance:12}},
+        {label:'fd7',c:{focusMode:'manual',focusDistance:7}},
+        {label:'fd4',c:{focusMode:'manual',focusDistance:4}},
+        {label:'fd2.5',c:{focusMode:'manual',focusDistance:2.5}},
+        {label:'fd1.6',c:{focusMode:'manual',focusDistance:1.6}},
+        {label:'fd1',c:{focusMode:'manual',focusDistance:1}},
+        {label:'fd0.6',c:{focusMode:'manual',focusDistance:0.6}},
+        {label:'fd0',c:{focusMode:'manual',focusDistance:0}},
+        {label:'fd4-adv',c:{advanced:[{focusMode:'manual',focusDistance:4}]}},
+        {label:'reset2',c:{advanced:[]}}
+      ];
+      for(let pi=0;pi<probes.length;pi++){
+        const p=probes[pi];n++;step('camera '+(di+1)+'/'+devs.length+' · '+p.label+' ('+n+'/'+total+')',n/total);
+        let err='';
+        if(p.c){try{await tr.applyConstraints(p.c)}catch(e){err=String((e&&e.name)||e).slice(0,40)}}
+        await sleep(1600);
+        let setj='';try{setj=JSON.stringify(tr.getSettings())}catch(e){}
+        let thumb='',dec=0,txt='';
+        try{
+          if(typeof ImageCapture!=='undefined'){
+            const bmp=await new ImageCapture(tr).grabFrame();
+            const cap=1600,sc=Math.min(1,cap/Math.max(bmp.width,bmp.height));
+            const cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(bmp.width*sc));cv.height=Math.max(1,Math.round(bmp.height*sc));
+            const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(bmp,0,0,cv.width,cv.height);try{bmp.close()}catch(e){}
+            const tc=document.createElement('canvas');tc.width=176;tc.height=99;tc.getContext('2d').drawImage(cv,0,0,176,99);thumb=tc.toDataURL('image/jpeg',0.5);
+            if(!zx.mod)await sndZxReady(3000);
+            if(zx.mod){
+              for(const frac of [1,0.5]){
+                let g=null;
+                if(frac<1){const side=Math.round(Math.min(cv.width,cv.height)*frac);g=cx.getImageData(Math.round((cv.width-side)/2),Math.round((cv.height-side)/2),side,side)}
+                else g=cx.getImageData(0,0,cv.width,cv.height);
+                try{const res=await zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,maxNumberOfSymbols:1});const tt=res&&res.length?(res[0].text||''):'';if(tt){dec=1;txt=String(tt).slice(0,60);break}}catch(e){}
+              }
+            }
+          }
+        }catch(e){log('grab:'+((e&&e.message)||e))}
+        if(dec)labOk++;
+        await report({dev:dinfo,step:{label:p.label,c:p.c?JSON.stringify(p.c).slice(0,160):'',err,set:setj.slice(0,220),dec,txt},thumb});
+        if(dec&&pi>0)break;
+      }
+      try{stream.getTracks().forEach(t=>t.stop())}catch(e){}
+      v.srcObject=null;await sleep(300);
+    }
+    step('Calibration complete ('+labOk+' reads). You can close this page.',1);
+    await report({done:1,n,devs:devs.length,ok:labOk});
+  }catch(e){log('lab fail: '+((e&&e.message)||e));await report({lab:1,b:SND_BUILD,fail:String((e&&e.message)||e).slice(0,140)});}
 }
 function sndLuma(v){
   try{
@@ -3053,4 +3158,5 @@ function admTimelineItem(ev,isLast){
   };
 })();
 boot();
+if(SND_LAB)setTimeout(function(){try{sndLabStart()}catch(e){}},700);
 </script></body></html>

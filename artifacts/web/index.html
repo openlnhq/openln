@@ -1316,16 +1316,56 @@ async function sndZxReady(ms){
   while(zx.state===1&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,50));
   return zx.state===2;
 }
-function sndFrame(v,c,n,cap){
+function sndFrame(v,c,n,cap,frac){
   const w=v.videoWidth||0,h=v.videoHeight||0;
   if(!w||!h)return null;
   let sx=0,sy=0,sw=w,sh=h;
-  if(n%2===1){const side=Math.round(Math.min(w,h)*.78);sw=side;sh=side;sx=Math.round((w-side)/2);sy=Math.round((h-side)/2)}
+  if(frac>0&&frac<1){const side=Math.round(Math.min(w,h)*frac);sw=side;sh=side;sx=Math.round((w-side)/2);sy=Math.round((h-side)/2)}
+  else if(frac===undefined&&n%2===1){const side=Math.round(Math.min(w,h)*.78);sw=side;sh=side;sx=Math.round((w-side)/2);sy=Math.round((h-side)/2)}
   const scale=Math.min(1,cap/Math.max(sw,sh));c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
   const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(v,sx,sy,sw,sh,0,0,c.width,c.height);
   return x.getImageData(0,0,c.width,c.height);
 }
-function sndStopCam(){snd.scanning=false;if(snd.tickT){clearTimeout(snd.tickT);snd.tickT=null}if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}}
+let sndShotAt=0; // last close-up still attempt (ms)
+function sndShot(){ // full-resolution still through the photo pipeline; resolves to ImageData or null
+  return new Promise(resolve=>{
+    let settled=false;
+    const fin=v=>{if(!settled){settled=true;clearTimeout(to);resolve(v)}};
+    const to=setTimeout(()=>fin(null),4000);
+    (async()=>{
+      try{
+        const tr=sndTrack(),v=sndEl('#sndVid');
+        if(!tr||!('ImageCapture' in window)||!v){fin(null);return}
+        const blob=await new ImageCapture(tr).takePhoto();
+        if(!blob){fin(null);return}
+        const bmp=await createImageBitmap(blob);
+        const cap=2560,sc=Math.min(1,cap/Math.max(bmp.width,bmp.height));
+        const cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(bmp.width*sc));cv.height=Math.max(1,Math.round(bmp.height*sc));
+        const x=cv.getContext('2d',{willReadFrequently:true});x.drawImage(bmp,0,0,cv.width,cv.height);
+        try{bmp.close()}catch(e){}
+        fin(x.getImageData(0,0,cv.width,cv.height));
+      }catch(e){fin(null)}
+    })();
+  });
+}
+function sndShotRun(){ // kick focus, then decode a full-res still in parallel with the stream loop
+  if(snd.shotBusy||snd.shotOff||zx.state!==2||snd.stage!=='scan')return;
+  const lid=snd.loopId;
+  snd.shotBusy=true;sndShotAt=Date.now();
+  try{sndFocusKick()}catch(e){}
+  setTimeout(()=>{
+    sndShot().then(g=>{
+      snd.shotBusy=false;
+      if(!g){snd.shotFail=(snd.shotFail||0)+1;if(snd.shotFail>5)snd.shotOff=true;return}
+      if(zx.state!==2||snd.stage!=='scan'||snd.loopId!==lid)return;
+      zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,maxNumberOfSymbols:1}).then(res=>{
+        const t=res&&res.length?(res[0].text||''):'';
+        if(t&&snd.stage==='scan'&&snd.loopId===lid)snd.shotRaw=t;
+      }).catch(e=>{zx.err++;if(zx.err>6){zx.state=3;zx.mod=null}});
+    });
+  },320);
+}
+function sndStopCam(){snd.scanning=false;snd.shotRaw=null;snd.shotBusy=false;if(snd.tickT){clearTimeout(snd.tickT);snd.tickT=null}if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}}
 function sndClose(){sndStopCam();if(snd.root){snd.root.remove();snd.root=null}}
 async function sndLoadFx(){if(snd.fx)return;try{const cfg=await api('/api/pos/config');const cur=String(cfg.currency||'').toLowerCase();const fx={cur,rate:null};if(cur&&cur!=='sats'){const qs=new URLSearchParams({vs_currency:cur});if(cfg.sendRateModifier)qs.set('modifier',cfg.sendRateModifier);const p=await api('/api/price?'+qs.toString());if(Number(p&&p.price)>0)fx.rate=Number(p.price)}snd.fx=fx}catch(e){snd.fx={cur:'',rate:null}}}
 function sndCur(){return (snd.fx&&snd.fx.cur)||''}
@@ -1404,7 +1444,7 @@ async function sndStartCam(){
   const noCam=()=>{const h=sndEl('#sndHint');if(h)h.textContent='Camera not available here. Use Paste, Keyboard or Images below.';const f=sndEl('#sndFrame');if(f)f.style.display='none'};
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){noCam();return}
   const ladder=[
-    {video:{facingMode:{ideal:'environment'},width:{min:1280,ideal:1920},height:{min:720,ideal:1080}},audio:false},
+    {video:{facingMode:{ideal:'environment'},width:{min:1280,ideal:3840},height:{min:720,ideal:2160}},audio:false},
     {video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false},
     {video:{facingMode:{ideal:'environment'}},audio:false}
   ];
@@ -1413,8 +1453,8 @@ async function sndStartCam(){
   if(!snd.stream){const h=sndEl('#sndHint');if(lastErr&&lastErr.name==='NotAllowedError'&&h)h.textContent='Camera access is blocked for this site. Allow it in your browser settings, or use Paste, Keyboard or Images below.';else noCam();return}
   v.srcObject=snd.stream;try{await v.play()}catch(e){}
   try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};if(Array.isArray(caps.focusMode)&&caps.focusMode.indexOf('continuous')>-1){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}}catch(e){}
-  v.onclick=ev=>{const r=v.getBoundingClientRect();if(!r.width||!r.height)return;sndTapFocus(Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height)));const f=sndEl('#sndFrame');if(f){f.classList.add('tap');setTimeout(()=>f.classList.remove('tap'),500)}};
-  snd.t0=Date.now();snd.dark=false;
+  v.onclick=ev=>{const r=v.getBoundingClientRect();if(!r.width||!r.height)return;sndTapFocus(Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height)));const f=sndEl('#sndFrame');if(f){f.classList.add('tap');setTimeout(()=>f.classList.remove('tap'),500)}if(snd.stage==='scan')sndShotRun()};
+  snd.t0=Date.now();snd.dark=false;snd.shotRaw=null;snd.shotBusy=false;snd.shotFail=0;snd.shotOff=false;
   setTimeout(()=>{if(snd.scanning&&snd.stage==='scan')sndFocusKick()},700);
   sndLoop();
 }
@@ -1435,10 +1475,11 @@ async function sndLoop(){
       const tb=sndEl('#sndTorch');
       setHint((snd.dark&&tb&&!tb.hidden)?'Low light · Tap Light':((Date.now()-(snd.t0||0)>5000)?'Fill the frame with the code · tap to refocus':'Point the camera at a Lightning QR code'));
       let raw=null;
+      const el=Date.now()-(snd.t0||0);
       if(det){try{const codes=await det.detect(v);if(codes&&codes.length)raw=codes[0].rawValue}catch(e){det=null}}
       if(zx.state===0)sndZx();
       if(!raw&&zx.state===2){
-        const g=sndFrame(v,c,n,1280);
+        const g=sndFrame(v,c,n,1280,el>2000?[0,.62,.36][n%3]:undefined);
         if(g){try{const res=await zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDownscale:true,tryDenoise:true,maxNumberOfSymbols:1});const t=res&&res.length?(res[0].text||''):'';if(t)raw=t}catch(e){zx.err++;if(zx.err>6){zx.state=3;zx.mod=null}}}
       }
       if(!raw&&zx.state===3&&!jsqr&&!failed){
@@ -1449,6 +1490,8 @@ async function sndLoop(){
         const g=sndFrame(v,c,n,1024);
         if(g){const r=jsqr(g.data,g.width,g.height,{inversionAttempts:'attemptBoth'});if(r&&r.data)raw=r.data}
       }
+      if(!raw&&snd.shotRaw){raw=snd.shotRaw;snd.shotRaw=null}
+      if(!raw&&zx.state===2&&el>2000&&!snd.shotBusy&&Date.now()-sndShotAt>1400)sndShotRun();
       if(raw&&String(raw).trim()){try{if(navigator.vibrate)navigator.vibrate(30)}catch(e){}if(snd.root)snd.root.classList.add('hit');setTimeout(()=>{if(snd.root)snd.root.classList.remove('hit')},450);sndResolve(String(raw));return}
     }catch(e){}
     snd.tickT=setTimeout(tick,150);

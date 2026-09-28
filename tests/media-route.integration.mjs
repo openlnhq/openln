@@ -17,6 +17,10 @@ test('media subfolders are served and traversal is rejected',async()=>{
   const zxw=await fetch(base+'/media/zxing_reader.wasm');
   assert.equal(zxw.status,200,'the zxing-wasm binary must be served');
   assert.equal(zxw.headers.get('content-type'),'application/wasm');
+  const app=await fetch(base+'/app');
+  assert.equal(app.status,200,'the app page must be served');
+  assert.match(app.headers.get('content-type')||'',/text\/html/);
+  assert.match(app.headers.get('cache-control')||'',/no-store/,'the app page must never be cached');
   for(const bad of ['/media/','/media/nope.png','/media/..%2f..%2fetc%2fpasswd','/media/compat/..%2f..%2fcore%2fserver.ts','/media/%2e%2e%2f%2e%2e%2fetc%2fpasswd'])
     assert.equal((await fetch(base+bad)).status,404,`must reject ${bad}`);
 });

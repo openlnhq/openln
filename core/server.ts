@@ -176,7 +176,7 @@ const server = createServer(async (req, res) => {
       try { return res.end(await (await import("node:fs/promises")).readFile(new URL("../../artifacts/web/landing.html", import.meta.url), "utf8")); }
       catch { return res.end("<!doctype html><title>openLN</title><h1>openLN</h1><a href='/app'>Open wallet</a>"); }
     }
-    if (req.method === "GET" && (u.pathname === "/app" || u.pathname === "/app/" || u.pathname === "/partner" || u.pathname === "/partner/")) { try { const html = await readFile(join(process.cwd(), "artifacts/web/index.html"), "utf8"); res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(html); } catch { return json(res, 500, { error: "Web application unavailable" }); } }
+    if (req.method === "GET" && (u.pathname === "/app" || u.pathname === "/app/" || u.pathname === "/partner" || u.pathname === "/partner/")) { try { const html = await readFile(join(process.cwd(), "artifacts/web/index.html"), "utf8"); res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }); return res.end(html); } catch { return json(res, 500, { error: "Web application unavailable" }); } }
     // Card writer (/card-writer/): browser-based NTAG424 write/wipe tool for
     // BoltCards. Static page + engine served straight from the repo; the page
     // talks to a local bridge (Chrome extension or http://127.0.0.1:17777)

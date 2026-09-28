@@ -283,6 +283,9 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .sndscan.hit::after{content:'';position:absolute;inset:0;z-index:4;pointer-events:none;background:radial-gradient(circle at 50% 40%,rgba(20,184,166,.30),transparent 62%);animation:sndhit .45s ease-out}
 @keyframes sndhit{0%{opacity:1}100%{opacity:0}}
 .sndhint{position:absolute;left:0;right:0;top:calc(40% + min(33vw,150px) + 16px);text-align:center;color:#cfd8e6;font-size:13.5px;z-index:2;padding:0 26px}
+.snddbg{position:absolute;top:54px;right:8px;width:152px;z-index:6;background:rgba(6,10,16,.8);border:1px solid rgba(95,220,255,.35);border-radius:10px;padding:6px;pointer-events:none}
+.snddbg canvas{width:132px;height:99px;display:block;border-radius:6px;margin:0 auto 5px;background:#000}
+.snddbg pre{margin:0;font:9px/1.4 ui-monospace,Menlo,monospace;color:#9fe8ff;white-space:pre-wrap;word-break:break-word}
 .sndbar{position:absolute;left:0;right:0;bottom:0;z-index:3;display:flex;gap:10px;padding:14px 14px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,rgba(4,6,10,.9) 45%)}
 .sndbar button{flex:1;padding:13px 6px;border-radius:999px;background:rgba(10,14,20,.78);border:1px solid rgba(255,255,255,.16);color:#e8eef8;font-size:13.5px;font-weight:510;cursor:pointer}
 .sndbar button:active{background:rgba(30,38,50,.92)}
@@ -1309,6 +1312,19 @@ function sndBookSave(a){a=String(a||'').trim().toLowerCase();if(!a||a.indexOf('@
 function sndBookRemove(a){try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(sndBookList().filter(x=>x!==a)))}catch(e){}toast('Removed from your address book')}
 function sndEl(sel){return snd.root?snd.root.querySelector(sel):null}
 let zx={mod:null,state:0,err:0}; // zxing-wasm camera decoder: state 0 idle, 1 loading, 2 ready, 3 failed
+const SND_BUILD='2026-09-28b'; // bump on scanner changes; shown by the ?sd=1 diagnostic
+const SND_DEBUG=(typeof location!=='undefined'&&/[?&]sd=1/.test(location.search||''));
+let sndDbg={tick:0,detBad:0,det:'?',zxMs:0,err:'',last:'',set:'',caps:'',shot:'',timer:null,canvas:null,pAt:0,pTick:0};
+function sndDbgPaint(){
+  if(!SND_DEBUG||!snd.root||snd.stage!=='scan')return;
+  const t=snd.root.querySelector('#sndDbgTx');if(!t)return;
+  const now=Date.now(),dt=(now-(sndDbg.pAt||now))/1000;
+  const rate=(sndDbg.pAt&&dt>0)?Math.round((sndDbg.tick-sndDbg.pTick)/dt):0;
+  sndDbg.pAt=now;sndDbg.pTick=sndDbg.tick;
+  t.textContent='openLN scan diag '+SND_BUILD+'\nstream '+(sndDbg.set||'...')+'\ncaps '+(sndDbg.caps||'...')+'\ndet '+sndDbg.det+' bad'+sndDbg.detBad+' zx'+zx.state+(sndDbg.zxMs?' '+sndDbg.zxMs+'ms':'')+'\ntick '+rate+'/s n'+sndDbg.tick+'\nshot '+sndDbg.shot+' f'+(snd.shotFail||0)+(snd.shotOff?' OFF':'')+'\n'+(sndDbg.err?'err '+sndDbg.err+'\n':'')+(sndDbg.last?'last '+sndDbg.last:'waiting for a read');
+  const th=snd.root.querySelector('#sndDbgTh');
+  if(th&&sndDbg.canvas){try{th.getContext('2d').drawImage(sndDbg.canvas,0,0,th.width,th.height)}catch(e){}}
+}
 function sndZx(){if(zx.state)return;zx.state=1;import('/media/zxing.mjs').then(m=>{try{if(m.prepareZXingModule)m.prepareZXingModule({overrides:{locateFile:(p,pre)=>String(p).indexOf('.wasm')>-1?'/media/'+p:pre+p}})}catch(e){}zx.mod=m;zx.state=2}).catch(()=>{zx.state=3})}
 async function sndZxReady(ms){
   if(zx.state===0)sndZx();
@@ -1351,21 +1367,22 @@ function sndShot(){ // full-resolution still through the photo pipeline; resolve
 function sndShotRun(){ // kick focus, then decode a full-res still in parallel with the stream loop
   if(snd.shotBusy||snd.shotOff||zx.state!==2||snd.stage!=='scan')return;
   const lid=snd.loopId;
-  snd.shotBusy=true;sndShotAt=Date.now();
+  snd.shotBusy=true;sndShotAt=Date.now();sndDbg.shot='run';
   try{sndFocusKick()}catch(e){}
   setTimeout(()=>{
     sndShot().then(g=>{
       snd.shotBusy=false;
-      if(!g){snd.shotFail=(snd.shotFail||0)+1;if(snd.shotFail>5)snd.shotOff=true;return}
+      if(!g){snd.shotFail=(snd.shotFail||0)+1;sndDbg.shot='null';if(snd.shotFail>5)snd.shotOff=true;return}
       if(zx.state!==2||snd.stage!=='scan'||snd.loopId!==lid)return;
       zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDenoise:true,maxNumberOfSymbols:1}).then(res=>{
         const t=res&&res.length?(res[0].text||''):'';
-        if(t&&snd.stage==='scan'&&snd.loopId===lid)snd.shotRaw=t;
+        sndDbg.shot=t?'ok':'empty';
+        if(t&&snd.stage==='scan'&&snd.loopId===lid){snd.shotRaw=t;sndDbg.last='shot '+t.slice(0,16)}
       }).catch(e=>{zx.err++;if(zx.err>6){zx.state=3;zx.mod=null}});
     });
   },320);
 }
-function sndStopCam(){snd.scanning=false;snd.shotRaw=null;snd.shotBusy=false;if(snd.tickT){clearTimeout(snd.tickT);snd.tickT=null}if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}}
+function sndStopCam(){snd.scanning=false;snd.shotRaw=null;snd.shotBusy=false;if(sndDbg.timer){clearInterval(sndDbg.timer);sndDbg.timer=null}if(snd.tickT){clearTimeout(snd.tickT);snd.tickT=null}if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}}
 function sndClose(){sndStopCam();if(snd.root){snd.root.remove();snd.root=null}}
 async function sndLoadFx(){if(snd.fx)return;try{const cfg=await api('/api/pos/config');const cur=String(cfg.currency||'').toLowerCase();const fx={cur,rate:null};if(cur&&cur!=='sats'){const qs=new URLSearchParams({vs_currency:cur});if(cfg.sendRateModifier)qs.set('modifier',cfg.sendRateModifier);const p=await api('/api/price?'+qs.toString());if(Number(p&&p.price)>0)fx.rate=Number(p.price)}snd.fx=fx}catch(e){snd.fx={cur:'',rate:null}}}
 function sndCur(){return (snd.fx&&snd.fx.cur)||''}
@@ -1404,6 +1421,7 @@ function sendScan(){
   <div class="sndsheet" id="sndSheet" hidden></div>
   <input type="file" id="sndFile" accept="image/*" hidden>`;
   document.body.append(root);snd.root=root;
+  if(SND_DEBUG){const d=document.createElement('div');d.className='snddbg';d.id='sndDbg';/* fixed diagnostic markup, no external input */d.innerHTML='<canvas id="sndDbgTh" width="132" height="99"></canvas><pre id="sndDbgTx">diag starting...</pre>';root.append(d)}
   sndEl('#sndClose').onclick=()=>{sndClose();render()};
   sndEl('#sndPaste').onclick=()=>sndPaste();
   sndEl('#sndKeys').onclick=()=>sndKeys();
@@ -1453,6 +1471,7 @@ async function sndStartCam(){
   if(!snd.stream){const h=sndEl('#sndHint');if(lastErr&&lastErr.name==='NotAllowedError'&&h)h.textContent='Camera access is blocked for this site. Allow it in your browser settings, or use Paste, Keyboard or Images below.';else noCam();return}
   v.srcObject=snd.stream;try{await v.play()}catch(e){}
   try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};if(Array.isArray(caps.focusMode)&&caps.focusMode.indexOf('continuous')>-1){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}}catch(e){}
+  try{const tr1=sndTrack();if(tr1){const st1=tr1.getSettings?tr1.getSettings():{};sndDbg.set=(st1.width||'?')+'x'+(st1.height||'?')+(st1.frameRate?'@'+Math.round(st1.frameRate):'');const cp1=sndCaps(tr1);sndDbg.caps='f:'+((cp1.focusMode||[]).join('|')||'-')+' z'+(((cp1.zoom||{}).max)||1)+' t:'+(cp1.torch?1:0)}}catch(e){}
   v.onclick=ev=>{const r=v.getBoundingClientRect();if(!r.width||!r.height)return;sndTapFocus(Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height)));const f=sndEl('#sndFrame');if(f){f.classList.add('tap');setTimeout(()=>f.classList.remove('tap'),500)}if(snd.stage==='scan')sndShotRun()};
   snd.t0=Date.now();snd.dark=false;snd.shotRaw=null;snd.shotBusy=false;snd.shotFail=0;snd.shotOff=false;
   setTimeout(()=>{if(snd.scanning&&snd.stage==='scan')sndFocusKick()},700);
@@ -1463,12 +1482,13 @@ async function sndLoop(){
   const id=(snd.loopId=(snd.loopId||0)+1);
   const v=sndEl('#sndVid');if(!v)return;
   let det=null;if('BarcodeDetector' in window){try{det=new BarcodeDetector({formats:['qr_code']})}catch(e){}}
+  sndDbg.det=det?'ok':'off';
   let jsqr=null,failed=false,n=0,lumaAt=0,kickAt=Date.now(),hintNow='';
-  const c=document.createElement('canvas');
+  const c=document.createElement('canvas');sndDbg.canvas=c;
   const setHint=t=>{if(t===hintNow)return;hintNow=t;const h=sndEl('#sndHint');if(h)h.textContent=t};
   const tick=async()=>{
     if(!snd.scanning||snd.stage!=='scan'||!snd.root||snd.loopId!==id)return;
-    n++;
+    n++;sndDbg.tick++;
     try{
       if(Date.now()-kickAt>3000){kickAt=Date.now();sndFocusKick()}
       if(Date.now()-lumaAt>1500){lumaAt=Date.now();sndLuma(v)}
@@ -1476,11 +1496,15 @@ async function sndLoop(){
       setHint((snd.dark&&tb&&!tb.hidden)?'Low light · Tap Light':((Date.now()-(snd.t0||0)>5000)?'Fill the frame with the code · tap to refocus':'Point the camera at a Lightning QR code'));
       let raw=null;
       const el=Date.now()-(snd.t0||0);
-      if(det){try{const codes=await det.detect(v);if(codes&&codes.length)raw=codes[0].rawValue}catch(e){det=null}}
+      if(det){
+        const dres=await Promise.race([det.detect(v).catch(()=>'err'),new Promise(r=>setTimeout(()=>r('slow'),700))]);
+        if(dres==='slow'||dres==='err'){sndDbg.detBad++;sndDbg.det=dres==='slow'?'slow':'err';if(sndDbg.detBad>2){det=null;sndDbg.det='off'}}
+        else if(dres&&dres.length)raw=dres[0].rawValue;
+      }
       if(zx.state===0)sndZx();
       if(!raw&&zx.state===2){
         const g=sndFrame(v,c,n,1280,el>2000?[0,.62,.36][n%3]:undefined);
-        if(g){try{const res=await zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDownscale:true,tryDenoise:true,maxNumberOfSymbols:1});const t=res&&res.length?(res[0].text||''):'';if(t)raw=t}catch(e){zx.err++;if(zx.err>6){zx.state=3;zx.mod=null}}}
+        if(g){const tD=performance.now();try{const res=await zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDownscale:true,tryDenoise:true,maxNumberOfSymbols:1});const t=res&&res.length?(res[0].text||''):'';if(t)raw=t}catch(e){zx.err++;sndDbg.err=String((e&&e.message)||e).slice(0,42);if(zx.err>6){zx.state=3;zx.mod=null}}sndDbg.zxMs=Math.round(performance.now()-tD)}
       }
       if(!raw&&zx.state===3&&!jsqr&&!failed){
         try{const mod=await import('/media/jsqr.mjs');jsqr=mod.default||mod.jsQR}catch(e){failed=true}
@@ -1497,6 +1521,7 @@ async function sndLoop(){
     snd.tickT=setTimeout(tick,150);
   };
   tick();
+  if(SND_DEBUG&&!sndDbg.timer)sndDbg.timer=setInterval(sndDbgPaint,400);
 }
 async function sndPaste(){
   try{const t=((await navigator.clipboard.readText())||'').trim();if(!t){toast('Clipboard is empty');return}sndResolve(t)}

@@ -1,9 +1,9 @@
-import { randomBytes, createHash, scryptSync } from "node:crypto";
+import { randomBytes, createHash, scryptSync, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { and, eq, gte, isNotNull, isNull } from "drizzle-orm";
 import { db, cardsTable } from "../core/db/index.js";
 import { encrypt, decrypt } from "../core/money/encrypt.js";
-import { decryptSunP, verifySunC, parseBolt11AmountSats } from "../core/money/boltcard.js";
+import { decryptSunP, verifySunC, parseBolt11AmountSats, appConfirmMac } from "../core/money/boltcard.js";
 import { handleCardTapRoute } from "./card-tap.js";
 import QRCode from "qrcode";
 import { computeSdmOffsets, buildSdmSettings } from "./card-ndef.js";
@@ -101,7 +101,7 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     if(!account)return json(res,401,{error:"Authentication required"});
     const [card]=await db.select().from(cardsTable).where(and(eq(cardsTable.id,wipeExport[1]),eq(cardsTable.accountId,account.id)));
     if(!card)return json(res,404,{error:"Card not found"});
-    const wipeKeys={protocol_name:"wipe_bolt_card_response",protocol_version:1,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4)};
+    const wipeKeys={protocol_name:"wipe_bolt_card_response",protocol_version:1,cardId:card.id,server:`https://${DOMAIN}`,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4)};
     // Export only. Never rotate recovery keys before the physical chip reports success.
     return json(res,200,{cardId:card.id,wipeKeys,wipeQr:await qrSvg(JSON.stringify(wipeKeys)),factorySettings:"40e0ee01ffff"});
   }
@@ -113,6 +113,27 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const v=await body(req);
     if(cardAction[2]==="pin") { const p=String(v.pin??""); if(!/^[0-9]{4}$/.test(p)) return json(res,400,{error:"PIN must be exactly 4 digits"}) as never; await db.update(cardsTable).set({pinHash:pinHash(p)}).where(eq(cardsTable.id,card.id)); return json(res,200,{ok:true,pinEnabled:true}) as never; }
     return json(res,200,{cardId:card.id,k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4),lnurlwTemplate:`lnurlw://${DOMAIN}/card/${card.id}?p=${"0".repeat(32)}&c=${"0".repeat(16)}`}) as never;
+  }
+  // Card Writer app confirmations — no account session required. The app proves it
+  // holds the card's k4 key via AES-CMAC over a domain-separated message, so a
+  // physical write/wipe shows up on the dashboard without giving the app a credential.
+  const appConfirm = u.pathname.match(/^\/api\/pos\/app-confirm\/([^/]+)$/);
+  if (appConfirm && req.method === "POST") {
+    const cardId = appConfirm[1];
+    const v = await body(req);
+    const action = String(v.action ?? "");
+    if (action !== "written" && action !== "wiped") return json(res, 400, { error: "Invalid action" }) as never;
+    const [card] = await db.select().from(cardsTable).where(eq(cardsTable.id, cardId));
+    const mac = Buffer.from(String(v.mac ?? "").trim().toLowerCase(), "hex");
+    let ok = false;
+    if (card && mac.length === 16) ok = timingSafeEqual(mac, appConfirmMac(decrypt(card.aesKey4), action, cardId));
+    if (!ok) return json(res, 403, { error: "Invalid confirmation" }) as never;
+    if (action === "written") {
+      if (card.status === "active" && !card.lastUsedAt) await db.update(cardsTable).set({ provisionToken: null, provisionTokenExpiresAt: null, lastUsedAt: new Date() }).where(eq(cardsTable.id, cardId));
+      return json(res, 200, { status: "OK" }) as never;
+    }
+    if (card.status !== "cancelled") await db.update(cardsTable).set({ status: "cancelled", provisionToken: null, provisionTokenExpiresAt: null, pendingK1: null, pendingK1ExpiresAt: null, lastUsedAt: new Date() }).where(eq(cardsTable.id, cardId));
+    return json(res, 200, { status: "OK" }) as never;
   }
   const deviceNext = u.pathname === "/api/pos/next-provision";
   const deviceCard = u.pathname.match(/^\/api\/pos\/(mark-written|wipe-keys|mark-wiped)\/([^/]+)$/);
@@ -140,7 +161,7 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const [card] = await db.update(cardsTable).set({provisionToken:null,provisionTokenExpiresAt:null})
       .where(and(eq(cardsTable.provisionToken,hash(provision[1])),eq(cardsTable.status,"active"),isNotNull(cardsTable.provisionTokenExpiresAt),gte(cardsTable.provisionTokenExpiresAt,new Date()))).returning();
     if (!card) return json(res,404,{error:"Invalid or expired provisioning token"}) as never;
-    return json(res,200,{protocol_name:"new_bolt_card_response",protocol_version:1,card_name:"openLN Card",lnurlw_base:`lnurlw://${DOMAIN}/card/${card.id}`,uid_privacy:"Y",k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4)}) as never;
+    return json(res,200,{protocol_name:"new_bolt_card_response",protocol_version:1,card_id:card.id,card_name:"openLN Card",lnurlw_base:`lnurlw://${DOMAIN}/card/${card.id}`,uid_privacy:"Y",k0:decrypt(card.aesKey0),k1:decrypt(card.aesKey1),k2:decrypt(card.aesKey2),k3:decrypt(card.aesKey3),k4:decrypt(card.aesKey4)}) as never;
   }
   if (await handleCardTapRoute(req,res,u)) return true;
   return false;

@@ -85,6 +85,16 @@ function aesCmac(key: Buffer, message: Buffer): Buffer {
   }
 }
 
+/**
+ * Proof that the caller holds a card's k4 key without any account session.
+ * The openLN Card Writer app uses this to confirm "card written" / "card wiped"
+ * so the dashboard can react instantly. Domain-separated so the MAC can never
+ * be replayed as a card-tap URL fragment.
+ */
+export function appConfirmMac(k4Hex: string, action: "written" | "wiped", cardId: string): Buffer {
+  return aesCmac(Buffer.from(k4Hex, "hex"), Buffer.from(`openln-app-confirm:v1:${action}:${cardId}`, "utf8"));
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export interface SunDecryptResult {

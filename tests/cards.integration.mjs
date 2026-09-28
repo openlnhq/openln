@@ -144,3 +144,33 @@ test('phone wipe exports the creator-app QR without destroying recovery keys',as
 });
 
 test('negative, fractional, unsafe and nonnumeric limits are rejected',async()=>{const card=await issue();for(const value of [-1,1.5,9007199254740992,'oops']){assert.equal((await call('/api/cards/'+card.cardId,{method:'PATCH',body:{perTapLimitSats:value}})).status,400);assert.equal((await call('/api/accounts/'+a.account.id+'/cards',{method:'POST',body:{pin:'1357',dailyLimitSats:value}})).status,400)}});
+
+test('writer app confirms a written card with an AES-CMAC proof (no session needed)',async()=>{
+  const card=await issue();
+  const prov=await call(new URL(card.provisionUrl).pathname,{token:null});
+  assert.equal(prov.status,200);
+  assert.equal(prov.data.card_id,card.cardId,'provision response carries the card id');
+  const {appConfirmMac}=await import('../dist/core/money/boltcard.js');
+  const mac=appConfirmMac(prov.data.k4,'written',card.cardId).toString('hex');
+  assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'written',mac:'00'.repeat(16)}})).status,403,'a forged confirmation is rejected');
+  assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'written',mac}})).status,200);
+  const listed=await call('/api/accounts/'+a.account.id+'/cards');
+  assert.ok(listed.data.find(c=>c.id===card.cardId).lastUsedAt,'the dashboard sees the card as written');
+  assert.equal((await call('/api/cards/'+card.cardId+'/provision',{method:'POST',body:'{}'})).status,409,'a written card cannot be re-provisioned');
+  assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'written',mac}})).status,200,'re-confirm is idempotent for app retries');
+});
+
+test('writer app confirms a wiped card with an AES-CMAC proof',async()=>{
+  const card=await issue();
+  const wipe=await call('/api/cards/'+card.cardId+'/wipe',{method:'POST',body:{}});
+  assert.equal(wipe.data.wipeKeys.cardId,card.cardId,'wipe data carries the card id');
+  assert.match(String(wipe.data.wipeKeys.server),/^https:\/\//,'wipe data carries the server origin');
+  const {appConfirmMac}=await import('../dist/core/money/boltcard.js');
+  const mac=appConfirmMac(wipe.data.wipeKeys.k4,'wiped',card.cardId).toString('hex');
+  assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'nope',mac}})).status,400);
+  assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'wiped',mac:'11'.repeat(16)}})).status,403);
+  assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'wiped',mac}})).status,200);
+  const listed=await call('/api/accounts/'+a.account.id+'/cards');
+  assert.equal(listed.data.find(c=>c.id===card.cardId).status,'cancelled','the dashboard sees the card as cancelled after the wipe');
+  assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'wiped',mac}})).status,200,'re-confirm is idempotent');
+});

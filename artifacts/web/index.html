@@ -1312,7 +1312,7 @@ function sndBookSave(a){a=String(a||'').trim().toLowerCase();if(!a||a.indexOf('@
 function sndBookRemove(a){try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(sndBookList().filter(x=>x!==a)))}catch(e){}toast('Removed from your address book')}
 function sndEl(sel){return snd.root?snd.root.querySelector(sel):null}
 let zx={mod:null,state:0,err:0}; // zxing-wasm camera decoder: state 0 idle, 1 loading, 2 ready, 3 failed
-const SND_BUILD='2026-09-28b'; // bump on scanner changes; shown by the ?sd=1 diagnostic
+const SND_BUILD='2026-09-28c'; // bump on scanner changes; shown by the ?sd=1 diagnostic
 const SND_DEBUG=(typeof location!=='undefined'&&/[?&]sd=1/.test(location.search||''));
 let sndDbg={tick:0,detBad:0,det:'?',zxMs:0,err:'',last:'',set:'',caps:'',shot:'',timer:null,canvas:null,pAt:0,pTick:0};
 function sndDbgPaint(){
@@ -1321,9 +1321,10 @@ function sndDbgPaint(){
   const now=Date.now(),dt=(now-(sndDbg.pAt||now))/1000;
   const rate=(sndDbg.pAt&&dt>0)?Math.round((sndDbg.tick-sndDbg.pTick)/dt):0;
   sndDbg.pAt=now;sndDbg.pTick=sndDbg.tick;
-  t.textContent='openLN scan diag '+SND_BUILD+'\nstream '+(sndDbg.set||'...')+'\ncaps '+(sndDbg.caps||'...')+'\ndet '+sndDbg.det+' bad'+sndDbg.detBad+' zx'+zx.state+(sndDbg.zxMs?' '+sndDbg.zxMs+'ms':'')+'\ntick '+rate+'/s n'+sndDbg.tick+'\nshot '+sndDbg.shot+' f'+(snd.shotFail||0)+(snd.shotOff?' OFF':'')+'\n'+(sndDbg.err?'err '+sndDbg.err+'\n':'')+(sndDbg.last?'last '+sndDbg.last:'waiting for a read');
+  t.textContent='openLN scan diag '+SND_BUILD+'\nstream '+(sndDbg.set||'...')+'\ncaps '+(sndDbg.caps||'...')+'\ndet '+sndDbg.det+' bad'+sndDbg.detBad+' zx'+zx.state+(sndDbg.zxMs?' '+sndDbg.zxMs+'ms':'')+'\ntick '+rate+'/s n'+sndDbg.tick+'\nshot '+sndDbg.shot+' f'+(snd.shotFail||0)+(snd.shotOff?' OFF':'')+' rep'+(snd.repCount||0)+' zoom'+(snd.zoom||1)+'\n'+(sndDbg.err?'err '+sndDbg.err+'\n':'')+(sndDbg.last?'last '+sndDbg.last:'waiting for a read');
   const th=snd.root.querySelector('#sndDbgTh');
   if(th&&sndDbg.canvas){try{th.getContext('2d').drawImage(sndDbg.canvas,0,0,th.width,th.height)}catch(e){}}
+  sndRepPush();
 }
 function sndZx(){if(zx.state)return;zx.state=1;import('/media/zxing.mjs').then(m=>{try{if(m.prepareZXingModule)m.prepareZXingModule({overrides:{locateFile:(p,pre)=>String(p).indexOf('.wasm')>-1?'/media/'+p:pre+p}})}catch(e){}zx.mod=m;zx.state=2}).catch(()=>{zx.state=3})}
 async function sndZxReady(ms){
@@ -1368,7 +1369,6 @@ function sndShotRun(){ // kick focus, then decode a full-res still in parallel w
   if(snd.shotBusy||snd.shotOff||zx.state!==2||snd.stage!=='scan')return;
   const lid=snd.loopId;
   snd.shotBusy=true;sndShotAt=Date.now();sndDbg.shot='run';
-  try{sndFocusKick()}catch(e){}
   setTimeout(()=>{
     sndShot().then(g=>{
       snd.shotBusy=false;
@@ -1417,6 +1417,7 @@ function sendScan(){
     <button type="button" id="sndKeys">⌨ Keyboard</button>
     <button type="button" id="sndGallery">▣ Images</button>
     <button type="button" id="sndTorch" hidden>☀ Light</button>
+    <button type="button" id="sndZoom" hidden>2x</button>
   </div>
   <div class="sndsheet" id="sndSheet" hidden></div>
   <input type="file" id="sndFile" accept="image/*" hidden>`;
@@ -1425,6 +1426,7 @@ function sendScan(){
   sndEl('#sndClose').onclick=()=>{sndClose();render()};
   sndEl('#sndPaste').onclick=()=>sndPaste();
   sndEl('#sndKeys').onclick=()=>sndKeys();
+  {const zb=sndEl('#sndZoom');if(zb)zb.onclick=()=>sndZoomToggle()}
   sndEl('#sndGallery').onclick=()=>{const f=sndEl('#sndFile');if(f)f.click()};
   sndEl('#sndFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(f)sndDecodeImage(f)};
   sndZx();
@@ -1446,6 +1448,21 @@ async function sndTapFocus(x,y){
   try{const a={pointsOfInterest:[{x:x,y:y}]};if(single)a.focusMode='single-shot';await t.applyConstraints({advanced:[a]});ok=true}catch(e){}
   if(!ok){try{const a={};if(single)a.focusMode='single-shot';await t.applyConstraints({advanced:[a]})}catch(e){}}
   if(Array.isArray(fm)&&fm.indexOf('continuous')>-1)setTimeout(()=>{try{t.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}},1200);
+}
+async function sndZoomToggle(){
+  const t=sndTrack();if(!t)return;
+  const zc=sndCaps(t).zoom;if(!zc||!zc.max||zc.max<1.8)return;
+  const cur=snd.zoom||1;
+  const next=cur>1.2?(zc.min||1):Math.min(2,zc.max);
+  try{await t.applyConstraints({advanced:[{zoom:next}]});snd.zoom=next;const b=sndEl('#sndZoom');if(b){b.textContent=next>1.2?'1x':'2x';b.classList.toggle('on',next>1.2)}}catch(e){}
+}
+function sndRepPush(){ // ?sd=1: upload stats + a thumbnail of the decoder input so a phone can be diagnosed without screenshots
+  if(!SND_DEBUG||!snd.root||snd.stage!=='scan')return;
+  if((snd.repCount||0)>=40)return;
+  const now=Date.now();if(now-(snd.repAt||0)<2600)return;snd.repAt=now;snd.repCount=(snd.repCount||0)+1;
+  let thumb='';
+  try{if(sndDbg.canvas){if(!snd.rc){snd.rc=document.createElement('canvas');snd.rc.width=176;snd.rc.height=99}const x=snd.rc.getContext('2d');x.drawImage(sndDbg.canvas,0,0,176,99);thumb=snd.rc.toDataURL('image/jpeg',0.5)}}catch(e){}
+  try{api('/api/wallet/scan-debug',{method:'POST',body:JSON.stringify({b:SND_BUILD,set:sndDbg.set,caps:sndDbg.caps,det:sndDbg.det,detBad:sndDbg.detBad,zx:zx.state,zxMs:sndDbg.zxMs,tick:sndDbg.tick,shot:sndDbg.shot,shotF:snd.shotFail||0,off:!!snd.shotOff,err:sndDbg.err,zoom:snd.zoom||1,ua:(navigator.userAgent||'').slice(0,150),thumb})}).catch(()=>{})}catch(e){}
 }
 function sndLuma(v){
   try{
@@ -1472,8 +1489,9 @@ async function sndStartCam(){
   v.srcObject=snd.stream;try{await v.play()}catch(e){}
   try{const track=snd.stream.getVideoTracks()[0];const caps=(track.getCapabilities?track.getCapabilities():{})||{};if(Array.isArray(caps.focusMode)&&caps.focusMode.indexOf('continuous')>-1){try{await track.applyConstraints({advanced:[{focusMode:'continuous'}]})}catch(e){}}if(caps.torch){const t=sndEl('#sndTorch');if(t){t.hidden=false;t.onclick=async()=>{try{snd.torch=!snd.torch;await track.applyConstraints({advanced:[{torch:snd.torch}]});t.classList.toggle('on',snd.torch)}catch(e){}}}}}catch(e){}
   try{const tr1=sndTrack();if(tr1){const st1=tr1.getSettings?tr1.getSettings():{};sndDbg.set=(st1.width||'?')+'x'+(st1.height||'?')+(st1.frameRate?'@'+Math.round(st1.frameRate):'');const cp1=sndCaps(tr1);sndDbg.caps='f:'+((cp1.focusMode||[]).join('|')||'-')+' z'+(((cp1.zoom||{}).max)||1)+' t:'+(cp1.torch?1:0)}}catch(e){}
+  try{const zc=sndCaps(sndTrack()).zoom;snd.zoomCap=(zc&&zc.max>=1.8)?zc:null;const zb=sndEl('#sndZoom');if(zb&&snd.zoomCap)zb.hidden=false}catch(e){}
   v.onclick=ev=>{const r=v.getBoundingClientRect();if(!r.width||!r.height)return;sndTapFocus(Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(ev.clientY-r.top)/r.height)));const f=sndEl('#sndFrame');if(f){f.classList.add('tap');setTimeout(()=>f.classList.remove('tap'),500)}if(snd.stage==='scan')sndShotRun()};
-  snd.t0=Date.now();snd.dark=false;snd.shotRaw=null;snd.shotBusy=false;snd.shotFail=0;snd.shotOff=false;
+  snd.t0=Date.now();snd.dark=false;snd.shotRaw=null;snd.shotBusy=false;snd.shotFail=0;snd.shotOff=false;snd.zoom=1;snd.zoomCap=null;snd.repCount=0;snd.repAt=0;
   setTimeout(()=>{if(snd.scanning&&snd.stage==='scan')sndFocusKick()},700);
   sndLoop();
 }
@@ -1483,17 +1501,16 @@ async function sndLoop(){
   const v=sndEl('#sndVid');if(!v)return;
   let det=null;if('BarcodeDetector' in window){try{det=new BarcodeDetector({formats:['qr_code']})}catch(e){}}
   sndDbg.det=det?'ok':'off';
-  let jsqr=null,failed=false,n=0,lumaAt=0,kickAt=Date.now(),hintNow='';
+  let jsqr=null,failed=false,n=0,lumaAt=0,hintNow='';
   const c=document.createElement('canvas');sndDbg.canvas=c;
   const setHint=t=>{if(t===hintNow)return;hintNow=t;const h=sndEl('#sndHint');if(h)h.textContent=t};
   const tick=async()=>{
     if(!snd.scanning||snd.stage!=='scan'||!snd.root||snd.loopId!==id)return;
     n++;sndDbg.tick++;
     try{
-      if(Date.now()-kickAt>3000){kickAt=Date.now();sndFocusKick()}
       if(Date.now()-lumaAt>1500){lumaAt=Date.now();sndLuma(v)}
       const tb=sndEl('#sndTorch');
-      setHint((snd.dark&&tb&&!tb.hidden)?'Low light · Tap Light':((Date.now()-(snd.t0||0)>5000)?'Fill the frame with the code · tap to refocus':'Point the camera at a Lightning QR code'));
+      setHint((snd.dark&&tb&&!tb.hidden)?'Low light · Tap Light':((Date.now()-(snd.t0||0)>5000)?(snd.zoomCap&&(snd.zoom||1)<=1.2?'Close range · tap 2x and hold a little farther':'Fill the frame with the code · tap to refocus'):'Point the camera at a Lightning QR code'));
       let raw=null;
       const el=Date.now()-(snd.t0||0);
       if(det){
@@ -1515,7 +1532,7 @@ async function sndLoop(){
         if(g){const r=jsqr(g.data,g.width,g.height,{inversionAttempts:'attemptBoth'});if(r&&r.data)raw=r.data}
       }
       if(!raw&&snd.shotRaw){raw=snd.shotRaw;snd.shotRaw=null}
-      if(!raw&&zx.state===2&&el>2000&&!snd.shotBusy&&Date.now()-sndShotAt>1400)sndShotRun();
+      if(!raw&&zx.state===2&&el>2500&&!snd.shotBusy&&Date.now()-sndShotAt>2400)sndShotRun();
       if(raw&&String(raw).trim()){try{if(navigator.vibrate)navigator.vibrate(30)}catch(e){}if(snd.root)snd.root.classList.add('hit');setTimeout(()=>{if(snd.root)snd.root.classList.remove('hit')},450);sndResolve(String(raw));return}
     }catch(e){}
     snd.tickT=setTimeout(tick,150);

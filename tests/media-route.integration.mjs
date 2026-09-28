@@ -21,6 +21,7 @@ test('media subfolders are served and traversal is rejected',async()=>{
   assert.equal(app.status,200,'the app page must be served');
   assert.match(app.headers.get('content-type')||'',/text\/html/);
   assert.match(app.headers.get('cache-control')||'',/no-store/,'the app page must never be cached');
+  assert.equal((await fetch(base+'/api/wallet/scan-debug',{method:'POST',body:'{}'})).status,401,'scan-debug requires a session');
   for(const bad of ['/media/','/media/nope.png','/media/..%2f..%2fetc%2fpasswd','/media/compat/..%2f..%2fcore%2fserver.ts','/media/%2e%2e%2f%2e%2e%2fetc%2fpasswd'])
     assert.equal((await fetch(base+bad)).status,404,`must reject ${bad}`);
 });

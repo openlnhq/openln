@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHmac } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, appendFile, mkdir, stat, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { AuthService } from "./auth/service.js";
 import { WalletService } from "./wallet/service.js";
@@ -411,6 +411,26 @@ const server = createServer(async (req, res) => {
         const target = await resolveSendTarget(input, { amountSats: Number.isSafeInteger(amountSats) && amountSats > 0 ? amountSats : undefined, comment });
         return json(res, 200, target);
       } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Could not read that code" }); }
+    }
+
+    // Scanner debug reports: the ?sd=1 diagnostic posts stats + a thumbnail of
+    // the decoder input every few seconds so a merchant phone can be diagnosed
+    // without screenshots. Auth-gated, size-capped, one rotated append file.
+    if (req.method === "POST" && u.pathname === "/api/wallet/scan-debug") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      let v: Record<string, unknown> = {};
+      try { v = await body(req); } catch { return json(res, 400, { error: "Invalid report" }); }
+      const raw = JSON.stringify(v ?? {});
+      if (raw.length > 300000) return json(res, 400, { error: "Report is too large" });
+      try {
+        const dir = join(process.cwd(), "var");
+        await mkdir(dir, { recursive: true });
+        const file = join(dir, "scan-debug.jsonl");
+        const st = await stat(file).catch(() => null);
+        if (st && st.size > 3 * 1024 * 1024) await rename(file, join(dir, "scan-debug.1.jsonl"));
+        await appendFile(file, JSON.stringify({ at: new Date().toISOString(), accountId: account.id, report: v }) + "\n");
+      } catch { /* diagnostics must never break a scan */ }
+      return json(res, 200, { ok: true });
     }
 
     // POS invoice endpoint uses the identical wrapped hold path. The device

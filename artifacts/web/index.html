@@ -749,12 +749,25 @@ async function render(){
     if(tok())startLiveUpdates();
   }catch(e){if(version!==renderVersion)return;if(e.status===401&&VIEW!=='partner'){localStorage.removeItem('openln_token');closeDrawer(false);login()}else{$('#view').innerHTML=`<div class="view-loading" role="alert">${prose(e.message)} <button class="btn ghost" id="retryView">Try again</button></div>`;$('#retryView').onclick=render}}
 }
-let liveSource;
+let liveSource,liveRetry=5000,liveRetryT=null;
 function startLiveUpdates(){
   if(liveSource && liveSource.readyState!==EventSource.CLOSED)return;
   liveSource = new EventSource('/api/events?token=' + encodeURIComponent(tok()));
+  liveSource.onopen = () => { liveRetry=5000; };
   liveSource.addEventListener('payment', () => { if (VIEW === 'wallet') render(); });
-  liveSource.onerror = () => { liveSource.close(); setTimeout(() => { if (tok()) startLiveUpdates(); }, 5000); };
+  liveSource.onerror = () => {
+    liveSource.close();
+    if(liveRetryT)clearTimeout(liveRetryT);
+    liveRetryT=setTimeout(async () => {
+      if(!tok())return;
+      try{ await api('/api/me'); }
+      catch(e){
+        if(e&&e.status===401){ localStorage.removeItem('openln_token'); if(VIEW!=='partner'){ closeDrawer(false); login(); } return; }
+      }
+      startLiveUpdates();
+    }, liveRetry);
+    liveRetry = Math.min(liveRetry*2, 60000);
+  };
 }
 /* ---- WALLET VIEW ---- */
 async function vWallet(st,bal,version=renderVersion){
@@ -1013,25 +1026,36 @@ async function posCharge(){
     pos.stage='pay';
     posPaintBody();
     posStartPoll();
-  }catch(x){toast(/wallet not configured/i.test(String(x.message))?'Connect a wallet to start selling first':x.message||'Could not create the invoice');posPaintBody()}
+  }catch(x){if(x&&x.status===401){if(liveSource)liveSource.close();localStorage.removeItem('openln_token');if(VIEW!=='partner'){closeDrawer(false);login()}return}toast(/wallet not configured/i.test(String(x.message))?'Connect a wallet to start selling first':x.message||'Could not create the invoice');posPaintBody()}
   finally{pos.busy=false}
 }
 function posStartPoll(){
   if(pos.pollT)clearInterval(pos.pollT);
   const hash=pos.inv.paymentHash;
   const tick=async()=>{
-    if(VIEW!=='pos'||pos.stage!=='pay'){clearInterval(pos.pollT);pos.pollT=null;return}
+    if(VIEW!=='pos'||pos.stage!=='pay'){clearInterval(pos.pollT);pos.pollT=null;pos.resumeCheck=null;return}
     try{
       const s=await api('/api/pos/invoice/'+encodeURIComponent(hash)+'/status');
-      if(s.status==='paid'){clearInterval(pos.pollT);pos.pollT=null;posToDone();return}
-      if(['expired','cancelled','unknown','needs_reconciliation'].includes(s.status)){clearInterval(pos.pollT);pos.pollT=null;posToClosed(s.status);return}
+      if(s.status==='paid'){clearInterval(pos.pollT);pos.pollT=null;pos.resumeCheck=null;posToDone();return}
+      if(['expired','cancelled','unknown','needs_reconciliation'].includes(s.status)){clearInterval(pos.pollT);pos.pollT=null;pos.resumeCheck=null;posToClosed(s.status);return}
       posPayStatus(s.status);
-    }catch(e){}
+    }catch(e){
+      if(e&&e.status===401){clearInterval(pos.pollT);pos.pollT=null;pos.resumeCheck=null;if(liveSource)liveSource.close();localStorage.removeItem('openln_token');if(VIEW!=='partner'){closeDrawer(false);login()}}
+    }
   };
+  pos.resumeCheck=tick;
   pos.pollT=setInterval(tick,3000);tick();
   if(pos.tickT)clearInterval(pos.tickT);
   pos.tickT=setInterval(posCountdown,1000);posCountdown();
 }
+function onAppResume(){
+  if(document.visibilityState&&document.visibilityState!=='visible')return;
+  if(tok())startLiveUpdates();
+  if(VIEW==='pos'&&pos.stage==='pay'&&typeof pos.resumeCheck==='function')pos.resumeCheck();
+}
+document.addEventListener('visibilitychange',onAppResume);
+window.addEventListener('focus',onAppResume);
+window.addEventListener('pageshow',onAppResume);
 function posPayStatus(status){const el=$('#posStatText');if(!el)return;el.textContent=['accepted','forwarding','forwarded'].includes(status)?'Payment received · finishing up':'Waiting for payment…'}
 function posCountdown(){const el=$('#posCount');if(!el||!pos.inv)return;const exp=pos.inv.expiresAt?new Date(pos.inv.expiresAt).getTime():0;if(!exp){el.textContent='';return}const left=Math.max(0,Math.round((exp-Date.now())/1000));el.textContent=left>0?('Expires in '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0')):'Holding the quote, checking with the network…'}
 function posPaintPay(){
@@ -1050,23 +1074,33 @@ function posPaintPay(){
 }
 async function posCancelSale(){
   if(pos.busy||!pos.inv)return;pos.busy=true;
+  const cb=$('#posCancel');if(cb){cb.disabled=true;cb.textContent='Cancelling…'}
   try{
     const r=await api('/api/pos/invoice/'+encodeURIComponent(pos.inv.paymentHash)+'/cancel',{method:'POST'});
     if(r&&r.status==='paid'){posToDone();return}
-    if(r&&['accepted','forwarding','forwarded'].includes(r.status)){toast('Payment is already in progress');return}
+    if(r&&['accepted','forwarding','forwarded'].includes(r.status)){toast('Payment is already in progress, finishing it now');if(cb){cb.disabled=false;cb.textContent='Cancel sale'}return}
+    if(pos.pollT){clearInterval(pos.pollT);pos.pollT=null}
+    pos.resumeCheck=null;
     if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
-    pos.stage='shop';pos.inv=null;posPaintBody();
-  }catch(x){toast(x.message||'Could not cancel the sale')}
+    posToClosed('cancelled');
+  }catch(x){
+    if(x&&x.status===401){if(liveSource)liveSource.close();localStorage.removeItem('openln_token');if(VIEW!=='partner'){closeDrawer(false);login()}return}
+    toast(x.message||'Could not cancel the sale');
+    if(cb){cb.disabled=false;cb.textContent='Cancel sale'}
+  }
   finally{pos.busy=false}
 }
 function posToDone(){
   if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
   if(pos.pollT){clearInterval(pos.pollT);pos.pollT=null}
+  pos.resumeCheck=null;
   pos.stage='done';posPaintBody();toast('Payment received');
   setTimeout(()=>{if(VIEW==='pos'&&pos.stage==='done')posReset()},5000);
 }
 function posToClosed(status){
   if(pos.tickT){clearInterval(pos.tickT);pos.tickT=null}
+  if(pos.pollT){clearInterval(pos.pollT);pos.pollT=null}
+  pos.resumeCheck=null;
   pos.closedReason=status==='needs_reconciliation'?'The payment could not be completed. Nothing was charged.':status==='expired'?'The invoice expired before payment.':'The sale was cancelled.';
   pos.stage='closed';posPaintBody();
 }
@@ -1893,7 +1927,7 @@ function vCardWipe(card){
         <p class="hint" id="wipeState" role="status" style="margin-top:8px">The Card Writer app reports the wipe back here automatically.</p>
         <button class="btn danger" id="confirmWiped" style="width:100%;justify-content:center;margin-top:14px;padding:11px">Card is wiped · cancel this record</button>`;
       const image=new Image();image.alt='Card reset QR';image.src=URL.createObjectURL(new Blob([out.wipeQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);box.querySelector('#wipeQr').append(image);
-      const watchWipe=setInterval(async()=>{if(!m.isConnected){clearInterval(watchWipe);return}try{const cards=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards');const c=cards.find(x=>x.id===card.id);if(c&&c.status==='cancelled'){clearInterval(watchWipe);const st=box.querySelector('#wipeState');if(st)st.textContent='✓ Wipe confirmed by your phone. This card record is cancelled.';const cb=box.querySelector('#confirmWiped');if(cb){cb.disabled=true;cb.textContent='Record cancelled'}toast('Card wiped — record cancelled');renderCardsList()}}catch(e){}},2500);
+      const watchWipe=setInterval(async()=>{if(!m.isConnected){clearInterval(watchWipe);return}try{const cards=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards');const c=cards.find(x=>x.id===card.id);if(c&&c.status==='cancelled'){clearInterval(watchWipe);const st=box.querySelector('#wipeState');if(st)st.textContent='✓ Wipe confirmed by your phone. This card record is cancelled.';const cb=box.querySelector('#confirmWiped');if(cb){cb.disabled=true;cb.textContent='Record cancelled'}toast('Card wiped · record cancelled');renderCardsList()}}catch(e){}},2500);
       box.querySelector('#copyWipeKeys').onclick=()=>navigator.clipboard.writeText(wipeJson).then(()=>toast('Reset data copied'));
       writerAppInstalled().then(inst=>{if(!inst)return;const ow=box.querySelector('#openWriterWipe');if(!ow)return;ow.href=writerIntentUrl('open',{d:wipeJson});ow.style.display='';box.querySelector('#openWriterWipeHint').style.display=''});
       box.querySelector('#confirmWiped').onclick=async()=>{

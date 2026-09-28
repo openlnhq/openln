@@ -153,6 +153,7 @@ test('writer app confirms a written card with an AES-CMAC proof (no session need
   const {appConfirmMac}=await import('../dist/core/money/boltcard.js');
   const mac=appConfirmMac(prov.data.k4,'written',card.cardId).toString('hex');
   assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'written',mac:'00'.repeat(16)}})).status,403,'a forged confirmation is rejected');
+  assert.equal((await call('/api/pos/app-confirm/not-a-uuid',{token:null,method:'POST',body:{action:'written',mac}})).status,403,'malformed card ids are rejected cleanly');
   assert.equal((await call('/api/pos/app-confirm/'+card.cardId,{token:null,method:'POST',body:{action:'written',mac}})).status,200);
   const listed=await call('/api/accounts/'+a.account.id+'/cards');
   assert.ok(listed.data.find(c=>c.id===card.cardId).lastUsedAt,'the dashboard sees the card as written');

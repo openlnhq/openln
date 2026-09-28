@@ -123,6 +123,8 @@ export async function handleCardsRoute(req: IncomingMessage, res: ServerResponse
     const v = await body(req);
     const action = String(v.action ?? "");
     if (action !== "written" && action !== "wiped") return json(res, 400, { error: "Invalid action" }) as never;
+    // The cards table keys on UUIDs; reject anything else before touching the DB.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cardId)) return json(res, 403, { error: "Invalid confirmation" }) as never;
     const [card] = await db.select().from(cardsTable).where(eq(cardsTable.id, cardId));
     const mac = Buffer.from(String(v.mac ?? "").trim().toLowerCase(), "hex");
     let ok = false;

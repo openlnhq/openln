@@ -1,13 +1,40 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>openLN | Bitcoin Point of Sale.</title>
-<meta name="description" content="The RIC is an always-on Lightning terminal for the counter: staff type the amount, the customer taps a card or scans, sats settle in the merchant's own wallet. Open hardware, open source, non-custodial. Tap-to-pay cards printed to order.">
-<meta property="og:title" content="openLN | Bitcoin Point of Sale.">
-<meta property="og:description" content="Open-source Lightning point of sale and tap-to-pay cards.">
-<meta property="og:image" content="https://openln.com/media/ric-poster.jpg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,300..900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<title>openLN | Plug &amp; Play Bitcoin POS</title>
+<meta name="description" content="Take bitcoin at your counter. The $49 RIC terminal or any phone: customers tap a card or scan, and the payment lands in your own wallet. Open source.">
+<link rel="canonical" href="https://openln.com/">
+<meta name="theme-color" content="#050e0e">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="openLN">
+<meta property="og:url" content="https://openln.com/">
+<meta property="og:title" content="openLN | Plug &amp; Play Bitcoin POS">
+<meta property="og:description" content="Customers tap or scan. The payment lands in your own wallet. A $49 terminal or any phone, open source.">
+<meta property="og:image" content="https://openln.com/media/og-card.jpg">
+<link rel="icon" href="/media/brand/favicon.svg" type="image/svg+xml"><link rel="icon" href="/media/brand/favicon-32.png" sizes="32x32" type="image/png"><link rel="apple-touch-icon" href="/media/brand/apple-touch-icon.png">
+
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="openLN: Plug and Play Bitcoin POS. The RIC terminal showing a paid bitcoin payment.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@Open_LN">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://openln.com/#org","name":"openLN","url":"https://openln.com/","logo":"https://openln.com/media/brand/icon-512.png","email":"hello@openln.com","sameAs":["https://x.com/Open_LN","https://github.com/openlnhq"],"address":{"@type":"PostalAddress","addressLocality":"Koh Samui","addressCountry":"TH"}},{"@type":"Product","name":"RIC Lightning point of sale terminal","description":"Always-on bitcoin terminal for the counter. Customers tap a card or scan a QR code; payments settle in the merchant's own wallet.","image":"https://openln.com/media/ric-poster.jpg","brand":{"@id":"https://openln.com/#org"},"offers":{"@type":"Offer","price":"49","priceCurrency":"USD","url":"https://cards.openln.com/shop/ric"}}]}</script>
+
+<link rel="preload" href="/media/fonts/archivo-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+@font-face{font-family:'Archivo';font-style:normal;font-weight:300 900;font-stretch:62% 125%;font-display:swap;src:url(/media/fonts/archivo-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'Archivo';font-style:normal;font-weight:300 900;font-stretch:62% 125%;font-display:swap;src:url(/media/fonts/archivo-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(/media/fonts/ibm-plex-mono-400-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(/media/fonts/ibm-plex-mono-400-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url(/media/fonts/ibm-plex-mono-500-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;src:url(/media/fonts/ibm-plex-mono-500-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url(/media/fonts/ibm-plex-mono-600-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;src:url(/media/fonts/ibm-plex-mono-600-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-stretch:100%;font-display:swap;src:url(/media/fonts/ibm-plex-sans-400-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:400;font-stretch:100%;font-display:swap;src:url(/media/fonts/ibm-plex-sans-400-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-stretch:100%;font-display:swap;src:url(/media/fonts/ibm-plex-sans-500-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:500;font-stretch:100%;font-display:swap;src:url(/media/fonts/ibm-plex-sans-500-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
+@font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-stretch:100%;font-display:swap;src:url(/media/fonts/ibm-plex-sans-600-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF}
+@font-face{font-family:'IBM Plex Sans';font-style:normal;font-weight:600;font-stretch:100%;font-display:swap;src:url(/media/fonts/ibm-plex-sans-600-latin.woff2) format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD}
 /* openLN landing v6 — "the counter".
    Dark canvas, bleed RIC footage, the device itself, a printed receipt for the money path,
    a ledger table for partners. Archivo (wide display) / IBM Plex Sans / IBM Plex Mono.
@@ -247,6 +274,18 @@ section{position:relative}
 .pcard.open:hover{border-color:var(--line2);transform:none}
 .pcard.open h3{color:var(--ink2)}
 
+/* faq */
+.faq{padding:120px 0;background:var(--bg)}
+.qa{max-width:860px;border-top:1px solid var(--line2)}
+.qa details{border-bottom:1px solid var(--line2)}
+.qa summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:20px;padding:22px 0;font:600 19px/1.3 var(--sans);letter-spacing:-.01em}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary::after{content:'+';font:500 22px/1 var(--mono);color:var(--teal-b);transition:transform .2s}
+.qa details[open] summary::after{transform:rotate(45deg)}
+.qa p{padding:0 0 22px;max-width:680px;color:var(--mute);font-size:16px}
+.qa p a{color:var(--teal-b);border-bottom:1px solid rgba(25,169,164,.45)}
+@media(max-width:760px){.faq{padding:80px 0}.qa summary{font-size:17px;padding:18px 0}}
+
 /* finale */
 .fin{padding:150px 0 120px;background:var(--bg);position:relative;overflow:hidden}
 .fin::before{content:'';position:absolute;left:50%;top:40%;width:1100px;height:600px;transform:translate(-50%,-50%);background:radial-gradient(closest-side,rgba(14,131,136,.2),transparent 70%);pointer-events:none}
@@ -385,7 +424,7 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
 
 <header class="top" id="top"><div class="wrap topin">
   <a class="brand" href="/" aria-label="openLN home"><svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="40" fill="#0e8388"/><path d="M 28 43 A 21 21 0 0 1 48 29" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/><path d="M 68 53 A 21 21 0 0 1 48 67" fill="none" stroke="#eafffd" stroke-width="7.5" stroke-linecap="round"/></svg>open<em>LN</em></a>
-  <nav class="navl" aria-label="Sections"><a href="#ric">The RIC</a><a href="#cards">Cards</a><a href="#money">Cashflow</a><a href="#verify">Verify</a><a href="#compatibility">Wallets</a><a href="#network">Network</a><a href="#partners">Partners</a></nav>
+  <nav class="navl" aria-label="Sections"><a href="#ric">The RIC</a><a href="#cards">Cards</a><a href="#money">Cashflow</a><a href="#verify">Verify</a><a href="#compatibility">Wallets</a><a href="#network">Network</a><a href="#partners">Partners</a><a href="#faq">FAQ</a></nav>
   <div class="navr"><a class="btn btn-ghost" href="/app">Enter <span class="ar">→</span></a></div>
 </div></header>
 
@@ -591,6 +630,23 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
   </div>
   <div class="pgrid rv" id="pgrid"></div>
   <div class="pcta rv"><a class="btn btn-teal" href="/partner">Become a partner <span class="ar">→</span></a><p class="note">We build the tools. You build the economy.</p></div>
+</div></section>
+
+<!-- FAQ -->
+<section class="faq" id="faq"><div class="wrap">
+  <div class="sechead rv">
+    <span class="lbl teal">FAQ</span>
+    <h2 class="sec">Straight<br><span class="g">answers.</span></h2>
+  </div>
+  <div class="qa rv">
+    <details><summary>What do I need to start?</summary><p>A Lightning wallet and a phone. Create an openLN account, connect your wallet, and open the point of sale in your browser. Add a RIC when you want a dedicated terminal at the counter.</p></details>
+    <details><summary>Who holds the money?</summary><p>You do. Each payment goes straight to your own wallet. openLN never holds keys or balances and keeps only its 2% routing fee.</p></details>
+    <details><summary>What does it cost?</summary><p>The RIC terminal is $49, with three tap cards in the box. Each payment carries a 2% routing fee.</p></details>
+    <details><summary>How do customers pay?</summary><p>They tap an openLN card or any Bolt Card on the RIC, or scan the QR code with any Lightning wallet.</p></details>
+    <details><summary>Which wallets can I connect?</summary><p>Any wallet that supports Nostr Wallet Connect, a Blink account, or a Lightning Address that verifies payments (receive-only). The full list is under <a href="#compatibility">Wallets</a>.</p></details>
+    <details><summary>Do my staff need to understand bitcoin?</summary><p>No. They type the amount, like on any card terminal. The customer does the rest.</p></details>
+    <details><summary>Is it open source?</summary><p>Yes. The platform is AGPL-3.0 and the firmware is MIT. <a href="https://github.com/openlnhq/openln">Read it, build it, run your own.</a></p></details>
+  </div>
 </div></section>
 
 <!-- FINALE -->

@@ -128,7 +128,7 @@ const server = createServer(async (req, res) => {
         const { stat } = await import("node:fs/promises");
         const file = new URL("../../artifacts/web/media/" + name, import.meta.url);
         const st = await stat(file);
-        const type = name.endsWith(".mjs") ? "text/javascript; charset=utf-8" : name.endsWith(".wasm") ? "application/wasm" : name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "application/octet-stream";
+        const type = name.endsWith(".mjs") ? "text/javascript; charset=utf-8" : name.endsWith(".wasm") ? "application/wasm" : name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : name.endsWith(".svg") ? "image/svg+xml" : name.endsWith(".woff2") ? "font/woff2" : "application/octet-stream";
         const headers: Record<string, string> = { "content-type": type, "cache-control": "public, max-age=86400", "accept-ranges": "bytes", "x-content-type-options": "nosniff" };
         // Range support: large downloads (the card writer APK) must be resumable
         // on flaky phone connections; a partial file reads as "problem parsing
@@ -149,6 +149,26 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, { ...headers, "content-length": String(st.size) });
         if (req.method === "HEAD") return res.end();
         return createReadStream(file).pipe(res);
+      } catch { return json(res, 404, { error: "Not found" }); }
+    }
+    // Crawlers: openln.com is indexable; every other host (dev.openln.com, raw IPs) is not.
+    if (req.method === "GET" && u.pathname === "/robots.txt") {
+      const host = String(req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
+      const body = host === "openln.com"
+        ? "User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: https://openln.com/sitemap.xml\n"
+        : "User-agent: *\nDisallow: /\n";
+      res.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" });
+      return res.end(body);
+    }
+    if (req.method === "GET" && u.pathname === "/sitemap.xml") {
+      res.writeHead(200, { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" });
+      return res.end('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://openln.com/</loc></url>\n</urlset>\n');
+    }
+    if (req.method === "GET" && u.pathname === "/favicon.ico") {
+      try {
+        const data = await readFile(new URL("../../artifacts/web/media/brand/favicon-32.png", import.meta.url));
+        res.writeHead(200, { "content-type": "image/png", "cache-control": "public, max-age=86400" });
+        return res.end(data);
       } catch { return json(res, 404, { error: "Not found" }); }
     }
     if (req.method === "GET" && u.pathname === "/manifest.webmanifest") {

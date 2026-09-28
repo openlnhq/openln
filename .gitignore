@@ -10,3 +10,4 @@ e2e-*.mjs
 artifacts/cards-shop/
 
 firmware/esp32-pos/.pio/
+node_modules

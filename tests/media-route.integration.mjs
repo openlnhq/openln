@@ -11,6 +11,12 @@ test('media subfolders are served and traversal is rejected',async()=>{
   const jsqr=await fetch(base+'/media/jsqr.mjs');
   assert.equal(jsqr.status,200,'the vendored send-scanner decoder must be served');
   assert.match(jsqr.headers.get('content-type')||'',/javascript/i);
+  const zx=await fetch(base+'/media/zxing.mjs');
+  assert.equal(zx.status,200,'the zxing-wasm decoder bundle must be served');
+  assert.match(zx.headers.get('content-type')||'',/javascript/i);
+  const zxw=await fetch(base+'/media/zxing_reader.wasm');
+  assert.equal(zxw.status,200,'the zxing-wasm binary must be served');
+  assert.equal(zxw.headers.get('content-type'),'application/wasm');
   for(const bad of ['/media/','/media/nope.png','/media/..%2f..%2fetc%2fpasswd','/media/compat/..%2f..%2fcore%2fserver.ts','/media/%2e%2e%2f%2e%2e%2fetc%2fpasswd'])
     assert.equal((await fetch(base+bad)).status,404,`must reject ${bad}`);
 });

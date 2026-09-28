@@ -54,6 +54,8 @@ test('send opens a camera-first scanner with Paste, Keyboard and Images for ever
   assert.ok(send.includes('sndKeys')&&send.includes('sndInput'),'Keyboard button opens the text entry sheet');
   assert.ok(send.includes('sndGallery')&&send.includes('sndDecodeImage'),'Images button loads a QR from the gallery');
   assert.ok(send.includes("import('/media/jsqr.mjs')"),'fallback decoder is vendored and lazy-loaded');
+  assert.ok(send.includes("import('/media/zxing.mjs')"),'the zxing-wasm decoder is vendored and lazily loaded');
+  assert.ok(send.includes('readBarcodes'),'software decoding runs through the zxing-wasm reader');
   assert.ok(send.includes("api('/api/wallet/resolve'"),'scans resolve through the target endpoint');
   assert.ok(send.includes("api('/api/wallet/pay'"),'paying reuses the wallet pay route');
   assert.ok(send.includes('lnurl_withdraw')&&html.includes('receiveWithdrawModal'),'withdraw codes explain and hand off to Receive');

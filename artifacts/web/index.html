@@ -1308,6 +1308,23 @@ function sndBookHas(a){return sndBookList().indexOf(a)>-1}
 function sndBookSave(a){a=String(a||'').trim().toLowerCase();if(!a||a.indexOf('@')<0)return;if(sndBookHas(a)){toast('Already in your address book');return}const l=sndBookList();l.unshift(a);try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(l.slice(0,24)))}catch(e){}toast('Saved to your address book')}
 function sndBookRemove(a){try{localStorage.setItem(SND_BOOK_KEY,JSON.stringify(sndBookList().filter(x=>x!==a)))}catch(e){}toast('Removed from your address book')}
 function sndEl(sel){return snd.root?snd.root.querySelector(sel):null}
+let zx={mod:null,state:0,err:0}; // zxing-wasm camera decoder: state 0 idle, 1 loading, 2 ready, 3 failed
+function sndZx(){if(zx.state)return;zx.state=1;import('/media/zxing.mjs').then(m=>{try{if(m.prepareZXingModule)m.prepareZXingModule({overrides:{locateFile:(p,pre)=>String(p).indexOf('.wasm')>-1?'/media/'+p:pre+p}})}catch(e){}zx.mod=m;zx.state=2}).catch(()=>{zx.state=3})}
+async function sndZxReady(ms){
+  if(zx.state===0)sndZx();
+  const t0=Date.now();
+  while(zx.state===1&&Date.now()-t0<ms)await new Promise(r=>setTimeout(r,50));
+  return zx.state===2;
+}
+function sndFrame(v,c,n,cap){
+  const w=v.videoWidth||0,h=v.videoHeight||0;
+  if(!w||!h)return null;
+  let sx=0,sy=0,sw=w,sh=h;
+  if(n%2===1){const side=Math.round(Math.min(w,h)*.78);sw=side;sh=side;sx=Math.round((w-side)/2);sy=Math.round((h-side)/2)}
+  const scale=Math.min(1,cap/Math.max(sw,sh));c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(v,sx,sy,sw,sh,0,0,c.width,c.height);
+  return x.getImageData(0,0,c.width,c.height);
+}
 function sndStopCam(){snd.scanning=false;if(snd.tickT){clearTimeout(snd.tickT);snd.tickT=null}if(snd.stream){try{snd.stream.getTracks().forEach(t=>t.stop())}catch(e){}snd.stream=null}}
 function sndClose(){sndStopCam();if(snd.root){snd.root.remove();snd.root=null}}
 async function sndLoadFx(){if(snd.fx)return;try{const cfg=await api('/api/pos/config');const cur=String(cfg.currency||'').toLowerCase();const fx={cur,rate:null};if(cur&&cur!=='sats'){const qs=new URLSearchParams({vs_currency:cur});if(cfg.sendRateModifier)qs.set('modifier',cfg.sendRateModifier);const p=await api('/api/price?'+qs.toString());if(Number(p&&p.price)>0)fx.rate=Number(p.price)}snd.fx=fx}catch(e){snd.fx={cur:'',rate:null}}}
@@ -1352,6 +1369,7 @@ function sendScan(){
   sndEl('#sndKeys').onclick=()=>sndKeys();
   sndEl('#sndGallery').onclick=()=>{const f=sndEl('#sndFile');if(f)f.click()};
   sndEl('#sndFile').onchange=e=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(f)sndDecodeImage(f)};
+  sndZx();
   sndLoadFx();
   sndStartCam();
 }
@@ -1418,21 +1436,18 @@ async function sndLoop(){
       setHint((snd.dark&&tb&&!tb.hidden)?'Low light · Tap Light':((Date.now()-(snd.t0||0)>5000)?'Fill the frame with the code · tap to refocus':'Point the camera at a Lightning QR code'));
       let raw=null;
       if(det){try{const codes=await det.detect(v);if(codes&&codes.length)raw=codes[0].rawValue}catch(e){det=null}}
-      if(!raw&&!jsqr&&!failed){
+      if(zx.state===0)sndZx();
+      if(!raw&&zx.state===2){
+        const g=sndFrame(v,c,n,1280);
+        if(g){try{const res=await zx.mod.readBarcodes(g,{formats:['QRCode'],tryHarder:true,tryRotate:true,tryInvert:true,tryDownscale:true,tryDenoise:true,maxNumberOfSymbols:1});const t=res&&res.length?(res[0].text||''):'';if(t)raw=t}catch(e){zx.err++;if(zx.err>6){zx.state=3;zx.mod=null}}}
+      }
+      if(!raw&&zx.state===3&&!jsqr&&!failed){
         try{const mod=await import('/media/jsqr.mjs');jsqr=mod.default||mod.jsQR}catch(e){failed=true}
         if(failed&&!det){const h=sndEl('#sndHint');if(h)h.textContent='Scanning is not supported in this browser. Use Paste, Keyboard or Images below.';return}
       }
-      if(!raw&&jsqr){
-        const w=v.videoWidth||0,h=v.videoHeight||0;
-        if(w&&h){
-          let sx=0,sy=0,sw=w,sh=h;
-          if(n%2===1){const side=Math.round(Math.min(w,h)*.78);sw=side;sh=side;sx=Math.round((w-side)/2);sy=Math.round((h-side)/2)}
-          const scale=Math.min(1,1024/Math.max(sw,sh));c.width=Math.max(1,Math.round(sw*scale));c.height=Math.max(1,Math.round(sh*scale));
-          const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(v,sx,sy,sw,sh,0,0,c.width,c.height);
-          const img=x.getImageData(0,0,c.width,c.height);
-          const r=jsqr(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});
-          if(r&&r.data)raw=r.data;
-        }
+      if(!raw&&!zx.mod&&jsqr){
+        const g=sndFrame(v,c,n,1024);
+        if(g){const r=jsqr(g.data,g.width,g.height,{inversionAttempts:'attemptBoth'});if(r&&r.data)raw=r.data}
       }
       if(raw&&String(raw).trim()){try{if(navigator.vibrate)navigator.vibrate(30)}catch(e){}if(snd.root)snd.root.classList.add('hit');setTimeout(()=>{if(snd.root)snd.root.classList.remove('hit')},450);sndResolve(String(raw));return}
     }catch(e){}
@@ -1448,6 +1463,17 @@ async function sndDecodeImage(file){
   try{
     let raw=null;
     if('BarcodeDetector' in window){try{const det=new BarcodeDetector({formats:['qr_code']});const bmp=await createImageBitmap(file);const codes=await det.detect(bmp);if(codes&&codes.length)raw=codes[0].rawValue}catch(e){}}
+    if(!raw&&await sndZxReady(1500)){
+      try{
+        const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=URL.createObjectURL(file)});
+        const w=img.naturalWidth,h=img.naturalHeight,c=document.createElement('canvas');c.width=w;c.height=h;
+        const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,w,h);
+        const d=x.getImageData(0,0,w,h);
+        const res=await zx.mod.readBarcodes(d,{formats:['QRCode'],tryHarder:true,maxNumberOfSymbols:1});
+        if(res&&res.length&&res[0].text)raw=res[0].text;
+        URL.revokeObjectURL(img.src);
+      }catch(e){}
+    }
     if(!raw){
       const mod=await import('/media/jsqr.mjs').catch(()=>null);const jsqr=mod&&(mod.default||mod.jsQR);
       if(jsqr){

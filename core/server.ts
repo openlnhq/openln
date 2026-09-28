@@ -128,7 +128,7 @@ const server = createServer(async (req, res) => {
         const { stat } = await import("node:fs/promises");
         const file = new URL("../../artifacts/web/media/" + name, import.meta.url);
         const st = await stat(file);
-        const type = name.endsWith(".mjs") ? "text/javascript; charset=utf-8" : name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "application/octet-stream";
+        const type = name.endsWith(".mjs") ? "text/javascript; charset=utf-8" : name.endsWith(".wasm") ? "application/wasm" : name.endsWith(".mp4") ? "video/mp4" : name.endsWith(".png") ? "image/png" : name.endsWith(".jpg") ? "image/jpeg" : name.endsWith(".webp") ? "image/webp" : "application/octet-stream";
         const headers: Record<string, string> = { "content-type": type, "cache-control": "public, max-age=86400", "accept-ranges": "bytes", "x-content-type-options": "nosniff" };
         // Range support: large downloads (the card writer APK) must be resumable
         // on flaky phone connections; a partial file reads as "problem parsing

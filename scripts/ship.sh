@@ -57,7 +57,12 @@ case "${1:-}" in
     fi
     # dev must be on the same commit, otherwise this is untested code
     DEV_ON=$(ssh "$DEV_HOST" 'cut -d" " -f1 ~/openln/.deployed 2>/dev/null || git -C ~/openln rev-parse --short HEAD')
-    [ "$(git rev-parse --short "$MAIN")" = "$DEV_ON" ] || die "dev.openln.com is on $DEV_ON, main is $(git rev-parse --short "$MAIN") — ship dev + test first"
+    # Short-sha lengths differ per clone (dev abbreviates to 7, the gateway to 8):
+    # compare the full main sha against dev's recorded prefix instead of string equality.
+    case "$MAIN" in
+      "$DEV_ON"*) ;;
+      *) die "dev.openln.com is on $DEV_ON, main is $(git rev-parse --short "$MAIN") — ship dev + test first" ;;
+    esac
     # Order matters: deploy from a temp ref first, move `production` only after the deploy
     # succeeded — so `production` always points at what openln.com actually runs.
     log "stage candidate → Gitea (production-candidate)"

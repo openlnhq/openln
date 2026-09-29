@@ -23,21 +23,30 @@ if not release.exists():
  except BaseException:shutil.rmtree(stage,ignore_errors=True);raise
 link=base/'.current-next'
 link.unlink(missing_ok=True);link.symlink_to(release.name);os.replace(link,base/'current')
+live_updated=False
 if mode=='prod':
- # The live shop backend and database stay untouched. Its static root switches
- # atomically to a verified, versioned build; original dist remains recoverable.
+ # Live-shop sync, legacy path: only when /opt/maekob is still a git checkout.
+ # On this box the live shop is a runtime dir (managed by the separate cards
+ # pipeline via /opt/maekob-releases + symlink swaps), so when it is not a
+ # checkout we skip the swap and leave the live shop alone. The pinned release
+ # above (artifacts/cards-shop/current, served by openln cards-preview) still
+ # updates.
  repo=Path('/opt/maekob')
- if subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=repo,text=True).strip():raise SystemExit('Cards source DRIFT; refusing deploy')
- subprocess.run(['git','fetch','origin','prod-live'],cwd=repo,check=True)
- subprocess.run(['git','cat-file','-e',manifest['sourceCommit']+'^{commit}'],cwd=repo,check=True)
- dest=repo/'artifacts/maekob-shop/dist/public'
- if not dest.is_symlink():
-  backup=dest.with_name('public-before-shared-ship')
-  if backup.exists():raise SystemExit('Original Cards backup already exists; inspect before replacing')
-  dest.rename(backup)
- new=dest.with_name('.public-next');new.unlink(missing_ok=True);new.symlink_to(release/'public');os.replace(new,dest)
- # Pin the source to the exact commit that produced the build (never a new
- # backend bundle, restart, env copy, or DB migration).
- subprocess.run(['git','checkout','--detach',manifest['sourceCommit']],cwd=repo,check=True)
- (repo/'.cards-ui-deployed').write_text(manifest['sourceCommit']+' '+manifest['sha256']+'\n')
-print(json.dumps({'cardsSource':manifest['sourceCommit'],'artifactSha256':manifest['sha256'],'mode':mode,'previewRoot':str(release/'preview'),'liveStaticUpdated':mode=='prod'}))
+ if (repo/'.git').exists():
+  if subprocess.check_output(['git','status','--porcelain','--untracked-files=no'],cwd=repo,text=True).strip():raise SystemExit('Cards source DRIFT; refusing deploy')
+  subprocess.run(['git','fetch','origin','prod-live'],cwd=repo,check=True)
+  subprocess.run(['git','cat-file','-e',manifest['sourceCommit']+'^{commit}'],cwd=repo,check=True)
+  dest=repo/'artifacts/maekob-shop/dist/public'
+  if not dest.is_symlink():
+   backup=dest.with_name('public-before-shared-ship')
+   if backup.exists():raise SystemExit('Original Cards backup already exists; inspect before replacing')
+   dest.rename(backup)
+  new=dest.with_name('.public-next');new.unlink(missing_ok=True);new.symlink_to(release/'public');os.replace(new,dest)
+  # Pin the source to the exact commit that produced the build (never a new
+  # backend bundle, restart, env copy, or DB migration).
+  subprocess.run(['git','checkout','--detach',manifest['sourceCommit']],cwd=repo,check=True)
+  (repo/'.cards-ui-deployed').write_text(manifest['sourceCommit']+' '+manifest['sha256']+'\n')
+  live_updated=True
+ else:
+  print('cards prod: /opt/maekob is not a git checkout (runtime dir; the cards pipeline owns it); skipping live-shop sync, openln cards-preview updated',file=sys.stderr)
+print(json.dumps({'cardsSource':manifest['sourceCommit'],'artifactSha256':manifest['sha256'],'mode':mode,'previewRoot':str(release/'preview'),'liveStaticUpdated':live_updated}))

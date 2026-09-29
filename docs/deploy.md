@@ -3,34 +3,32 @@
 One repo, two environments, one command per hop. Nothing else touches the servers.
 
 ```
- gateway ~/openln (work here)
+ a checkout (work here)
       │  git commit on main
       ▼
- scripts/ship.sh dev  ──►  Gitea main  ──►  dev box ~/openln   ──►  https://dev.openln.com
-      │                                       (deploy.sh dev, :3147)
+ scripts/ship.sh dev  ──►  forge main  ──►  dev box  ──►  https://dev.openln.com
+      │                                     (deploy.sh dev)
       │  test it
       ▼
- scripts/ship.sh promote ─►  Gitea production (ff from main) ──► VPS /opt/openln ─► https://openln.com
-                                                                 (deploy.sh prod, :3160)
+ scripts/ship.sh promote ─►  forge production (ff from main) ──►  production host ──►  https://openln.com
+                                                                  (deploy.sh prod)
 ```
 
 | | dev | production |
 |---|---|---|
-| host | `dev` (192.0.2.10) | `prod` (192.0.2.214, prod) |
-| dir | `~/openln` | `/opt/openln` |
+| checkout | `~/openln` | `/opt/openln` |
 | branch | `main` | `production` |
-| port | 3147 | 3160 |
 | env file | `artifacts/api-server/.env` (gitignored, never deployed) | same |
 | DB | `openln_dev` | `openln` |
 
 ## Rules
 
-1. **Work on the gateway checkout (`~/openln`) or any clone — never on the servers.** `deploy.sh` refuses to run if the server tree has uncommitted edits, so hot-fixing on the VPS is impossible by construction. If you must edit on a server for diagnosis, `git stash` before shipping and port the change back to a real commit.
+1. **Work on a checkout, never on the servers.** `deploy.sh` refuses to run if the target tree has uncommitted edits, so hot-fixing there is impossible by construction. If you must edit on a server for diagnosis, `git stash` before shipping and port the change back to a real commit.
 2. **`production` is only moved by `ship promote`** and only fast-forward. It never gets its own commits.
 3. **`promote` requires dev to be on the exact commit being promoted.** Untested code can't reach prod.
 4. **Migrations are files in `migrations/`**, idempotent (`IF NOT EXISTS`), run on every deploy as the app's DB role. Never `CREATE TABLE` by hand on a server.
 5. **Every deploy ends with a real register+login probe**, not just `/health`. Empty DB or missing `SESSION_SECRET` fails the deploy loudly.
-6. **Credentials:** all git access is SSH-key based (`ssh://git@192.0.2.10:2222/openln/openln.git`; the VPS uses the Tailscale address `192.0.2.92:2222`). No passwords, no tokens in remote URLs. Gitea admin API token (for the API only): `~/.gitea-token` on the gateway. Host access is key-based too: gateway → production VPS (`prod` alias) uses `~/.ssh/id_openln_prod`.
+6. **Credentials:** Git access is SSH-key based; no passwords and no tokens in remote URLs. Operational credentials (forge API tokens, host keys) live on the operator machine and in private SSH config, never in the repo.
 
 ## Commands
 

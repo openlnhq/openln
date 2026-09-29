@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
 # openLN ship — the ONLY way code moves between environments. Run from the gateway.
 #
-#   scripts/ship.sh dev        push local `main` → Gitea, deploy to dev.openln.com (dev box :3147)
-#   scripts/ship.sh promote    fast-forward `production` to `main`, deploy to openln.com (VPS :3160)
+#   scripts/ship.sh dev        push local `main` → forge, deploy to dev.openln.com (dev box)
+#   scripts/ship.sh promote    fast-forward `production` to `main`, deploy to openln.com (production host)
 #   scripts/ship.sh status     where is each environment vs. git
 #
 # Model:  edit → commit on `main` → ship dev → test on dev.openln.com → ship promote.
 #         `production` is only ever moved by `promote` (fast-forward only, never rewritten).
-#         Deploy targets (dev box ~/openln, VPS /opt/openln) are read-only clones —
+#         Deploy targets (dev box ~/openln, production host /opt/openln) are read-only clones:
 #         deploy.sh refuses to run if someone edited them by hand.
 set -euo pipefail
 
-GITEA_SSH="ssh://git@192.0.2.10:2222/openln/openln.git"
-DEV_HOST="dev"                 # ~/.ssh/config alias → openln@dev (192.0.2.10)
-PROD_HOST="prod"               # ~/.ssh/config alias → root@192.0.2.214 (prod; old box = rollback only)
+DEV_HOST="dev"                 # ~/.ssh/config alias for the dev box (private config)
+PROD_HOST="prod"               # ~/.ssh/config alias for the production host
 GITHUB_REMOTE="github"         # public mirror (openlnhq/openln), pushed on promote
 
 cd "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"

@@ -77,8 +77,8 @@ works (RIC + browser POS) exactly like NWC accounts.
 
 ## Tests
 
-Live verification (2026-09-24, prod): a complete wrapped sale ran against a
-migrated non-custodial Blink account (`blink-probe@example.com`) through the
+Live verification (2026-09-24, production): a complete wrapped sale ran against a
+migrated non-custodial Blink account through the
 Lightning Address lane on the QA stack: customer paid 100 sats -> hold
 accepted -> merchant invoice paid (98 sats to the Blink address) -> hold
 settled, fee 2 sats captured; hub record shows the outgoing `settled` with

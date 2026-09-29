@@ -97,8 +97,8 @@ callback and check for the LUD-21 `verify` field.
 
 | Provider | LUD-21 verify | Note |
 |---|---|---|
-| Blink | YES | Verified live on a *migrated non-custodial* account (`blink-probe@example.com`) - the lane that keeps working after a custodial Blink account migrates. |
-| Coinos | YES | Verified live (`user@example.com`). |
+| Blink | YES | Verified live on a *migrated non-custodial* account - the lane that keeps working after a custodial Blink account migrates. |
+| Coinos | YES | Verified live. |
 | Alby | YES | Verified live on a getalby.com address. |
 | Wallet of Satoshi | NO | No verify, no NWC, no official API - cannot back any lane. Company position: the connect is rejected; do not advertise WoS as compatible. |
 | Primal | NO | No verify on addresses; Primal connects on the NWC lane only. |
@@ -147,5 +147,5 @@ wallet card list the headline wallets per lane. Keep the three lists in sync:
 - dev.blink.sv, docs.strike.me, docs.zbdpay.com, bitnob.dev
 - developers.opennode.com, apidocs.tryspeed.com, developer.coingate.com, docs.coinsnap.io (processor APIs verified 2026-09-25)
 - zeusln.com v0.12 release notes, news.lnbits.com NWC guide
-- Live probes on prod (2026-09-25): LNURL-pay + LUD-21 verify against
+- Live probes in production (2026-09-25): LNURL-pay + LUD-21 verify against
   coinos.io, blink.sv, getalby.com, primal.net, walletofsatoshi.com

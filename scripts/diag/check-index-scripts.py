@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Extract every <script> block from artifacts/web/index.html and node --check it."""
+"""Extract every <script> block from artifacts/web/index.html and node --check it.
+
+Usage: python3 scripts/diag/check-index-scripts.py [path/to/index.html]
+"""
 import re, subprocess, sys, tempfile, pathlib
-html = pathlib.Path('/home/openln/openln/artifacts/web/index.html').read_text()
+root = pathlib.Path(__file__).resolve().parents[2]
+target = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'artifacts/web/index.html'
+html = target.read_text()
 blocks = re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', html, re.S)
 bad = 0
 for i, b in enumerate(blocks):

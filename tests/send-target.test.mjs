@@ -6,7 +6,7 @@ import { normalizeSendInput } from '../dist/core/money/lnurlTarget.js';
 import { decodeLnurl, encodeLnurl } from '../dist/core/money/boltcard.js';
 
 test('lnurl bech32 encodes and decodes round-trip, checksum verified', () => {
-  for (const url of ['https://ln.test/.well-known/lnurlp/alice', 'https://getalby.com/lnurlp/openln?x=1&y=2']) {
+  for (const url of ['https://ln.test/.well-known/lnurlp/alice', 'https://getalby.com/lnurlp/bob?x=1&y=2']) {
     const enc = encodeLnurl(url);
     assert.match(enc, /^lnurl1/);
     assert.equal(decodeLnurl(enc), url);

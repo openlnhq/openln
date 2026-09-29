@@ -24,9 +24,23 @@ need_clean(){
 $(git status --short --untracked-files=no)"
 }
 
+deny_check(){
+  # Public-mirror hygiene: refuse to ship content matching the local deny list
+  # (kept outside the repo at .git/publish-deny.txt; override only deliberately).
+  [ "${OPENLN_SHIP_SKIP_DENY:-}" = "1" ] && return 0
+  local deny; deny="$(git rev-parse --git-dir)/publish-deny.txt"
+  [ -f "$deny" ] || return 0
+  local hits; hits="$(git grep -nIEf "$deny" HEAD -- . | head -20 || true)"
+  if [ -n "$hits" ]; then
+    die "public-mirror deny-list hit — refusing to ship (OPENLN_SHIP_SKIP_DENY=1 to override):
+$hits"
+  fi
+}
+
 case "${1:-}" in
   dev)
     need_clean
+    deny_check
     [ "$(git branch --show-current)" = "main" ] || die "ship dev runs from branch main (you are on $(git branch --show-current))"
     git fetch -q origin
     if [ -n "$(git log --oneline HEAD..origin/main)" ]; then
@@ -43,6 +57,7 @@ case "${1:-}" in
 
   promote)
     need_clean
+    deny_check
     git fetch -q origin
     MAIN=$(git rev-parse origin/main)
     PROD=$(git rev-parse origin/production 2>/dev/null || echo "")

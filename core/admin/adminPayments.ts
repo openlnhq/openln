@@ -6,8 +6,7 @@
  * Router to openLN's inline http.createServer handler-function style.
  *
  * Auth: X-Admin-Secret header matching ADMIN_SECRET, OR a resolved session
- * account whose entity handle is in the ADMIN_HANDLES allowlist (default
- * 'openln'). See isAdmin() below — same security semantics as bitPOS's
+ * account whose entity handle is in the ADMIN_HANDLES allowlist (set via the ADMIN_HANDLES env var; none by default). See isAdmin() below — same security semantics as bitPOS's
  * requireAdmin (adminSecretOk() checked first, then session+handle).
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -52,7 +51,7 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
 }
 
 const ADMIN_HANDLES = new Set(
-  (process.env.ADMIN_HANDLES ?? "openln")
+  (process.env.ADMIN_HANDLES ?? "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),

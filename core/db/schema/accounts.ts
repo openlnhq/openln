@@ -34,6 +34,10 @@ export const accountsTable = pgTable("accounts", {
   blinkApiKeyEncrypted: text("blink_api_key_encrypted"),
   blinkWalletId: text("blink_wallet_id"),
   blinkWalletCurrency: text("blink_wallet_currency"),
+  // Lightning Address funding: whether the provider serves a LUD-21 verify URL.
+  // false => wrapped-only (Wallet of Satoshi): the direct fallback refuses.
+  // null on legacy rows reads as verify-capable (they passed the old gate).
+  lnurlVerifySupported: boolean("lnurl_verify_supported"),
   balanceSats: bigint("balance_sats", { mode: "number" }).notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

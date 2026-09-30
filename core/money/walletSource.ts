@@ -5,7 +5,8 @@
  *   - kind 'nwc'       : Veil or custom NWC wallet (receive + spend + balance)
  *   - kind 'blink'     : Blink API wallet (receive + spend + balance; spending
  *                        needs the API key's Write scope)
- *   - kind 'lnaddress' : lightning address (receive-only via LNURL-pay/verify)
+ *   - kind 'lnaddress' : lightning address (receive-only; wrapped settlement,
+ *                        LUD-21 verify used where the provider serves it)
  *   - kind 'none'      : wallet setup not completed
  */
 import { db } from "../db/index.js";
@@ -16,7 +17,7 @@ import { getAccountNwcUrl, resolveNwcUrl } from "./nwc.js";
 export type WalletSource =
   | { kind: "nwc"; nwcUrl: string; mode: "veil" | "custom" }
   | { kind: "blink"; apiKey: string; walletId: string | null; currency: string | null }
-  | { kind: "lnaddress"; address: string }
+  | { kind: "lnaddress"; address: string; verifySupported: boolean }
   | { kind: "none" };
 
 /**
@@ -52,6 +53,7 @@ export async function resolveWalletSource(accountId: string): Promise<WalletSour
       blinkApiKeyEncrypted: accountsTable.blinkApiKeyEncrypted,
       blinkWalletId: accountsTable.blinkWalletId,
       blinkWalletCurrency: accountsTable.blinkWalletCurrency,
+      lnurlVerifySupported: accountsTable.lnurlVerifySupported,
     })
     .from(accountsTable)
     .where(eq(accountsTable.id, accountId));
@@ -60,7 +62,7 @@ export async function resolveWalletSource(accountId: string): Promise<WalletSour
 
   if (account.walletMode === "lnaddress") {
     if (!account.lightningAddress) return { kind: "none" };
-    return { kind: "lnaddress", address: account.lightningAddress };
+    return { kind: "lnaddress", address: account.lightningAddress, verifySupported: account.lnurlVerifySupported !== false };
   }
 
   if (account.walletMode === "blink") {

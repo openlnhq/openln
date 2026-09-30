@@ -577,7 +577,7 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
     <p class="sub">openLN connects to the Lightning wallet you already run: send and receive over <b>Nostr Wallet Connect</b>, connect <b>Blink</b> with an API key, or point a <b>Lightning Address</b> at your account for receive-only. Your keys, your sats, nothing to migrate.</p>
   </div>
   <div class="cgrid rv" id="cgrid"></div>
-  <p class="cfoot rv">Compatibility is by standard, not by brand: any NIP-47 wallet connects over Nostr Wallet Connect (send + receive), any Lightning Address whose payments verify (LUD-21) connects receive-only, any node backs an account through a Hub or bridge, and Blink accounts connect with an API key. This wall lists only what connects today.</p>
+  <p class="cfoot rv">Compatibility is by standard, not by brand: any NIP-47 wallet connects over Nostr Wallet Connect (send + receive), any Lightning Address connects receive-only with sales confirmed by openLN's wrapped settlement, any node backs an account through a Hub or bridge, and Blink accounts connect with an API key. This wall lists only what connects today.</p>
 </div></section>
 
 <!-- NETWORK / BTC MAP -->
@@ -786,11 +786,12 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
     {group:'API access',caps:'Send + receive',meta:'Direct integration',wallets:[
       {name:'Blink',logo:'/media/compat/blink.png',url:'https://blink.sv/'}
     ]},
-    {group:'Lightning Address',caps:'Receive-only',meta:'LUD-21 verify',ro:true,wallets:[
+    {group:'Lightning Address',caps:'Receive-only',meta:'Confirmed by openLN',ro:true,wallets:[
       {name:'Blink',logo:'/media/compat/blink.png',url:'https://blink.sv/'},
       {name:'Coinos',logo:'/media/compat/coinos.png',url:'https://coinos.io/'},
       {name:'Alby',logo:'/media/compat/alby.png',url:'https://getalby.com/'},
-      {name:'Any LUD-21 wallet',ghost:true}
+      {name:'Wallet of Satoshi',logo:'/media/compat/walletofsatoshi.png',url:'https://www.walletofsatoshi.com/'},
+      {name:'Any Lightning Address',ghost:true}
     ]},
     {group:'Self-hosted',caps:'Send + receive',meta:'Your own node',wallets:[
       {name:'LND',logo:'/media/compat/lnd.png',url:'https://lightning.engineering/'},

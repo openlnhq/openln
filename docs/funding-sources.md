@@ -11,16 +11,18 @@ Three lanes, all through the same single connect field:
 |---|---|---|
 | `custom` / `veil` (NWC) | `nostr+walletconnect://...` | Full: receive, send, balance, cards |
 | `blink` | Blink API key (`blink_...`) | Full: receive, send, balance, cards - **custodial accounts only**. Read + Receive scopes are enough for receive/balance; sending needs **Write** on the key. Blink's non-custodial (Spark) accounts expose no API at all ("API will not be available") and use the Lightning Address lane |
-| `lnaddress` | Lightning Address (`name@provider.com`) | Receive only. Works with any wallet whose address supports LNURL-pay and LUD-21 verify (Blink, and others) |
+| `lnaddress` | Lightning Address (`name@provider.com`) | Receive only. Works with any wallet that serves a Lightning Address: verify-capable providers (Blink, Coinos, Alby) and wrapped-only providers without LUD-21 verify (Wallet of Satoshi) |
 
 ## How it works
 
 - **Classify** (`core/money/fundingInput.ts`): one input, shape-based:
   `nostr+walletconnect://` = NWC, `blink_...` = Blink, `name@domain` = Lightning
   Address. The connect route validates the detected kind: NWC via get_balance,
-  Blink via wallets + a 1-sat test invoice, Lightning Address via LNURL-pay +
-  a LUD-21 `verify` probe (rejected without verify, because settlement could
-  not be shown).
+  Blink via wallets + a 1-sat test invoice, Lightning Address via LNURL-pay
+  with a real 1-sat invoice probe. The probe records whether the provider
+  serves a LUD-21 `verify` URL (`lnurl_verify_supported`): verify-capable
+  addresses keep the direct fallback; verify-less addresses (Wallet of
+  Satoshi) connect as wrapped-only.
 - **Resolve** (`core/money/walletSource.ts`): `WalletSource` (nwc | blink |
   lnaddress | none) and `MerchantFunding`, the mint-seam input.
 - **Mint seam** (`core/money/holdWrap.ts`, `mintMerchantInvoice`): the ONE
@@ -30,8 +32,11 @@ Three lanes, all through the same single connect field:
   settle, fee) stays on the platform wallet and is lane-independent. Blink can
   never host the hold itself: its API has no hold invoices, so the fee wallet
   stays on the Alby Hub.
-- **Fallback**: if wrapping is unavailable, each lane falls back to a direct
-  invoice so a sale is never blocked (fee not collected on that sale).
+- **Fallback**: if wrapping is unavailable, NWC / Blink / verify-capable
+  Lightning Address lanes fall back to a direct invoice so a sale is never
+  blocked (fee not collected on that sale). A verify-less Lightning Address
+  refuses the sale instead (503) - an unobservable direct invoice is worse
+  than a retry; refusals are recorded as `wrap.fallback_refused` events.
 - **Settlement observation** (`core/money/invoiceMonitor.ts`): NWC rows via
   `list_transactions` / `lookup_invoice`; Lightning Address rows via their
   LUD-21 verify URL; Blink rows via `lnInvoicePaymentStatusByPaymentRequest`.
@@ -61,9 +66,11 @@ Three lanes, all through the same single connect field:
     completed, `FAILURE` -> failed, `PENDING`/no record -> leave pending);
     NWC rows keep their relay-based lookup. A missing Write scope surfaces as
     an actionable message pointing at dashboard.blink.sv.
-- **Storage** (`migrations/0012_blink_funding.sql`): `blink_api_key_encrypted`
-  (AES-256-GCM via `core/money/encrypt.ts`), `blink_wallet_id`,
-  `blink_wallet_currency`. The Lightning Address is public and stored as-is in
+- **Storage**: `blink_api_key_encrypted` (AES-256-GCM via
+  `core/money/encrypt.ts`), `blink_wallet_id`, `blink_wallet_currency`
+  (`migrations/0012_blink_funding.sql`); `lnurl_verify_supported`
+  (`migrations/0016_lnurl_verify_supported.sql`, null on legacy rows means
+  verify-capable). The Lightning Address is public and stored as-is in
   `lightning_address`.
 
 ## UI
@@ -86,6 +93,16 @@ settled, fee 2 sats captured; hub record shows the outgoing `settled` with
 custodial API key for the same account returns HTTP 401 after migration
 (Blink: "API will not be available"), which is why the address lane is the
 non-custodial path.
+
+Live verification (2026-09-30, production QA): a wrapped sale to a Wallet of
+Satoshi address settled end to end - customer paid 100 sats, the hold was
+accepted, the forward settled on the platform node (98 sats delivered to WoS,
+preimage captured), the hold settled and the 2 sat fee was booked. The
+forward's preimage hashes to the WoS invoice's payment hash, proving merchant
+delivery from openLN's own records - the verification substitute for
+providers without LUD-21 verify. The integration test covers the wrapped-only
+connect, the 503 direct-fallback refusal, and the `wrap.fallback_refused`
+event.
 
 The Blink send lane has its own integration coverage in
 `tests/funding-sources.integration.mjs`: Write-scope success (row booked

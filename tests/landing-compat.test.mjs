@@ -33,5 +33,6 @@ test('compatibility section lists every wallet provider with a link',()=>{
   assert.ok(wallets.every(w=>!w.caps),'no capability qualifiers needed - every listed wallet connects');
   const ghosts=wallets.filter(w=>w.ghost).map(w=>w.name);
   assert.ok(ghosts.includes('Any NWC wallet'),'the universal NWC tile is present');
-  assert.ok(ghosts.includes('Any LUD-21 wallet'),'the universal LUD-21 tile is present');
+  assert.ok(ghosts.includes('Any Lightning Address'),'the universal Lightning Address tile is present');
+  assert.ok(wallets.some(w=>w.name==='Wallet of Satoshi'&&!w.ghost),'Wallet of Satoshi is listed on the wall');
 });

@@ -2,7 +2,7 @@
 
 openLN is non-custodial: every account is backed by its own wallet. This is the
 compatibility map for connecting that wallet - organized by connection type,
-with live-verified facts separated from ecosystem claims. Updated 2026-09-25
+with live-verified facts separated from ecosystem claims. Updated 2026-09-30
 from a full scan of the LN wallet landscape (sources at the bottom).
 
 Money-path mechanics (the wrapped hold invoice, the 2% fee, settlement
@@ -15,13 +15,17 @@ wallets openLN accepts on which lane*.
 |---|---|---|
 | Nostr Wallet Connect (`custom` / `veil`) | `nostr+walletconnect://...` | Send + receive + balance + cards |
 | API (`blink`) | provider API key | Send + receive + balance + cards (per key scopes) |
-| Lightning Address (`lnaddress`) | `name@domain` | Receive-only (LUD-21 verify required) |
+| Lightning Address (`lnaddress`) | `name@domain` | Receive-only (sales confirmed by openLN's wrapped settlement; LUD-21 verify used where the provider serves it) |
 
 Any wallet connecting on the NWC or API lane is validated at connect time
-(get_balance / test invoice). Lightning addresses are validated with an actual
-LUD-21 `verify` probe: the address must serve a working `verify` URL from its
-invoice callback, or openLN cannot confirm sales on the POS and the connect is
-rejected. Wording in UI: "receive-only" (never "read-only").
+(get_balance / test invoice). Lightning addresses are validated by minting a
+real (1-sat) invoice from the address's LNURL-pay callback. Providers that
+serve a LUD-21 `verify` URL are additionally verified from their side;
+providers without verify (Wallet of Satoshi) connect as **wrapped-only**:
+every sale is confirmed by openLN's own node through the wrapped hold path,
+and the direct fallback refuses rather than mint an invoice openLN cannot
+observe (policy A, verified live 2026-09-30). Wording in UI: "receive-only"
+(never "read-only").
 
 ## Providers by connection type (cleaned, 2026-09-25)
 
@@ -92,21 +96,23 @@ of these APIs expose (Blink flat out has none).
 
 ### Lightning Address - receive-only
 
-Live probe 2026-09-25: request a 1-sat invoice from the address's LNURL-pay
-callback and check for the LUD-21 `verify` field.
+Live probe 2026-09-25 (verify field) + live wrapped sale 2026-09-30: mint a
+1-sat invoice from the address's LNURL-pay callback and check for the LUD-21
+`verify` field. Verify is preferred but no longer required - without it the
+account is wrapped-only.
 
 | Provider | LUD-21 verify | Note |
 |---|---|---|
 | Blink | YES | Verified live on a *migrated non-custodial* account - the lane that keeps working after a custodial Blink account migrates. |
 | Coinos | YES | Verified live. |
 | Alby | YES | Verified live on a getalby.com address. |
-| Wallet of Satoshi | NO | No verify, no NWC, no official API - cannot back any lane. Company position: the connect is rejected; do not advertise WoS as compatible. |
+| Wallet of Satoshi | NO | No verify, no NWC, no official API. Connects on the Lightning Address lane as wrapped-only (verified live 2026-09-30): sales are confirmed by openLN's wrapped settlement and the direct fallback refuses. |
 | Primal | NO | No verify on addresses; Primal connects on the NWC lane only. |
 
 ### Dead ends (do not re-add)
 
 - **Mutiny** - shut down end of 2024.
-- **Wallet of Satoshi** - no official API, no NWC, no LUD-21. Community-built clients only, can break anytime.
+- **Wallet of Satoshi** - no official API, no NWC. Address-lane only (wrapped-only; no LUD-21). Community-built NWC clients only, can break anytime.
 
 ### Processors evaluated, parked (not on the wall)
 
@@ -123,7 +129,7 @@ Speed/OpenNode comparisons). Beyond the four added to the API table:
 
 The wall is data-driven: `var COMPAT` in the landing script, one object per
 wallet (`name`, `logo` at `/media/compat/<slug>.png`, `url`; `ghost:true`
-renders a universal tile - "+ Any NWC wallet", "+ Any LUD-21 wallet"). Groups
+renders a universal tile - "+ Any NWC wallet", "+ Any Lightning Address"). Groups
 mirror the three lanes plus self-hosted. **List only wallets that connect
 today**: a provider appears on the wall when its connection is live and
 verified, and comes off if it fails re-validation. No "coming soon" entries.
@@ -139,7 +145,7 @@ wallet card list the headline wallets per lane. Keep the three lists in sync:
 
 - NWC: Alby Hub, LNbits, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum (and any NIP-47 wallet)
 - Blink API: custodial Blink accounts (dashboard.blink.sv)
-- Lightning Address: Blink, Coinos, Alby (and any LUD-21 wallet)
+- Lightning Address: Blink, Coinos, Alby, Wallet of Satoshi (and any Lightning Address)
 
 ## Sources
 
@@ -149,3 +155,7 @@ wallet card list the headline wallets per lane. Keep the three lists in sync:
 - zeusln.com v0.12 release notes, news.lnbits.com NWC guide
 - Live probes in production (2026-09-25): LNURL-pay + LUD-21 verify against
   coinos.io, blink.sv, getalby.com, primal.net, walletofsatoshi.com
+- Live wrapped-sale verification 2026-09-30 (production QA): a hold sale
+  forwarded and settled to a Wallet of Satoshi address; the forward preimage
+  matches the WoS invoice's payment hash, proving delivery from openLN's own
+  node records

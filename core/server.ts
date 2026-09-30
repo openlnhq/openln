@@ -42,6 +42,11 @@ function wrapStatusView(invoice: typeof pendingInvoicesTable.$inferSelect): { st
       // mark it cancelled, but tell the device now so it stops waiting.
       if (invoice.wrapStatus === "created" && invoice.expiresAt < new Date()) { kickWrap(paymentHash); return { status: "expired", paymentHash }; }
       kickWrap(paymentHash);
+      // 'forwarded' already means the merchant was paid: the forward settled
+      // on the platform node with a preimage, which proves delivery. The hold
+      // settle that follows is bookkeeping (sub-second in practice), so report
+      // success now instead of making the device wait for it.
+      if (invoice.wrapStatus === "forwarded") return { status: "paid", paymentHash };
       return { status: invoice.wrapStatus === "created" ? "pending" : invoice.wrapStatus, paymentHash };
     }
     return { status: invoice.wrapStatus, paymentHash }; // cancelled / needs_reconciliation
@@ -355,20 +360,25 @@ const server = createServer(async (req, res) => {
         } catch { return json(res,400,{error:"Paste the complete NWC connection, including relay and secret"}); }
         const {getBalance}=await import("./money/nwc.js");
         try{await getBalance(connection)}catch{return json(res,422,{error:"Could not read this wallet. Check its NWC permissions and connection; your previous wallet is unchanged."});}
-        await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection), blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null }).where(eq(accountsTable.id, account.id));
+        await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection), blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null, lnurlVerifySupported: null }).where(eq(accountsTable.id, account.id));
         return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
       }
 
       if (detected.kind === "lnaddress") {
-        // Receive-only lane, generic across wallets (Blink, Wallet of Satoshi,
-        // and any provider whose Lightning Address supports LUD-21 verify).
+        // Receive-only lane, generic across wallets. Providers WITH LUD-21
+        // verify (Blink, Coinos, Alby) are confirmed from their side for the
+        // rare direct fallback; providers without verify (Wallet of Satoshi)
+        // connect as wrapped-only - every sale settles on the platform node
+        // through the wrapped hold path, and the direct fallback refuses
+        // (policy A) instead of minting an invoice nothing could observe.
         // The address is public - there is no secret to store or leak. It is
         // also the address shown in the app, so people can pay it directly.
         const { validateLightningAddressForWallet } = await import("./money/lnAddress.js");
-        try { await validateLightningAddressForWallet(detected.address); }
+        let check: { verifySupported: boolean };
+        try { check = await validateLightningAddressForWallet(detected.address); }
         catch (err) { return json(res, 422, { error: err instanceof Error ? err.message : "This Lightning Address could not be validated" }); }
-        await db.update(accountsTable).set({ walletMode: "lnaddress", lightningAddress: detected.address, customNwcUrl: null, blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null }).where(eq(accountsTable.id, account.id));
-        return json(res, 200, { ok: true, walletMode: "lnaddress", connected: true, receiveOnly: true });
+        await db.update(accountsTable).set({ walletMode: "lnaddress", lightningAddress: detected.address, lnurlVerifySupported: check.verifySupported, customNwcUrl: null, blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null }).where(eq(accountsTable.id, account.id));
+        return json(res, 200, { ok: true, walletMode: "lnaddress", connected: true, receiveOnly: true, verifySupported: check.verifySupported });
       }
 
       // Blink API key (custodial accounts). Read + Receive scopes cover
@@ -378,7 +388,7 @@ const server = createServer(async (req, res) => {
       let blinkInfo: { walletId: string; walletCurrency: string; balanceSats: number };
       try { blinkInfo = await validateBlinkApiKeyForWallet(detected.apiKey); }
       catch (err) { return json(res, 422, { error: err instanceof Error ? err.message : "Could not read this Blink account" }); }
-      await db.update(accountsTable).set({ walletMode: "blink", blinkApiKeyEncrypted: encrypt(detected.apiKey), blinkWalletId: blinkInfo.walletId, blinkWalletCurrency: blinkInfo.walletCurrency, customNwcUrl: null }).where(eq(accountsTable.id, account.id));
+      await db.update(accountsTable).set({ walletMode: "blink", blinkApiKeyEncrypted: encrypt(detected.apiKey), blinkWalletId: blinkInfo.walletId, blinkWalletCurrency: blinkInfo.walletCurrency, customNwcUrl: null, lnurlVerifySupported: null }).where(eq(accountsTable.id, account.id));
       return json(res, 200, { ok: true, walletMode: "blink", connected: true, balanceSats: blinkInfo.balanceSats });
     }
     if (req.method === "GET" && u.pathname === "/api/events") {
@@ -392,7 +402,7 @@ const server = createServer(async (req, res) => {
       req.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
       return;
     }
-    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc" || source.kind === "blink", receiveOnly: source.kind === "lnaddress", canSend: source.kind === "nwc" || source.kind === "blink", walletMode: source.kind === "nwc" ? source.mode : source.kind, lightningAddress: source.kind === "lnaddress" ? source.address : null, plugins: [] }); }
+    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc" || source.kind === "blink", receiveOnly: source.kind === "lnaddress", canSend: source.kind === "nwc" || source.kind === "blink", walletMode: source.kind === "nwc" ? source.mode : source.kind, lightningAddress: source.kind === "lnaddress" ? source.address : null, verifySupported: source.kind === "lnaddress" ? source.verifySupported : null, plugins: [] }); }
     if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); await reconcileAccountInvoicesBounded(account.id); const source = await resolveWalletSource(account.id); if (source.kind === "nwc") { const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } if (source.kind === "blink") { try { const { blinkGetBalance } = await import("./money/blink.js"); const balance = await blinkGetBalance(source.apiKey, source.walletId); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } catch { return json(res, 200, { balanceSats: 0, connected: false, unavailable: true }); } } if (source.kind === "lnaddress") return json(res, 200, { balanceSats: 0, connected: false, receiveOnly: true }); return json(res, 200, { balanceSats: 0, connected: false }); }
 
     if (req.method === "POST" && u.pathname === "/api/wallet/verify") {
@@ -501,13 +511,23 @@ const server = createServer(async (req, res) => {
       // Direct (unwrapped) invoice - the fallback when wrapping is not
       // available, so a sale is never blocked. The funding source decides how
       // the invoice is minted and how settlement is observed (NWC lookups,
-      // LUD-21 verify polling, or the Blink API).
+      // LUD-21 verify polling, or the Blink API). A verify-less Lightning
+      // Address refuses here instead (policy A): nothing could confirm its
+      // invoice, so it must retry the wrapped path rather than sell blind.
       if (funding.kind === "nwc") {
         const invoice = await makeInvoice(amountSats, memo, 3600, funding.nwcUrl);
         await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(funding.nwcUrl), origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
         return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
       }
       if (funding.kind === "lnaddress") {
+        // Policy A (2026-09-30): a verify-less provider (Wallet of Satoshi)
+        // settles only through the wrapped path. When wrapping is unavailable,
+        // refuse the sale rather than mint a direct invoice nothing could
+        // observe; the merchant retries and the wrap path is tried again.
+        if (source.kind === "lnaddress" && !source.verifySupported) {
+          recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "pos", message: `Direct fallback refused (wrapped path unavailable, provider has no LUD-21 verify); ${amountSats} sat sale was not started`, amountSats });
+          return json(res, 503, { error: "Payments to this wallet are temporarily unavailable. Please retry in a moment." });
+        }
         const { requestLnurlInvoice } = await import("./money/lnAddress.js");
         const invoice = await requestLnurlInvoice(funding.address, amountSats, memo);
         const expiresAt = new Date(Date.now() + 3600 * 1000);
@@ -576,6 +596,12 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { pr: invoice.bolt11, routes: [] });
       }
       if (funding.kind === "lnaddress") {
+        // Policy A: same as POS - a verify-less provider refuses when wrapping
+        // is unavailable instead of minting an invoice nothing could observe.
+        if (source.kind === "lnaddress" && !source.verifySupported) {
+          recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "lnurlp", message: `Direct fallback refused (wrapped path unavailable, provider has no LUD-21 verify); ${sats} sat payment was not started`, amountSats: sats });
+          return json(res, 503, { status: "ERROR", reason: "This merchant cannot receive right now. Please retry in a moment." });
+        }
         const { requestLnurlInvoice } = await import("./money/lnAddress.js");
         const invoice = await requestLnurlInvoice(funding.address, sats, "openLN payment");
         await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", lnurlVerifyUrl: invoice.verifyUrl, origin: "ln_address", expiresAt: new Date(Date.now() + 3600 * 1000), ...(lnFiat ?? {}) });

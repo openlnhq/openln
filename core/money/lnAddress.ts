@@ -3,12 +3,14 @@
 /**
  * Lightning-address wallet mode (receive-only merchants).
  *
- * A merchant may back their bitPOS account with a plain lightning address
+ * A merchant may back their openLN account with a plain lightning address
  * (name@provider) instead of an NWC wallet. POS receive then works by
  * fetching invoices from the provider via LNURL-pay (LUD-16), and settlement
- * is detected by polling the provider's verify URL (LUD-21). Providers
- * without verify support are rejected at setup - without it bitPOS has no
- * way to show the merchant that a sale was paid.
+ * is observed on the provider's verify URL (LUD-21) where one exists.
+ * Providers without verify (Wallet of Satoshi) connect as wrapped-only: every
+ * sale settles on the platform node through the wrapped hold path, which is
+ * the confirmation, and the direct fallback refuses rather than mint an
+ * invoice nothing could observe (policy A, 2026-09-30).
  */
 import dns from "node:dns/promises";
 import net from "node:net";
@@ -263,18 +265,20 @@ export async function requestLnurlInvoiceFromMeta(
 
 /**
  * Validate a lightning address for use as a wallet source: the address must
- * resolve, hand out invoices, and support LUD-21 verify (otherwise bitPOS
- * cannot show settlement on the POS). Throws with a user-facing message.
+ * resolve and hand out invoices (a real probe invoice). Returns whether the
+ * provider serves a LUD-21 `verify` URL: with verify, a direct fallback
+ * invoice can still be confirmed from the provider's side; without it
+ * (Wallet of Satoshi) the account is wrapped-only and the direct fallback
+ * refuses. Throws with a user-facing message when the address is unusable.
  */
-export async function validateLightningAddressForWallet(address: string): Promise<void> {
+export interface LnAddressWalletCheck {
+  verifySupported: boolean;
+}
+export async function validateLightningAddressForWallet(address: string): Promise<LnAddressWalletCheck> {
   const meta = await fetchLnurlpMetadata(address);
   const testSats = Math.max(1, Math.ceil(meta.minSendableMsats / 1000));
   const invoice = await requestLnurlInvoice(address, testSats);
-  if (!invoice.verifyUrl) {
-    throw new Error(
-      "This provider does not support payment verification (LUD-21 verify) - bitPOS cannot confirm sales on the POS with it. Use a provider that supports verify, or connect a wallet via NWC.",
-    );
-  }
+  return { verifySupported: Boolean(invoice.verifyUrl) };
 }
 
 export interface LnurlVerifyResult {

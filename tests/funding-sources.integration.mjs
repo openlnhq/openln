@@ -1,5 +1,6 @@
-// Funding-source lanes end to end: Lightning Address (receive-only, LUD-21)
-// and Blink API wallet - connect, POS receive, and settlement observation.
+// Funding-source lanes end to end: Lightning Address (receive-only; wrapped
+// settlement, LUD-21 verify where the provider serves it) and Blink API
+// wallet - connect, POS receive, and settlement observation.
 //
 // Fully hermetic: the LNURL provider (DNS + HTTPS) and the Blink GraphQL API
 // are stubbed in-process, so no real wallet or public network is touched.
@@ -49,7 +50,7 @@ globalThis.fetch=async (input,init)=>{
       return json({status:'OK',tag:'payRequest',callback:'https://ln.test/pay/bob',minSendable:1000,maxSendable:100000000000,commentAllowed:0});
     }
     if(u.pathname==='/pay/alice')return json({pr:mkBolt11(randomHash()),verify:'https://ln.test/verify/alice/1'});
-    if(u.pathname==='/pay/bob')return json({pr:mkBolt11(randomHash())}); // no verify -> not connectable
+    if(u.pathname==='/pay/bob')return json({pr:mkBolt11(randomHash())}); // no verify -> wrapped-only (direct fallback refuses)
     if(u.pathname==='/verify/alice/1')return json({status:'OK',settled:verifySettled,preimage:verifySettled?'ab'.repeat(32):undefined});
     return json({status:'ERROR',reason:'unknown lnurl path'},404);
   }
@@ -76,9 +77,11 @@ const {pool}=await import('../dist/core/db/index.js');
 
 let base;
 const q=(sql,params)=>pool.query(sql,params);
+const waitFor=async(fn,tries=26)=>{for(let i=0;i<tries;i++){if(await fn())return true;await sleep(150);}return false;};
 async function register(){
-  const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'qa_fund_'+randomBytes(5).toString('hex'),password:randomBytes(20).toString('hex')})});
-  assert.equal(r.status,201);return r.json();
+  const handle='qa_fund_'+randomBytes(5).toString('hex');
+  const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle,password:randomBytes(20).toString('hex')})});
+  assert.equal(r.status,201);return {...await r.json(),handle};
 }
 const auth=(token)=>({Authorization:'Bearer '+token});
 const connect=(token,connection)=>fetch(base+'/api/wallet/connect',{method:'POST',headers:{'Content-Type':'application/json',...auth(token)},body:JSON.stringify({connection})});
@@ -102,12 +105,12 @@ test('lightning address: connect is receive-only, POS invoice settles via LUD-21
   const r=await connect(a.token,LN_ADDR);
   assert.equal(r.status,200);
   const j=await r.json();
-  assert.equal(j.walletMode,'lnaddress');assert.equal(j.connected,true);assert.equal(j.receiveOnly,true);
-  let {rows:[row]}=await q('SELECT wallet_mode, lightning_address FROM accounts WHERE id=$1',[a.account.id]);
-  assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,LN_ADDR);
+  assert.equal(j.walletMode,'lnaddress');assert.equal(j.connected,true);assert.equal(j.receiveOnly,true);assert.equal(j.verifySupported,true);
+  let {rows:[row]}=await q('SELECT wallet_mode, lightning_address, lnurl_verify_supported FROM accounts WHERE id=$1',[a.account.id]);
+  assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,LN_ADDR);assert.equal(row.lnurl_verify_supported,true);
 
   const sj=await (await fetch(base+'/api/wallet/status',{headers:auth(a.token)})).json();
-  assert.equal(sj.walletMode,'lnaddress');assert.equal(sj.receiveOnly,true);assert.equal(sj.canSend,false);assert.equal(sj.connected,false);assert.equal(sj.lightningAddress,LN_ADDR);
+  assert.equal(sj.walletMode,'lnaddress');assert.equal(sj.receiveOnly,true);assert.equal(sj.canSend,false);assert.equal(sj.connected,false);assert.equal(sj.lightningAddress,LN_ADDR);assert.equal(sj.verifySupported,true);
 
   const inv=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({amountSats:1500,memo:'qa ln address'})});
   assert.equal(inv.status,201);
@@ -131,13 +134,33 @@ test('lightning address: connect is receive-only, POS invoice settles via LUD-21
   assert.equal(tx.direction,'in');assert.equal(tx.status,'completed');assert.equal(tx.type,'receive');assert.equal(tx.a,1500);
 });
 
-test('lightning address without LUD-21 verify is rejected at connect',async()=>{
+test('lightning address without LUD-21 verify connects wrapped-only; direct fallback refuses',async()=>{
   const a=await register();
   const r=await connect(a.token,'bob@ln.test');
-  assert.equal(r.status,422);
-  assert.match((await r.json()).error,/LUD-21|verify/i);
-  const {rows:[row]}=await q('SELECT wallet_mode FROM accounts WHERE id=$1',[a.account.id]);
-  assert.equal(row.wallet_mode,'unset');
+  assert.equal(r.status,200);
+  const j=await r.json();
+  assert.equal(j.walletMode,'lnaddress');assert.equal(j.connected,true);assert.equal(j.receiveOnly,true);assert.equal(j.verifySupported,false);
+  let {rows:[row]}=await q('SELECT wallet_mode, lightning_address, lnurl_verify_supported FROM accounts WHERE id=$1',[a.account.id]);
+  assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,'bob@ln.test');assert.equal(row.lnurl_verify_supported,false);
+
+  const sj=await (await fetch(base+'/api/wallet/status',{headers:auth(a.token)})).json();
+  assert.equal(sj.walletMode,'lnaddress');assert.equal(sj.receiveOnly,true);assert.equal(sj.verifySupported,false);
+
+  // No platform wallet in this test env, so the wrapped path is unavailable.
+  // Policy A: a verify-less address must NOT get a direct invoice - refuse.
+  const inv=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({amountSats:500,memo:'qa wrapped-only'})});
+  assert.equal(inv.status,503);
+  assert.match((await inv.json()).error,/retry/i);
+  ({rows:[row]}=await q('SELECT count(*)::int AS n FROM pending_invoices WHERE account_id=$1',[a.account.id]));
+  assert.equal(row.n,0,'no direct invoice minted for a verify-less address');
+  const refusedCount=()=>q("SELECT count(*)::int AS n FROM payment_events WHERE account_id=$1 AND event='wrap.fallback_refused'",[a.account.id]).then(res=>res.rows[0].n);
+  assert.ok(await waitFor(async()=>await refusedCount()===1),'refusal recorded in the payment event log');
+
+  // The public LNURL callback refuses the same way, with a payer-facing reason.
+  const cb=await fetch(base+'/lnurlp/'+a.handle+'/callback?amount=500000');
+  assert.equal(cb.status,503);
+  const cj=await cb.json();assert.equal(cj.status,'ERROR');assert.match(cj.reason,/retry/i);
+  assert.ok(await waitFor(async()=>await refusedCount()===2),'callback refusal recorded too');
 });
 
 test('blink: wrong key fails validation, good key connects, POS invoice settles via API status',async()=>{

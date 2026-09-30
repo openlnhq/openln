@@ -1946,8 +1946,8 @@ function walletModalModes(){return {
     works:'Works with custodial Blink accounts. Create a key at dashboard.blink.sv: Read + Receive to accept payments, Write to send. Non-custodial Blink connects with a Lightning Address.',
     hint:'Full wallet for custodial Blink accounts. Receive, send, and card funding run through Blink.'},
   lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',caps:['recv'],
-    works:'Works with any wallet whose address verifies payments (LUD-21), such as Blink, Coinos, or Alby.',
-    hint:'Receive-only. We verify your address when you connect, and your balance stays in that wallet.'},
+    works:'Works with any Lightning Address: Blink, Coinos, Alby, Wallet of Satoshi, and others.',
+    hint:'Receive-only. We check your address when you connect, and confirm each sale through openLN’s wrapped settlement.'},
 };}
 function walletModal(){
   const WM=walletModalModes();let mode=Object.keys(WM)[0];
@@ -2698,7 +2698,7 @@ async function vSettings(version=renderVersion){
         </div>
         <div class="wlane">
           <div class="wlanetop"><span class="wlanename">Lightning Address</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip off">Send</span></div></div>
-          <div class="wlanework">Blink, Coinos, Alby, and any wallet whose address verifies payments (LUD-21).</div>
+          <div class="wlanework">Blink, Coinos, Alby, Wallet of Satoshi, and any Lightning Address.</div>
         </div>
       </div>
 

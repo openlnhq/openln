@@ -2620,11 +2620,12 @@ const CURRENCIES = ["zar","usd","eur","thb","gbp","jpy","btc","sats"];
 const CURRENCY_NAMES={zar:'South African rand',usd:'US dollar',eur:'Euro',thb:'Thai baht',gbp:'British pound',jpy:'Japanese yen',btc:'Bitcoin',sats:'Satoshis'};
 const RATE_SOURCES = ["coingecko","binance"];
 async function vSettings(version=renderVersion){
-  const [settings, status, sendPin, walletBal] = await Promise.all([
+  const [settings, status, sendPin, walletBal, tg] = await Promise.all([
     api('/api/account/settings').catch(()=>({currency:'usd',rateSource:'coingecko'})),
     api('/api/wallet/status').catch(()=>({connected:false,walletMode:'unset'})),
     api('/api/account/send-pin').catch(()=>({set:false})),
     api('/api/wallet/balance').catch(()=>null),
+    api('/api/telegram/status').catch(()=>({linked:false})),
   ]);
   const pinSet = !!sendPin.set;
   const wFull=!!status.connected, wReceive=!!status.receiveOnly, wAny=wFull||wReceive;
@@ -2739,6 +2740,22 @@ async function vSettings(version=renderVersion){
         </div>
       </div>
 
+      <div class="setcard">
+        <h3>Telegram support</h3>
+        ${tg.linked
+        ?`<div class="sub">Connected as ${tg.username?'@'+esc(tg.username):esc(tg.firstName||'your Telegram account')}. Message <b>@openLN_bot</b> for support: the team sees your account (${esc(tg.handle||'')}) and replies in that same chat.</div>
+        <div class="set-actions">
+          <button class="btn ghost sm" id="tgUnlink">Disconnect</button>
+          <span class="dim" style="font-size:12px;align-self:center" id="tgStatus"></span>
+        </div>`
+        :`<div class="sub">Support in Telegram. Connect this account, then message <b>@openLN_bot</b>: the team sees your account and replies in the same private chat.</div>
+        <div class="set-actions">
+          <button class="btn teal sm" id="tgConnect">Connect Telegram</button>
+          <span class="dim" style="font-size:12px;align-self:center" id="tgStatus"></span>
+        </div>
+        <div id="tgCodeBox" style="display:none"></div>`}
+      </div>
+
     </div>
   </div>`;
 
@@ -2807,6 +2824,38 @@ async function vSettings(version=renderVersion){
 
   // wallet connect/replace
   $('#setWalletBtn').onclick=walletModal;
+
+  // telegram account link
+  const tgConnectBtn=$('#tgConnect');
+  if(tgConnectBtn)tgConnectBtn.onclick=async()=>{
+    const st=$('#tgStatus'); tgConnectBtn.disabled=true; tgConnectBtn.textContent='Creating code…'; st.textContent='';
+    try{
+      const d=await api('/api/telegram/link-code',{method:'POST',body:JSON.stringify({})});
+      tgConnectBtn.style.display='none';
+      const box=$('#tgCodeBox'); box.style.display='block';
+      box.innerHTML=`<div style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px 14px">
+        <div class="dim" style="font-size:12px">Your connect code</div>
+        <div class="mono" style="font-size:22px;letter-spacing:3px;margin:6px 0 12px">${esc(d.code)}</div>
+        <a class="btn teal sm" href="${esc(d.url)}" target="_blank" rel="noopener">Open @openLN_bot</a>
+        <div class="dim" style="font-size:11.5px;margin-top:10px;line-height:1.5">The code works once, for 15 minutes. If the bot does not open with it filled in, send the code in the chat yourself.</div>
+      </div>`;
+      st.textContent='Waiting for the connection…';
+      let n=0;
+      const t=setInterval(async()=>{
+        n++; let linked=false;
+        try{ linked=(await api('/api/telegram/status')).linked }catch{}
+        if(linked){clearInterval(t);toast('Telegram connected');navigate('settings');return}
+        if(n>=25){clearInterval(t);if(document.body.contains(box)){st.textContent='Reload this page after connecting.';tgConnectBtn.style.display='';tgConnectBtn.disabled=false;tgConnectBtn.textContent='Get a new code'}}
+      },6000);
+    }catch(e){ tgConnectBtn.disabled=false; tgConnectBtn.textContent='Connect Telegram'; st.textContent=displayText(e.message); }
+  };
+  const tgUnlinkBtn=$('#tgUnlink');
+  if(tgUnlinkBtn)tgUnlinkBtn.onclick=async()=>{
+    if(!confirm('Disconnect Telegram from this account? New messages will no longer be linked to it.'))return;
+    tgUnlinkBtn.disabled=true; tgUnlinkBtn.textContent='Disconnecting…';
+    try{ await api('/api/telegram/unlink',{method:'POST',body:JSON.stringify({})}); toast('Telegram disconnected'); navigate('settings'); }
+    catch(e){ tgUnlinkBtn.disabled=false; tgUnlinkBtn.textContent='Disconnect'; $('#tgStatus').textContent=displayText(e.message); }
+  };
 }
 /* ---- PARTNER ---- */
 const ptok=()=>localStorage.getItem('openln_partner_token');

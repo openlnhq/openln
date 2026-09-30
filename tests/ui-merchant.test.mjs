@@ -94,3 +94,10 @@ test('card setup hands off to the openLN Card Writer app or the RIC',()=>{
   const detail=html.slice(html.indexOf('function vCardDetail('),html.indexOf('function vCardWipe('));
   assert.ok(!detail.includes('writeCardHere')&&detail.includes('setupCard'),'Card detail drops Write to card and keeps Set up card');
 });
+test('settings carry the Telegram support card that connects the account to the bot',()=>{
+  const source=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));
+  assert.ok(source.includes("api('/api/telegram/status')"),'settings fetch the Telegram link state');
+  assert.ok(source.includes("api('/api/telegram/link-code'"),'settings mint a single-use connect code');
+  assert.ok(source.includes('tgUnlink'),'disconnect is offered once linked');
+  assert.ok(source.includes('@openLN_bot'),'the card names the support bot');
+});

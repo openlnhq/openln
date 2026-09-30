@@ -284,3 +284,14 @@ test('blink: a Blink-side receive block surfaces the account-state message',asyn
   const {rows:[row]}=await q('SELECT wallet_mode FROM accounts WHERE id=$1',[a.account.id]);
   assert.equal(row.wallet_mode,'unset');
 });
+
+test('wrap status view: forwarded reads as paid, forwarding stays in progress',async()=>{
+  const a=await register();
+  const H=randomHash();const H2=randomHash();
+  await q(`INSERT INTO pending_invoices (account_id, bolt11, payment_hash, amount_sats, memo, origin, wrap_status, wrap_updated_at, expires_at) VALUES ($1,'lnbc1qa-forwarded',$2,123,'qa forwarded view','web_pos','forwarded',now(),now()+interval '1 hour')`,[a.account.id,H]);
+  await q(`INSERT INTO pending_invoices (account_id, bolt11, payment_hash, amount_sats, memo, origin, wrap_status, wrap_updated_at, expires_at) VALUES ($1,'lnbc1qa-forwarding',$2,45,'qa forwarding view','web_pos','forwarding',now(),now()+interval '1 hour')`,[a.account.id,H2]);
+  const s1=await (await fetch(base+'/api/pos/invoice/'+H+'/status',{headers:auth(a.token)})).json();
+  assert.equal(s1.status,'paid','forwarded proves the merchant was paid; the device must not wait for the settle');
+  const s2=await (await fetch(base+'/api/pos/invoice/'+H2+'/status',{headers:auth(a.token)})).json();
+  assert.equal(s2.status,'forwarding','only forwarded maps to paid; in-flight states keep their label');
+});

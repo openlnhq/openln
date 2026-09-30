@@ -52,7 +52,10 @@ AFTER=$(git rev-parse --short HEAD)
 log "$BEFORE → $AFTER ($(git log -1 --format='%s' | cut -c1-70))"
 
 log "pnpm install"
-pnpm install --frozen-lockfile --prefer-offline 2>&1 | tail -1
+# CI=true: allow pnpm to recreate node_modules non-interactively. The purge
+# confirmation needs a TTY; over ssh there is none and the install aborts,
+# killing the deploy mid-flow (tree reset but not built/restarted).
+CI=true pnpm install --frozen-lockfile --prefer-offline 2>&1 | tail -1
 log "typecheck"
 pnpm typecheck >/dev/null
 log "build"

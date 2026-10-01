@@ -16,6 +16,7 @@ import {
   isPaymentNotFoundError,
 } from "./nwc.js";
 import { finalizePendingSend, checkOwnSettlementProof } from "./feeEngine.js";
+import { cancelWrap, type WrapRow } from "./holdWrap.js";
 import { resolveWalletSource } from "./walletSource.js";
 import { extractPaymentHash } from "./lnAddress.js";
 import { kickWrap } from "./wrapDriver.js";
@@ -511,7 +512,48 @@ const SEND_RECONCILE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // NOT_FOUND from the wallet right after send can race its own record - only
 // trust it as "never initiated" once the payment is comfortably old.
 const SEND_NOT_FOUND_FAIL_AGE_MS = 3 * 60 * 1000;
+// Terminal non-arrival proof: a card tap pays OUR hold invoice. If the wrap
+// is still `created` (the node never accepted an HTLC) this long after the
+// tap, the payment provably never landed. Close the checkout and fail the
+// send so the POS gets a definitive verdict and the per-card guard clears -
+// the merchant must never hang in "Confirming" behind an unanswered relay.
+// Safe for slow wallets: cancelWrap re-checks the hold first, and a late
+// HTLC on a cancelled hold is rejected and auto-refunds to the payer.
+const SEND_HOLD_NONARRIVAL_MS = 120 * 1000;
 const SEND_RECONCILE_BATCH = 10;
+
+/**
+ * Terminal non-arrival proof for a pending out-send that targeted one of OUR
+ * hold invoices (a card tap). Our node is authoritative: if the wrap is still
+ * `created` past SEND_HOLD_NONARRIVAL_MS, no HTLC was ever accepted, and the
+ * wallet-side lookups finding nothing means the pay was never executed.
+ * Close the checkout (default closer = cancelWrap, which re-checks the hold
+ * first and refuses if a payment slipped in) and book the send failed so the
+ * POS receives a definitive verdict and the per-card guard clears.
+ * Returns true when this call resolved the row.
+ */
+export async function resolveStalledHoldSend(
+  tx: { id: string; createdAt: Date },
+  txHash: string,
+  now: number,
+  closeWrap: (wrap: WrapRow, reason: string) => Promise<string> = cancelWrap,
+): Promise<boolean> {
+  if (now - tx.createdAt.getTime() <= SEND_HOLD_NONARRIVAL_MS) return false;
+  const [wrap] = await db
+    .select()
+    .from(pendingInvoicesTable)
+    .where(and(eq(pendingInvoicesTable.paymentHash, txHash), eq(pendingInvoicesTable.wrapStatus, "created")));
+  if (!wrap) return false;
+  const result = await closeWrap(wrap as unknown as WrapRow, "card pay never arrived");
+  // accepted/settled meanwhile (or the closer refused): let normal settlement run.
+  if (result !== "cancelled") return false;
+  await finalizePendingSend(tx.id, {
+    status: "failed",
+    reason: "Wallet shows no payment and the hold never received it - checkout closed",
+  });
+  logger.warn({ txId: tx.id, paymentHash: txHash }, "Pending send failed by hold non-arrival proof - wrap cancelled");
+  return true;
+}
 
 export async function reconcilePendingSends(): Promise<void> {
   if (relayInCooldown()) return;
@@ -560,6 +602,17 @@ export async function reconcilePendingSends(): Promise<void> {
       logger.warn({ dbErr, txId: tx.id }, "Own-settlement proof check failed");
     }
 
+    // Terminal safety net: the send targeted our hold and the node proves
+    // nothing ever arrived. Runs before the relay-bound lookups (which can
+    // answer "unknown" forever) - our own DB is the authority here.
+    if (txHash) {
+      try {
+        if (await resolveStalledHoldSend(tx, txHash, now)) continue;
+      } catch (err) {
+        logger.warn({ err, txId: tx.id }, "Hold non-arrival resolution failed - leaving pending");
+      }
+    }
+
     // Resolve the paying wallet: Blink accounts reconcile from the Blink
     // ledger (HTTPS); NWC accounts use relay lookups.
     const source = await resolveWalletSource(tx.accountId).catch(() => ({ kind: "none" } as const));
@@ -604,6 +657,8 @@ export async function reconcilePendingSends(): Promise<void> {
       } else if (inv.state === "failed") {
         await finalizePendingSend(tx.id, { status: "failed", reason: "Wallet reported payment failed" });
         logger.info({ txId: tx.id }, "Pending send reconciled: failed");
+      } else {
+        logger.info({ txId: tx.id, state: inv.state }, "Pending send still unresolved after wallet lookup - awaiting next sweep");
       }
       // pending / unknown state - leave for the next sweep
     } catch (err) {

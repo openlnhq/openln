@@ -295,3 +295,49 @@ test('wrap status view: forwarded reads as paid, forwarding stays in progress',a
   const s2=await (await fetch(base+'/api/pos/invoice/'+H2+'/status',{headers:auth(a.token)})).json();
   assert.equal(s2.status,'forwarding','only forwarded maps to paid; in-flight states keep their label');
 });
+
+// A card tap's pay_invoice timed out on the relay (ambiguous). The wallet-side
+// lookups can answer "no record" forever, but our own node is authoritative:
+// a wrap still `created` means the hold never accepted the payment. The
+// resolver must close the checkout and fail the send so the POS gets a
+// definitive verdict instead of hanging in "Confirming payment".
+test('stalled hold send: wrap never accepted -> send failed, checkout closed',async()=>{
+  const a=await register();
+  const H=randomHash();
+  await q(`INSERT INTO pending_invoices (account_id, bolt11, payment_hash, amount_sats, memo, origin, wrap_status, wrap_updated_at, expires_at) VALUES ($1,'lnbc1qa-stalled',$2,100,'qa hold-proof','ric','created',now(),now()+interval '10 minutes')`,[a.account.id,H]);
+  const ins=await q(`INSERT INTO transactions (account_id, direction, amount_sats, type, status, bolt11, payment_hash, memo, failure_reason, created_at) VALUES ($1,'out',100,'send','pending','lnbc1qa-stalled',$2,'Bolt Card payment (white card)','outcome unknown: reply timeout', now() - interval '5 minutes') RETURNING id`,[a.account.id,H]);
+  const txId=ins.rows[0].id;
+
+  const {resolveStalledHoldSend}=await import('../dist/core/money/invoiceMonitor.js');
+
+  // Not aged beyond the cap yet: no resolution, row stays pending.
+  let closed=[];
+  let fresh=new Date(Date.now()-1000);
+  assert.equal(await resolveStalledHoldSend({id:txId,createdAt:fresh},H,Date.now(),async(w,r)=>{closed.push([w.id,r]);return 'cancelled';}),false);
+  assert.equal(closed.length,0,'closer must not run inside the grace window');
+
+  // Aged + created wrap + closer cancels: send failed, wrap handed to the closer.
+  const aged=new Date(Date.now()-5*60*1000);
+  const ok=await resolveStalledHoldSend({id:txId,createdAt:aged},H,Date.now(),async(w,r)=>{closed.push([w.id,r]);return 'cancelled';});
+  assert.equal(ok,true);
+  assert.equal(closed.length,1);assert.equal(closed[0][1],'card pay never arrived');
+  let {rows:[tx]}=await q('SELECT status, failure_reason FROM transactions WHERE id=$1',[txId]);
+  assert.equal(tx.status,'failed');
+  assert.match(String(tx.failure_reason),/hold never received/i);
+
+  // Closer refuses (e.g. hold accepted meanwhile / wallet unreachable): no false fail.
+  const H2=randomHash();const ins2=await q(`INSERT INTO transactions (account_id, direction, amount_sats, type, status, bolt11, payment_hash, memo, failure_reason, created_at) VALUES ($1,'out',100,'send','pending','lnbc1qa-stalled2',$2,'Bolt Card payment (white card)','outcome unknown: reply timeout', now() - interval '5 minutes') RETURNING id`,[a.account.id,H2]);
+  await q(`INSERT INTO pending_invoices (account_id, bolt11, payment_hash, amount_sats, memo, origin, wrap_status, wrap_updated_at, expires_at) VALUES ($1,'lnbc1qa-stalled2',$2,100,'qa hold-proof','ric','created',now(),now()+interval '10 minutes')`,[a.account.id,H2]);
+  const tx2=ins2.rows[0].id;
+  assert.equal(await resolveStalledHoldSend({id:tx2,createdAt:aged},H2,Date.now(),async()=>'created'),false);
+  ({rows:[tx]}=await q('SELECT status FROM transactions WHERE id=$1',[tx2]));
+  assert.equal(tx.status,'pending','a refused close must leave the send pending');
+
+  // Wrap already accepted: the payment DID arrive - the resolver must not touch it.
+  const H3=randomHash();const ins3=await q(`INSERT INTO transactions (account_id, direction, amount_sats, type, status, bolt11, payment_hash, memo, failure_reason, created_at) VALUES ($1,'out',100,'send','pending','lnbc1qa-stalled3',$2,'Bolt Card payment (white card)','outcome unknown: reply timeout', now() - interval '5 minutes') RETURNING id`,[a.account.id,H3]);
+  await q(`INSERT INTO pending_invoices (account_id, bolt11, payment_hash, amount_sats, memo, origin, wrap_status, wrap_updated_at, expires_at) VALUES ($1,'lnbc1qa-stalled3',$2,100,'qa hold-proof','ric','accepted',now(),now()+interval '10 minutes')`,[a.account.id,H3]);
+  const tx3=ins3.rows[0].id;
+  assert.equal(await resolveStalledHoldSend({id:tx3,createdAt:aged},H3,Date.now(),async()=>'cancelled'),false);
+  ({rows:[tx]}=await q('SELECT status FROM transactions WHERE id=$1',[tx3]));
+  assert.equal(tx.status,'pending','an accepted hold must never be failed by the proof');
+});

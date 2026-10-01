@@ -578,10 +578,13 @@ const MARK=`<span class="lnmark"><svg width="17" height="17" viewBox="0 0 96 96"
 async function api(path,opts={}){opts.headers={'content-type':'application/json',...(opts.headers||{}),...(tok()?{Authorization:'Bearer '+tok()}:{})};const r=await fetch(path,opts);const d=await r.json().catch(()=>({}));if(!r.ok){const e=Error(displayText(d.error||('Request failed ('+r.status+')')));e.status=r.status;throw e}return d}
 function toast(m){document.querySelectorAll('.toast').forEach(t=>t.remove());const t=document.createElement('div');t.className='toast';t.style.pointerEvents='none';t.setAttribute('role','status');t.textContent=displayText(m);document.body.append(t);setTimeout(()=>t.remove(),3200)}
 function modal(html){const w=document.createElement('div');w.className='modal';w.innerHTML=`<div class="modalbox">${html}</div>`;w.addEventListener('click',e=>{if(e.target===w)w.remove()});document.body.append(w);w.querySelector('.xbtn')?.addEventListener('click',()=>w.remove());return w}
+function dlgConfirm(o){return new Promise(res=>{o=o||{};let done=false;const m=modal(`<div class="modalhead"><h2>${esc(o.title||'Are you sure?')}</h2><button class="xbtn" aria-label="Close">✕</button></div><p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:16px">${o.body||''}</p><div style="display:flex;gap:8px"><button class="btn ghost" id="dlgNo" style="flex:1;justify-content:center">${esc(o.cancelText||'Keep it')}</button><button class="btn ${o.danger?'danger':'teal'}" id="dlgYes" style="flex:1;justify-content:center">${esc(o.confirmText||'Confirm')}</button></div>`);const fin=v=>{if(done)return;done=true;m.remove();res(v)};m.querySelector('#dlgYes').onclick=()=>fin(true);m.querySelector('#dlgNo').onclick=()=>fin(false);m.querySelector('.xbtn').addEventListener('click',()=>fin(false));m.addEventListener('click',e=>{if(e.target===m)fin(false)})})}
+function dlgPrompt(o){return new Promise(res=>{o=o||{};let done=false;const m=modal(`<div class="modalhead"><h2>${esc(o.title||'')}</h2><button class="xbtn" aria-label="Close">✕</button></div>${o.body?`<p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">${o.body}</p>`:''}<form id="dlgf"><label class="field"><span>${esc(o.label||'')}</span><input class="input${o.mono?' mono':''}" id="dlgIn" type="${o.type||'text'}" inputmode="${esc(o.inputmode||'text')}" maxlength="${o.maxlength||40}" autocomplete="off" placeholder="${esc(o.placeholder||'')}"><div class="hint" id="dlgErr" style="color:var(--err);min-height:14px"></div></label><div style="display:flex;gap:8px"><button type="button" class="btn ghost" id="dlgNo" style="flex:1;justify-content:center">${esc(o.cancelText||'Cancel')}</button><button type="submit" class="btn teal" id="dlgYes" style="flex:1;justify-content:center">${esc(o.confirmText||'OK')}</button></div></form>`);const fin=v=>{if(done)return;done=true;m.remove();res(v)};const inp=m.querySelector('#dlgIn');m.querySelector('#dlgf').onsubmit=e=>{e.preventDefault();const v=inp.value.trim();if(o.minLength&&v.length<o.minLength){m.querySelector('#dlgErr').textContent=o.minLengthMsg||('Enter '+o.minLength+' characters');inp.focus();return}fin(v)};m.querySelector('#dlgNo').onclick=()=>fin(null);m.querySelector('.xbtn').addEventListener('click',()=>fin(null));m.addEventListener('click',e=>{if(e.target===m)fin(null)});setTimeout(()=>{try{inp.focus()}catch(e){}},40)})}
 </script>
 <script>
 /* ============ APP ============ */
 let VIEW=['wallet','ric','cards','pos','settings','partner','adminpayments'].includes(location.hash.slice(1))?location.hash.slice(1):(location.pathname.startsWith('/partner')?'partner':(localStorage.getItem('openln_pos_launch')==='1'?'pos':'wallet'));
+let settingsFocus='';
 let IS_ADMIN=false;
 async function probeAdmin(){
   try{ await api('/api/admin/payments/treasury'); IS_ADMIN=true; }
@@ -616,7 +619,7 @@ function openDrawer(){
       <button class="drawer-link ${VIEW==='settings'?'on':''}" id="drawerSettings">${navIcon('settings')}<span class="drawer-label">Settings</span><span class="arrow">›</span></button>
       ${IS_ADMIN?'<button class="drawer-link" data-drawer-view="adminpayments"><span class="drawer-label">Treasury</span><span class="arrow">›</span></button>':''}
     </nav>
-    <div class="drawer-foot"><a id="cardShopLink" href="https://cards.openln.com">Get cards &amp; hardware <span aria-hidden="true">↗</span></a><button id="drawerLogout">Log out</button><small>Connected to your wallet.<br>No balance held at openLN.</small></div>
+    <div class="drawer-foot"><a id="cardShopLink" href="https://cards.openln.com">Get cards &amp; hardware <span aria-hidden="true">↗</span></a><button id="drawerLogout">Log out</button><small id="drawerNote">No balance held at openLN.</small></div>
   </aside>`;
   const dismiss=restore=>{
     el.remove();document.removeEventListener('keydown',onKey);
@@ -642,6 +645,7 @@ function openDrawer(){
   el.querySelector('#drawerHome').onclick=e=>{e.preventDefault();navigate('wallet')};
   el.querySelector('#drawerLogout').onclick=()=>{dismiss(false);localStorage.removeItem('openln_token');if(liveSource)liveSource.close();login()};
   el.querySelector('#cardShopLink').onclick=e=>{e.preventDefault();openCardShop()};
+  api('/api/wallet/status').then(s=>{const n=el.querySelector('#drawerNote');if(!n||!n.isConnected)return;const on=!!(s.connected||s.receiveOnly);n.innerHTML=on?((s.receiveOnly?'Receive-only wallet connected.':'Connected to your wallet.')+'<br>No balance held at openLN.'):'No wallet connected yet.'}).catch(()=>{});
   el.querySelector('#closeDrawer').focus();
 }
 async function boot(){
@@ -799,7 +803,7 @@ async function vWallet(st,bal,version=renderVersion){
   <div class="wos">
     <div class="wos-hero">
       <div class="conn"><span class="dot ${bal.connected||receiveOnly?'':'off'}"></span>${receiveOnly?'Receive-only'+(lnAddr?' · '+esc(lnAddr):''):bal.connected?'Your connected wallet':st.connected?'Wallet temporarily unavailable':'Connect your wallet'}</div>
-      <div class="wos-bal">${bal.connected?fmt(bal.balanceSats):'-'}<span class="cur">sats</span></div>
+      <div class="wos-bal">${bal.connected?fmt(bal.balanceSats)+'<span class="cur">sats</span>':''}</div>
       <div class="wos-fiat">${receiveOnly?'Your balance stays in your funding wallet. openLN never holds your sats.':bal.connected?'Live balance · held in your wallet':st.connected?'Unable to read your balance. Your wallet still holds your funds.':'Your wallet funds your cards and RIC.'}</div>
       ${!st.connected&&!receiveOnly?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">NWC wallet, Blink API key, or a Lightning Address</p>':''}
     </div>
@@ -819,7 +823,7 @@ async function vWallet(st,bal,version=renderVersion){
   // One-time nudge (per browser) until the 6-digit send PIN exists. The RIC
   // and Send need it; asking here beats the first failed send on a device.
   if(st.connected && !localStorage.getItem('openln_pin_nudge_dismissed')){
-    api('/api/account/send-pin').then(p=>{const n=$('#pinNudge');if(!n||p.set||VIEW!=='wallet')return;n.innerHTML=`<div class="card" style="margin:0 16px 10px;padding:12px 14px;border-color:var(--accent);display:flex;gap:10px;align-items:center"><div style="flex:1"><b style="font-size:13px">Set your 6-digit send PIN</b><div class="dim" style="font-size:12px;margin-top:2px">Needed before your RIC or this wallet can send sats.</div></div><button class="btn teal sm" id="pinNudgeGo">Set</button><button class="xbtn" id="pinNudgeX" title="Later">✕</button></div>`;$('#pinNudgeGo').onclick=()=>navigate('settings');$('#pinNudgeX').onclick=()=>{localStorage.setItem('openln_pin_nudge_dismissed','1');n.innerHTML='';};}).catch(()=>{});
+    api('/api/account/send-pin').then(p=>{const n=$('#pinNudge');if(!n||p.set||VIEW!=='wallet')return;n.innerHTML=`<div class="card" style="margin:0 16px 10px;padding:12px 14px;border-color:var(--accent);display:flex;gap:10px;align-items:center"><div style="flex:1"><b style="font-size:13px">Set your 6-digit send PIN</b><div class="dim" style="font-size:12px;margin-top:2px">Needed before your RIC or this wallet can send sats.</div></div><button class="btn teal sm" id="pinNudgeGo">Set</button><button class="xbtn" id="pinNudgeX" title="Later">✕</button></div>`;$('#pinNudgeGo').onclick=()=>{settingsFocus='pin';navigate('settings')};$('#pinNudgeX').onclick=()=>{localStorage.setItem('openln_pin_nudge_dismissed','1');n.innerHTML='';};}).catch(()=>{});
   }
   $('#bpos').onclick=()=>navigate('pos');
   $('#brecv').onclick=(st.connected||receiveOnly)?receiveModal:walletModal;
@@ -844,7 +848,7 @@ function txRow(t){
   const fiat=t.fiatAmount!=null&&t.fiatCurrency?fmtFiat(t.fiatAmount,t.fiatCurrency):'';
   return `<button class="rowtx" data-tx="${esc(t.id||t.payment_hash||t.paymentHash||'')}" style="width:100%;text-align:left;border-top:1px solid var(--line);border-radius:0">
     <div class="ico ${inb?'in':''}">${inb?'↓':'↑'}</div>
-    <div class="meta"><div class="t1">${prose(t.memo||t.type||'Payment')}${cls?` <span class="txcls ${esc(cls)}">${esc(CLASS_LABEL[cls]||cls)}</span>`:''}</div><div class="t2">${ago(t.createdAt||t.created_at)}${t.origin?` · ${esc(ORIGIN_LABEL[t.origin]||t.origin)}`:''}${t.feeSats||t.fee_sats?` · fee ${fmt(t.feeSats??t.fee_sats)}`:''}</div></div>
+    <div class="meta"><div class="t1">${prose(t.memo||t.type||'Payment')}${cls?` <span class="txcls ${esc(cls)}">${esc(CLASS_LABEL[cls]||cls)}</span>`:''}</div><div class="t2">${ago(t.createdAt||t.created_at)}${t.origin?` · ${esc(ORIGIN_LABEL[t.origin]||t.origin)}`:''}${t.feeSats||t.fee_sats?` · routing fee ${fmt(t.feeSats??t.fee_sats)}`:''}</div></div>
     <div class="amt ${inb?'in':''}">${inb?'+':'−'}${fmt(t.amountSats??t.amount_sats)}${fiat?`<small>${inb?'':'−'}${esc(fiat)}</small>`:''}</div>
   </button>`;
 }
@@ -885,7 +889,7 @@ function txDetail(t){
   ${kv('Direction',t.direction==='out'?'outgoing':'incoming')}
   ${kv('Date',dt)}
   ${kv('Payment hash',t.paymentHash||t.payment_hash,'mono')}
-  ${kv(inb?'Service fee':'Routing fee',fee?fmt(fee)+' sats':'','mono')}
+  ${kv('Routing fee',fee?fmt(fee)+' sats':'','mono')}
   ${kv('Counterparty',t.counterpartHandle||t.counterpart_handle||t.counterpartLnAddress||'')}
   ${kv('Ledger id',t.id,'mono')}
   ${t.bolt11?`<div style="margin-top:12px"><button class="btn ghost sm" id="txcopy">Copy invoice</button></div>`:''}`);
@@ -1081,7 +1085,7 @@ function posPaintPay(){
   const inv=pos.inv;
   body.innerHTML=`<div class="pospay">
     <div class="mono" style="font-size:34px;font-weight:600;letter-spacing:-1px">${esc(posMoney(inv.fiat))}</div>
-    <div style="font-size:13px;color:var(--text3);margin-top:3px">${fmt(inv.amountSats)} sats${inv.feeSats?' · fee '+fmt(inv.feeSats)+' sats':''}</div>
+    <div style="font-size:13px;color:var(--text3);margin-top:3px">${fmt(inv.amountSats)} sats${inv.feeSats?' · routing fee '+fmt(inv.feeSats)+' sats':''}</div>
     <div class="plines">${esc(inv.memo)}</div>
     <div class="qrwrap" style="margin-top:12px"><img src="/api/payments/${encodeURIComponent(inv.paymentHash)}/qr" alt="Invoice QR" width="240" height="240"></div>
     <div class="invstatus wait" id="posStat" style="margin-top:10px"><span class="pulse"></span><span id="posStatText">Waiting for payment…</span></div>
@@ -1209,7 +1213,8 @@ function posItemForm(it,onSaved){
   };
   const del=m.querySelector('#pidel');
   if(del)del.onclick=async()=>{
-    if(!confirm('Delete '+it.name+'? Paid invoices are not affected.'))return;
+    const delOk=await dlgConfirm({title:'Delete '+it.name+'?',body:'Paid invoices are not affected.',confirmText:'Delete item',cancelText:'Keep item',danger:true});
+    if(!delOk)return;
     try{await api('/api/pos/items/'+encodeURIComponent(it.id),{method:'DELETE'});m.remove();if(onSaved)await onSaved()}catch(x){toast(x.message||'Could not delete')}
   };
 }
@@ -1246,7 +1251,7 @@ function receiveModal(){
     <div class="posnumpad" id="rPad">${['1','2','3','4','5','6','7','8','9','.','0','⌫'].map(k=>`<button type="button" data-rkey="${k}">${k}</button>`).join('')}<button type="button" data-rkey="C" style="grid-column:1/4">Clear</button></div>
     <div class="hint" id="rAmtErr" style="color:var(--err);text-align:center;margin-top:8px;min-height:16px"></div>
     <label class="field" style="margin-top:2px"><span>Memo <span class="dim">optional</span></span><input class="input" name="memo" placeholder="Payment for..."></label>
-    <label class="field" style="margin-top:10px"><span>Books</span><select class="input" name="purpose"><option value="top_up">Top-up: my own funds, not income</option><option value="sale">Sale: a customer is paying me</option></select></label>
+    <label class="field" style="margin-top:10px"><span>Books</span><select class="input" name="purpose" id="rPurpose"><option value="sale">Sale: a customer is paying me</option><option value="top_up">Top-up: my own funds, not income</option></select></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:12px;margin-top:4px">Create invoice</button>
   </form><div id="rres"></div>`);
   api('/api/me').then(me=>{
@@ -1259,6 +1264,9 @@ function receiveModal(){
   }).catch(()=>{});
   const rc={num:'',unit:''};
   const rfx={cur:'',rate:0};
+  const rpSel=m.querySelector('#rPurpose');
+  const rpGet=()=>{try{const v=localStorage.getItem('openln_recv_purpose');return (v==='top_up'||v==='sale')?v:'sale'}catch(e){return 'sale'}};
+  if(rpSel){rpSel.value=rpGet();rpSel.onchange=()=>{try{localStorage.setItem('openln_recv_purpose',rpSel.value)}catch(e){}}}
   const rUnit=()=>{if(!rfx.cur||rfx.cur==='sats')return 'sats';if(rc.unit==='sats'||rc.unit==='fiat')return rc.unit;return (rc.unit=amtUnitPref())};
   const rSats=()=>{const v=Number(rc.num||0);if(!(v>0))return 0;if(rUnit()==='sats')return Math.round(v);return rfx.rate>0?Math.round(v/rfx.rate*1e8):0};
   const rSub=()=>{const v=Number(rc.num||0);if(!rfx.cur||rfx.cur==='sats')return 'sats';if(rUnit()==='sats'){const f=rfx.rate>0&&v>0?' · ≈ '+fmtFiat(v/1e8*rfx.rate,rfx.cur):'';return 'sats'+f}return rfx.cur.toUpperCase()+(v>0&&rfx.rate>0?' ≈ '+fmt(Math.round(v/rfx.rate*1e8))+' sats':'')};
@@ -1280,13 +1288,13 @@ function receiveModal(){
     if(sats<1){const er=m.querySelector('#rAmtErr');if(er)er.textContent=(rUnit()==='fiat'&&!(rfx.rate>0))?'Exchange rate unavailable. Try again in a moment.':'Enter an amount first';return}
     m.querySelector('#rres').innerHTML=`<div style="text-align:center;padding:18px"><span class="spin"></span></div>`;
     try{
-      const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:sats,memo:b.memo||'Payment',purpose:b.purpose||'top_up'})});
+      const inv=await api('/api/pos/invoice',{method:'POST',body:JSON.stringify({amountSats:sats,memo:b.memo||'Payment',purpose:b.purpose||rpGet()})});
       const fee=inv.feeSats??0;
       m.querySelector('#rf').style.display='none';
       m.querySelector('#rres').innerHTML=`
         <div class="qrwrap"><img src="/api/payments/${inv.paymentHash}/qr" alt="invoice QR" width="240" height="240"></div>
         <div class="invstatus wait" id="rstat"><span class="pulse"></span>Waiting for payment…</div>
-        ${fee?`<p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">Service fee · ${fmt(fee)} sats · your wallet receives ${fmt(sats-fee)} sats</p>`:''}
+        ${fee?`<p class="dim" style="font-size:11.5px;text-align:center;margin-top:9px">Routing fee · ${fmt(fee)} sats · your wallet receives ${fmt(sats-fee)} sats</p>`:''}
         <div class="copyrow"><input class="input mono" id="rinv" readonly value="${esc(inv.bolt11)}"><button class="btn ghost sm" id="rcopy">Copy</button></div>`;
       m.querySelector('#rcopy').onclick=()=>{navigator.clipboard.writeText(inv.bolt11);toast('Invoice copied')};
       const iv=setInterval(async()=>{try{const s=await api(`/api/payments/${inv.paymentHash}/status`);
@@ -1941,13 +1949,13 @@ function sndRender(){
 function walletModalModes(){return {
   nwc:{tab:'NWC',label:'NWC connection string',ph:'nostr+walletconnect://…',caps:['recv','send'],
     works:'Works with Alby Hub, LNbits, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum, and any NIP-47 wallet.',
-    hint:'Full wallet: receive, send, and card funding. In your wallet app, create a Nostr Wallet Connect connection and paste it here.'},
+    hint:'Full wallet: receive, send, and card funding. In your wallet app, create a Nostr Wallet Connect connection and paste it here (usually under Settings → Connections).'},
   blink:{tab:'Blink',label:'Blink API key',ph:'blink_…',caps:['recv','send'],
     works:'Works with custodial Blink accounts. Create a key at dashboard.blink.sv: Read + Receive to accept payments, Write to send. Non-custodial Blink connects with a Lightning Address.',
     hint:'Full wallet for custodial Blink accounts. Receive, send, and card funding run through Blink.'},
   lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',caps:['recv'],
     works:'Works with any Lightning Address: Blink, Coinos, Alby, Wallet of Satoshi, and others.',
-    hint:'Receive-only. We check your address when you connect, and confirm each sale through openLN’s wrapped settlement.'},
+    hint:'Receive-only. We check your address when you connect, and confirm each sale through openLN’s wrapped settlement, so it works even with wallets that cannot verify payments themselves.'},
 };}
 function walletModal(){
   const WM=walletModalModes();let mode=Object.keys(WM)[0];
@@ -1957,12 +1965,19 @@ function walletModal(){
   <div class="wchips" id="wmcaps" style="margin:12px 0 0"></div>
   <p class="hint" id="wmhint" style="margin:8px 0 6px"></p>
   <p class="wmlist" id="wmworks"></p>
+  <p class="hint" id="wmlearn" style="display:none;margin:6px 0 0"><a href="https://openln.com/#money" target="_blank" rel="noopener">See how the money moves →</a></p>
+  <p class="hint" id="wmnew" style="margin:6px 0 0">No wallet yet? Any Lightning wallet works. Blink or Wallet of Satoshi are quick to start with.</p>
   <form id="wf">
     <label class="field"><span id="wmlabel"></span><input class="input mono" type="password" autocomplete="off" name="connection" required style="font-size:11px"></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Connect</button>
   </form><div id="wres"></div>`);
-  const paint=()=>{const c=WM[mode];m.querySelector('#wmhint').textContent=c.hint;m.querySelector('#wmworks').textContent=c.works;m.querySelector('#wmcaps').innerHTML='<span class="wchip on">Receive</span><span class="wchip '+(c.caps.includes('send')?'on':'off')+'">Send</span>';m.querySelector('#wmlabel').textContent=c.label;const inp=m.querySelector('#wf [name=connection]');inp.placeholder=c.ph;inp.value='';const isAddr=mode==='lnaddress';inp.setAttribute('type',isAddr?'text':'password');if(isAddr){inp.setAttribute('inputmode','email');inp.setAttribute('autocapitalize','none');inp.setAttribute('spellcheck','false')}else{inp.removeAttribute('inputmode');inp.removeAttribute('autocapitalize');inp.removeAttribute('spellcheck')}};
-  m.querySelectorAll('[data-wm]').forEach(b=>b.onclick=()=>{mode=b.dataset.wm;m.querySelectorAll('[data-wm]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-selected',String(x===b))});paint()});
+  const paint=()=>{const c=WM[mode];m.querySelector('#wmhint').textContent=c.hint;m.querySelector('#wmlearn').style.display=mode==='lnaddress'?'':'none';m.querySelector('#wmworks').textContent=c.works;m.querySelector('#wmcaps').innerHTML='<span class="wchip on">Receive</span><span class="wchip '+(c.caps.includes('send')?'on':'off')+'">Send</span>';m.querySelector('#wmlabel').textContent=c.label;const inp=m.querySelector('#wf [name=connection]');inp.placeholder=c.ph;inp.value='';const isAddr=mode==='lnaddress';inp.setAttribute('type',isAddr?'text':'password');if(isAddr){inp.setAttribute('inputmode','email');inp.setAttribute('autocapitalize','none');inp.setAttribute('spellcheck','false')}else{inp.removeAttribute('inputmode');inp.removeAttribute('autocapitalize');inp.removeAttribute('spellcheck')}};
+  const setTab=tb=>m.querySelectorAll('[data-wm]').forEach(x=>{x.classList.toggle('on',x===tb);x.setAttribute('aria-selected',String(x===tb))});
+  m.querySelectorAll('[data-wm]').forEach(b=>b.onclick=()=>{mode=b.dataset.wm;setTab(b);paint()});
+  const wmInp=m.querySelector('#wf [name=connection]');
+  const wmDetect=v=>{v=String(v||'').trim();if(/^nostr\+walletconnect:/i.test(v))return'nwc';if(/^blink_/i.test(v))return'blink';if(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v))return'lnaddress';return ''};
+  let wmAutoT=null;
+  wmInp.addEventListener('input',()=>{if(wmAutoT){clearTimeout(wmAutoT);wmAutoT=null}const d=wmDetect(wmInp.value);if(!d||d===mode||!WM[d])return;wmAutoT=setTimeout(()=>{const v=wmInp.value;mode=d;setTab(m.querySelector('[data-wm="'+d+'"]'));paint();wmInp.value=v;wmInp.focus();try{wmInp.setSelectionRange(v.length,v.length)}catch(e){}},400)});
   paint();
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();toast(r.walletMode==='lnaddress'?'Lightning Address connected · receive-only':'Wallet connected');render()}
@@ -1993,7 +2008,7 @@ function showIssuedCard(out, keyText=''){
       <button class="btn ghost" id="copyProvision" style="width:100%;justify-content:center;margin-top:12px">Copy setup link</button>
       <p class="hint">One use · expires in 24 hours. Do not open the link in a normal browser. It reveals the keys and consumes the link. If needed, generate a new one from this card.</p>
     </section>
-    <section id="ricSetup" hidden><ol class="setup-steps"><li>Use the RIC linked to this account.</li><li>On its screen, open Settings → Issue Card.</li><li>Hold a blank NTAG424 card against the reader until the RIC confirms the write.</li></ol><p class="muted setup-copy">The RIC fetches your next unwritten card automatically. There is no QR to scan and no keys to type.</p><p id="ricQueue" class="hint"></p><div id="ricWriteState" role="status" class="hint">Waiting for the RIC to confirm…</div></section>
+    <section id="ricSetup" hidden><ol class="setup-steps"><li>Use the RIC linked to this account.</li><li>On its screen, open Settings → Issue Card.</li><li>Hold a blank NTAG424 card against the reader until the RIC confirms the write.</li></ol><p class="muted setup-copy">The RIC fetches your next unwritten card automatically. There is no QR to scan and no keys to type.</p><p id="ricNoDevice" class="hint" style="display:none">No RIC is linked yet. <a href="#" id="ricGoLink">Open the RIC page</a> to flash and link one first.</p><p id="ricQueue" class="hint"></p><div id="ricWriteState" role="status" class="hint">Waiting for the RIC to confirm…</div></section>
     <details class="setup-advanced"><summary>Advanced · keys &amp; browser support</summary><p class="hint">Phones write with the openLN Card Writer app; a linked RIC fetches from the write queue.</p><pre class="codebox mono" style="font-size:10.5px;white-space:pre-wrap;overflow-wrap:anywhere" id="rawCardKeys">${esc(keyText)}\n${esc(out.lnurlwTemplate||'')}</pre><button class="btn ghost sm" id="copyKeys">Copy keys</button></details>`);
   const qrBox=m.querySelector('#provisionQr');
   if(out.provisionQr){const image=new Image();image.alt='One-time card setup QR';image.src=URL.createObjectURL(new Blob([out.provisionQr],{type:'image/svg+xml'}));image.onload=()=>URL.revokeObjectURL(image.src);qrBox.append(image)}
@@ -2002,6 +2017,8 @@ function showIssuedCard(out, keyText=''){
   m.querySelector('#copyProvision').onclick=()=>navigator.clipboard.writeText(qr).then(()=>toast('Setup link copied'));
   m.querySelector('#copyKeys').onclick=async()=>{try{if(!keyText){const keys=await api('/api/cards/'+out.cardId+'/keys',{method:'POST',body:'{}'});keyText=Object.entries(keys).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>k+': '+v).join('\n');m.querySelector('#rawCardKeys').textContent=keyText+'\n'+out.lnurlwTemplate}await navigator.clipboard.writeText(keyText+'\n'+out.lnurlwTemplate);toast('Keys copied')}catch(e){toast(e.message)}};
   for(const [tab,panel] of [['creatorTab','creatorSetup'],['ricTab','ricSetup']])m.querySelector('#'+tab).onclick=()=>{for(const [t2,p2] of [['creatorTab','creatorSetup'],['ricTab','ricSetup']]){m.querySelector('#'+p2).hidden=p2!==panel;m.querySelector('#'+t2).classList.toggle('on',t2===tab);m.querySelector('#'+t2).setAttribute('aria-selected',t2===tab?'true':'false')}};
+  m.querySelector('#ricTab').addEventListener('click',async()=>{try{const accId=CARD_ACCOUNT_ID||(await api('/api/me')).account.id;CARD_ACCOUNT_ID=accId;const dv=await api('/api/accounts/'+accId+'/device-tokens');const nb=m.querySelector('#ricNoDevice');if(nb)nb.style.display=(dv&&dv.length)?'none':''}catch(e){}});
+  const rgl=m.querySelector('#ricGoLink');if(rgl)rgl.onclick=e=>{e.preventDefault();m.remove();navigate('ric')};
   api('/api/pos/next-provision').then(next=>{if(next.cardId!==out.cardId)m.querySelector('#ricQueue').textContent='Another card is first in the RIC queue: '+(next.name||'unnamed card')+'. Finish or cancel that setup first.'}).catch(()=>{});
   const watch=setInterval(async()=>{if(!m.isConnected){clearInterval(watch);return}try{const cards=await api('/api/accounts/'+CARD_ACCOUNT_ID+'/cards');const card=cards.find(c=>c.id===out.cardId);if(card?.lastUsedAt){clearInterval(watch);const rw=m.querySelector('#ricWriteState');if(rw)rw.textContent='✓ Card written and linked to your wallet.';const aw=m.querySelector('#appWriteState');if(aw)aw.textContent='✓ Card written and linked to your wallet.';renderCardsList()}}catch(e){}},2500);
   const openApp=m.querySelector('#openWriterApp');
@@ -2149,7 +2166,8 @@ function cardTile(c){
 }
 async function deleteCard(id){
   if(!id)return;
-  if(!confirm('Delete this card? This permanently removes the card and its keys from openLN. Wipe the physical card first if you still need to reset it.'))return;
+  const delOk=await dlgConfirm({title:'Delete this card?',body:'This permanently removes the card and its keys from openLN. Wipe the physical card first if you still need to reset it.',confirmText:'Delete card',cancelText:'Keep card',danger:true});
+  if(!delOk)return;
   try{await api('/api/cards/'+id,{method:'DELETE'});toast('Card deleted');renderCardsList()}catch(e){toast(e.message)}
 }
 function vCardIssueForm(){
@@ -2165,7 +2183,7 @@ function vCardIssueForm(){
           <label class="field"><span>Per-payment limit (sats)</span><input class="input mono" name="perTapLimitSats" type="number" min="0" placeholder="Default"></label>
         </div>
         <label class="field"><span>Payment PIN <small class="dim">4 digits</small></span><input class="input mono" type="password" autocomplete="off" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" placeholder="••••" required></label>
-        <label class="field"><span>Tap note</span><input class="input" name="note" maxlength="120" placeholder="Payment via openLN card"></label>
+        <label class="field"><span>Tap note</span><input class="input" name="note" maxlength="120" placeholder="Payment via openLN card"><div class="hint" style="margin-top:4px">Shown in your books for each card payment.</div></label>
         <p class="dim" style="font-size:11.5px;line-height:1.45">The PIN authorizes card payments. It is separate from your account password. You can issue as many cards as you need.</p>
         <button class="btn teal" style="width:100%;justify-content:center;padding:11px">Issue card</button>
         <p id="cardIssueErr" style="font-size:12px;color:var(--err)"></p>
@@ -2204,7 +2222,7 @@ function vCardDetail(card){
       </div>
       <div class="manage-section"><div class="dim label">Card</div>
         <div class="manage-line"><span>Name</span><b>${esc(card.name||'Unnamed card')}</b></div>
-        <div class="manage-line"><span>Tap note</span><b>${prose(card.note||'Not set')}</b></div>
+        <div class="manage-line"><span title="Shown in your books for each card payment">Tap note</span><b>${prose(card.note||'Not set')}</b></div>
         <div class="manage-line"><span>Issued</span><b class="mono">${card.createdAt?new Date(card.createdAt).toLocaleDateString():'Not available'}</b></div>
       </div>
       <div class="manage-section"><div class="dim label">Limits</div>
@@ -2232,11 +2250,11 @@ function vCardDetail(card){
   $('#editCard').onclick=()=>vCardEditForm(card);
   $('#setupCard')?.addEventListener('click',async()=>{try{const out=await api('/api/cards/'+card.id+'/provision',{method:'POST',body:'{}'});showIssuedCard(out)}catch(e){toast(e.message)}});
   $('#viewCardKeys').onclick=async()=>{try{const out=await api('/api/cards/'+card.id+'/keys',{method:'POST',body:'{}'});const text=Object.entries(out).filter(([k])=>/^k[0-4]$/.test(k)).map(([k,v])=>k+': '+v).join('\n')+'\n'+out.lnurlwTemplate;const m=modal(`<div class="modalhead"><h2>Card keys</h2><button class="xbtn" aria-label="Close keys">✕</button></div><p class="muted setup-copy">These keys control this card. Keep them private.</p><pre class="codebox mono" style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere">${esc(text)}</pre><button class="btn ghost" id="copyCardSecrets">Copy keys</button>`);m.querySelector('#copyCardSecrets').onclick=()=>navigator.clipboard.writeText(text).then(()=>toast('Keys copied'))}catch(e){toast(e.message)}};
-  $('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:st==='frozen'?'active':'frozen'})});toast(st==='frozen'?'Card enabled':'Card frozen');renderCardsList()}catch(e){toast(e.message)}};
-  $('#disableCard').onclick=async()=>{if(!confirm('Cancel this card? Future payments will be blocked. This does not erase the physical card.'))return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});toast('Card cancelled');renderCardsList()}catch(e){toast(e.message)}};
+  $('#toggleFreeze').onclick=async()=>{try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:st==='frozen'?'active':'frozen'})});toast(st==='frozen'?'Card enabled':'Card frozen');vCardDetail({...card,status:st==='frozen'?'active':'frozen'})}catch(e){toast(e.message)}};
+  $('#disableCard').onclick=async()=>{const ok=await dlgConfirm({title:'Cancel this card?',body:'Future payments will be blocked. This does not erase the physical card.',confirmText:'Cancel card',cancelText:'Keep card',danger:true});if(!ok)return;try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({status:'cancelled'})});toast('Card cancelled');vCardDetail({...card,status:'cancelled'})}catch(e){toast(e.message)}};
   $('#deleteCard')?.addEventListener('click',()=>deleteCard(card.id));
   $('#togglePin').onclick=()=>vCardPinForm(card);
-  $('#removePin')?.addEventListener('click',async()=>{const p=prompt('Enter current 4-digit PIN to remove it');if(!p)return;try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:p,newPin:null})});toast('PIN removed');renderCardsList()}catch(e){toast(e.message)}});
+  $('#removePin')?.addEventListener('click',async()=>{const p=await dlgPrompt({title:'Remove payment PIN',body:'The card will pay without asking for a PIN. Confirm the current 4-digit PIN to remove it.',label:'Current PIN',type:'password',inputmode:'numeric',maxlength:4,confirmText:'Remove PIN',cancelText:'Keep PIN',minLength:4,minLengthMsg:'Enter the 4-digit PIN'});if(!p)return;try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:p,newPin:null})});toast('PIN removed');vCardDetail({...card,pinEnabled:false})}catch(e){toast(e.message)}});
   $('#unlockPin')?.addEventListener('click',async()=>{try{await api('/api/cards/'+card.id+'/pin/unlock',{method:'POST',body:JSON.stringify({})});toast('PIN unlocked');vCardDetail({...card,pinLocked:null})}catch(e){toast(e.message)}});
   $('#wipeCard').onclick=()=>vCardWipe(card);
 }
@@ -2278,7 +2296,7 @@ function vCardEditForm(card){
       <h3 style="margin-bottom:16px">Edit ${esc(card.name||'card')}</h3>
       <form id="editCardForm" class="cardform">
         <label class="field"><span>Card name</span><input class="input" name="name" value="${esc(card.name||'')}" required maxlength="64"></label>
-        <label class="field"><span>Tap note</span><input class="input" name="note" value="${esc(card.note||'')}" maxlength="120"></label>
+        <label class="field"><span>Tap note</span><input class="input" name="note" value="${esc(card.note||'')}" maxlength="120"><div class="hint" style="margin-top:4px">Shown in your books for each card payment.</div></label>
         <div class="formgrid">
           <label class="field"><span>Daily limit</span><input class="input mono" name="dailyLimitSats" type="number" min="0" value="${card.dailyLimitSats}"></label>
           <label class="field"><span>Per payment</span><input class="input mono" name="perTapLimitSats" type="number" min="0" value="${card.perTapLimitSats}"></label>
@@ -2289,7 +2307,7 @@ function vCardEditForm(card){
     </div>`;
   $('#cardsBack').onclick=()=>vCardDetail(card);
   $('#editCardForm').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({name:b.name,note:b.note,dailyLimitSats:Number(b.dailyLimitSats),perTapLimitSats:Number(b.perTapLimitSats)})});toast('Card updated');renderCardsList()}
+    try{await api('/api/cards/'+card.id,{method:'PATCH',body:JSON.stringify({name:b.name,note:b.note,dailyLimitSats:Number(b.dailyLimitSats),perTapLimitSats:Number(b.perTapLimitSats)})});toast('Card updated');vCardDetail({...card,name:b.name,note:b.note,dailyLimitSats:Number(b.dailyLimitSats),perTapLimitSats:Number(b.perTapLimitSats)})}
     catch(x){$('#editCardErr').textContent=displayText(x.message)}
   };
 }
@@ -2308,7 +2326,7 @@ function vCardPinForm(card){
     </div>`;
   $('#cardsBack').onclick=()=>vCardDetail(card);
   $('#pinForm').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:b.pin,newPin:b.newPin})});toast(changing?'PIN updated':'PIN enabled');renderCardsList()}
+    try{await api('/api/cards/'+card.id+'/pin',{method:'PUT',body:JSON.stringify({pin:b.pin,newPin:b.newPin})});toast(changing?'PIN updated':'PIN enabled');vCardDetail({...card,pinEnabled:true,pinLocked:null})}
     catch(x){$('#pinFormErr').textContent=displayText(x.message)}
   };
 }
@@ -2360,8 +2378,8 @@ async function vRic(){
   $('#ricLinkTile').onclick=()=>ricLinkModal();
   // Proactive: a RIC cannot send (QR or card tap) until the account has a
   // 6-digit send PIN. Ask for it here, before the first device error does.
-  api('/api/account/send-pin').then(p=>{const g=$('#ricPinGate');if(!g||p.set)return;g.innerHTML=`<div class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Set your 6-digit send PIN</b><p class="dim" style="font-size:12.5px;margin-top:6px">Receiving works without it. Sending sats from the RIC (Send mode QR or tapping a card) is refused until this PIN exists. Set it once now so the device is ready.</p><button class="btn teal sm" id="ricSetPinNow" style="margin-top:10px">Set send PIN</button></div>`;$('#ricSetPinNow').onclick=()=>navigate('settings');}).catch(()=>{});
-  api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(s.rateModifier||'Market rate')}</b><br>Sell / Send: <b>${esc(s.sendRateModifier||'Market rate')}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><p class="hint">Sending sats from the RIC (QR or card tap) requires your 6-digit send PIN. Set it under Security in Settings.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>navigate('settings')}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
+  api('/api/account/send-pin').then(p=>{const g=$('#ricPinGate');if(!g||p.set)return;g.innerHTML=`<div class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Set your 6-digit send PIN</b><p class="dim" style="font-size:12.5px;margin-top:6px">Receiving works without it. Sending sats from the RIC (Send mode QR or tapping a card) is refused until this PIN exists. Set it once now so the device is ready.</p><button class="btn teal sm" id="ricSetPinNow" style="margin-top:10px">Set send PIN</button></div>`;$('#ricSetPinNow').onclick=()=>{settingsFocus='pin';navigate('settings')};}).catch(()=>{});
+  api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(s.rateModifier||'Market rate')}</b><br>Sell / Send: <b>${esc(s.sendRateModifier||'Market rate')}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><p class="hint">Sending sats from the RIC (QR or card tap) requires your 6-digit send PIN. Set it under Security in Settings.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>{settingsFocus='rates';navigate('settings')}}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
   await renderRicDevices();
 }
 async function renderRicDevices(){
@@ -2660,13 +2678,13 @@ async function vSettings(version=renderVersion){
         </div>
         <div class="setrow">
           <label for="setRateModifier">Buy · Receive<small>You receive sats</small></label>
-          <input class="mono" id="setRateModifier" placeholder="Market rate" value="${esc(settings.rateModifier||'')}">
+          <input class="mono" id="setRateModifier" placeholder="Market rate, or e.g. USD*1.02" value="${esc(settings.rateModifier||'')}">
         </div>
         <div class="setrow">
           <label for="setSendRateModifier">Sell · Send<small>You send sats</small></label>
-          <input class="mono" id="setSendRateModifier" placeholder="Market rate" value="${esc(settings.sendRateModifier||'')}">
+          <input class="mono" id="setSendRateModifier" placeholder="Market rate, or e.g. USD*1.02" value="${esc(settings.sendRateModifier||'')}">
         </div>
-        <p class="hint">Leave blank for the market rate. To adjust, use a multiplier such as ZAR*1.02 or ZAR*0.98. These are exchange-rate settings, separate from the service fee.</p><div id="ratePreview" class="rate-preview" aria-live="polite"></div>
+        <p class="hint">Leave blank for the market rate. To adjust, use a multiplier such as ZAR*1.02 or ZAR*0.98. These are exchange-rate settings, separate from the routing fee.</p><div id="ratePreview" class="rate-preview" aria-live="polite"></div>
         <div class="set-actions">
           <button class="btn teal" id="savePrefs">Save preferences</button>
           <span class="dim" style="font-size:12px;align-self:center" id="prefsStatus"></span>
@@ -2773,7 +2791,10 @@ async function vSettings(version=renderVersion){
       box.innerHTML=`<div><span>Buy · Receive</span><b class="mono">${esc(units(buy.price))}</b></div><div><span>Sell · Send</span><b class="mono">${esc(units(sell.price))}</b></div>`;
     }catch(e){if(n===ratePreviewVersion && box.isConnected)box.textContent='Rate preview unavailable. No estimated rate is substituted.'}
   };
-  for(const id of ['setCurrency','setRateSource','setRateModifier','setSendRateModifier'])$('#'+id).addEventListener('change',updateRatePreview);
+  window.__prefsDirty=false;
+  if(!window.__prefsGuard){window.__prefsGuard=1;window.addEventListener('beforeunload',e=>{if(window.__prefsDirty){e.preventDefault();e.returnValue=''}})}
+  const markDirty=()=>{window.__prefsDirty=true;const b=$('#savePrefs'),st=$('#prefsStatus');if(b)b.className='btn gold';if(st&&st.textContent!=='Saving…')st.textContent='Unsaved changes'};
+  for(const id of ['setCurrency','setRateSource','setRateModifier','setSendRateModifier']){const el=$('#'+id);el.addEventListener('change',()=>{markDirty();updateRatePreview()});el.addEventListener('input',()=>{if(id==='setRateModifier'||id==='setSendRateModifier')markDirty()});}
   updateRatePreview();
   // save preferences
   $('#savePrefs').onclick=async()=>{
@@ -2786,7 +2807,7 @@ async function vSettings(version=renderVersion){
         rateModifier:$('#setRateModifier').value.trim(),
         sendRateModifier:$('#setSendRateModifier').value.trim(),
       })});
-      const saved=await api('/api/account/settings');if(saved.currency!==$('#setCurrency').value||saved.rateSource!==$('#setRateSource').value)throw Error('Settings did not persist');st.textContent='Saved · restart your RIC to refresh';updateRatePreview();
+      const saved=await api('/api/account/settings');if(saved.currency!==$('#setCurrency').value||saved.rateSource!==$('#setRateSource').value)throw Error('Settings did not persist');window.__prefsDirty=false;b.className='btn teal';st.textContent='Saved · restart your RIC to refresh';updateRatePreview();
     }catch(e){ st.textContent=displayText(e.message); }
     b.disabled=false; b.textContent='Save preferences';
   };
@@ -2824,6 +2845,7 @@ async function vSettings(version=renderVersion){
 
   // wallet connect/replace
   $('#setWalletBtn').onclick=walletModal;
+  if(settingsFocus){const tgt=settingsFocus==='pin'?$('#setPinNew'):$('#setCurrency');const sCard=tgt?tgt.closest('.setcard'):null;if(sCard){sCard.scrollIntoView({block:'start'});sCard.style.outline='2px solid var(--accent)';sCard.style.outlineOffset='2px';setTimeout(()=>{sCard.style.outline=''},2400)}if(settingsFocus==='pin'&&tgt){try{tgt.focus()}catch(e){}}settingsFocus=''}
 
   // telegram account link
   const tgConnectBtn=$('#tgConnect');
@@ -2835,11 +2857,12 @@ async function vSettings(version=renderVersion){
       const box=$('#tgCodeBox'); box.style.display='block';
       box.innerHTML=`<div style="margin-top:12px;border:1px solid var(--line);border-radius:10px;padding:12px 14px">
         <div class="dim" style="font-size:12px">Your connect code</div>
-        <div class="mono" style="font-size:22px;letter-spacing:3px;margin:6px 0 12px">${esc(d.code)}</div>
+        <div style="display:flex;gap:8px;align-items:center;margin:6px 0 12px"><div class="mono" style="font-size:22px;letter-spacing:3px">${esc(d.code)}</div><button class="btn ghost sm" id="tgCopyCode">Copy</button></div>
         <a class="btn teal sm" href="${esc(d.url)}" target="_blank" rel="noopener">Open @openLN_bot</a>
         <div class="dim" style="font-size:11.5px;margin-top:10px;line-height:1.5">The code works once, for 15 minutes. If the bot does not open with it filled in, send the code in the chat yourself.</div>
       </div>`;
       st.textContent='Waiting for the connection…';
+      const tcc=$('#tgCopyCode');if(tcc)tcc.onclick=()=>navigator.clipboard.writeText(d.code).then(()=>toast('Code copied'));
       let n=0;
       const t=setInterval(async()=>{
         n++; let linked=false;
@@ -2879,12 +2902,20 @@ function partnerLogin(){
   $('#view').innerHTML=`<div style="margin-top:30px;max-width:400px">
   <div class="overline">Partner portal</div>
   <h1 class="page">Partner access</h1>
-  <p class="muted" style="margin:10px 0 22px">Flash RICs, track your fleet, and collect your revenue share.</p>
+  <p class="muted" style="margin:10px 0 18px">Flash RICs, track your fleet, and collect your revenue share.</p>
+  <div class="card" style="padding:14px 16px;margin-bottom:18px">
+    <b style="font-size:13px">What partners do</b>
+    <ul class="hint" style="margin:8px 0 0;padding-left:18px;line-height:1.7">
+      <li>Flash blank RICs and set up merchants in your region.</li>
+      <li>Earn 0.3% of every settled sale your devices route.</li>
+      <li>Track your fleet and request payouts in sats here.</li>
+    </ul>
+  </div>
   <form id="pf">
     <label class="field"><span>Partner handle</span><input class="input" name="handle" placeholder="thailand" required></label>
     <label class="field"><span>Password</span><input class="input" name="password" type="password" required></label>
     <button class="btn gold" style="width:100%;justify-content:center;padding:11px">Sign in</button>
-  </form><p id="perr" style="color:var(--err);font-size:13px;margin-top:10px"></p></div>`;
+  </form><p id="perr" style="color:var(--err);font-size:13px;margin-top:10px"></p><p class="hint" style="margin-top:14px">No account yet? <a href="mailto:hello@openln.com?subject=Partner%20access">Request access</a> and tell us your region.</p></div>`;
   $('#pf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
     try{const s=await api('/api/partner/login',{method:'POST',body:JSON.stringify(b)});localStorage.setItem('openln_partner',s.partner.id);localStorage.setItem('openln_partner_token',s.token);PARTNER_CLAIM=null;render()}
     catch(x){$('#perr').textContent=displayText(x.message)}};
@@ -2956,8 +2987,9 @@ async function renderPartner(d,pid){
     try{await papi(`/api/partner/${pid}/payout-address`,{method:'PUT',body:JSON.stringify({address:addr})});toast('Payout address saved');vPartner();}
     catch(x){btn.disabled=false;btn.textContent='Save address';toast(x.message||'Could not save address')}};
   const rb=$('#pRequest');
-  if(rb&&!rb.disabled)rb.onclick=()=>{
-    if(!confirm('Request a payout of '+fmt(b.availableSats||0)+' sats to '+(p.lightningAddress||'your payout address')+'?'))return;
+  if(rb&&!rb.disabled)rb.onclick=async()=>{
+    const poOk=await dlgConfirm({title:'Request a payout?',body:'Sends '+fmt(b.availableSats||0)+' sats to '+(p.lightningAddress?esc(p.lightningAddress):'your payout address')+'.',confirmText:'Request payout',cancelText:'Not now'});
+    if(!poOk)return;
     rb.disabled=true;rb.textContent='Requesting…';
     papi(`/api/partner/${pid}/payouts`,{method:'POST'}).then(()=>{toast('Payout requested');pollPayouts(pid)})
       .catch(x=>{rb.disabled=false;rb.textContent='Request payout';const m=$('#pPayoutMsg');if(m)m.innerHTML=`<span style="color:var(--err)">${esc(x.message||'Request failed')}</span>`});

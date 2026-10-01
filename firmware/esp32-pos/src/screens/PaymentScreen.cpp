@@ -1,4 +1,5 @@
 #include "PaymentScreen.h"
+#include "../motion/Motion.h"
 #include "../ui/Theme.h"
 #include "../core/InvoiceTtl.h"
 #include "../core/QrPolicy.h"
@@ -46,7 +47,7 @@ void PaymentScreen::draw(TFT_eSPI& tft,const String& bolt11,long sats,const Stri
     }
     _stage="Ready to pay"; _canCancel=true;
     _lastShownSec=-1; _lastPulse=millis(); _pulsePhase=0;
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
     drawAmountHeader(tft,sats,fiat);
     drawTimer(tft,remainingSec(millis()));
     tft.drawFastHLine(12,48,296,COL_BORDER);
@@ -144,7 +145,10 @@ void PaymentScreen::drawNfcHint(TFT_eSPI& tft,int phase) {
     if (!second.isEmpty()) tft.drawString(second,INFO_X+INFO_W/2,172);
 }
 
+// Partial redraws only make sense while this screen is showing. If a Motion
+// scene owns the TFT (machine, celebration...), never draw over it.
 void PaymentScreen::setStage(TFT_eSPI& tft,const String& label,bool canCancel) {
+    if (Motion::current()) return;
     if (_stage!=label) { _stage=label; drawNfcHint(tft,_pulsePhase); }
     if (_canCancel!=canCancel) {
         _canCancel=canCancel;
@@ -159,6 +163,7 @@ void PaymentScreen::setStage(TFT_eSPI& tft,const String& label,bool canCancel) {
 }
 
 void PaymentScreen::update(TFT_eSPI& tft) {
+    if (Motion::current()) return;
     const uint32_t now=millis();
     if (now-_lastPulse>=500) { _lastPulse=now; _pulsePhase^=1; drawNfcHint(tft,_pulsePhase); }
     const int rem=remainingSec(now);

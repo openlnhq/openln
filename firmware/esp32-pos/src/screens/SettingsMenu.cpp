@@ -1,4 +1,5 @@
 #include "SettingsMenu.h"
+#include "../motion/Motion.h"
 #include "../ui/Theme.h"
 #include "../ui/Icons.h"
 
@@ -7,7 +8,7 @@ static const char* MENU_LABELS[] = {
 };
 
 void SettingsMenu::draw(TFT_eSPI& tft) {
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
 
     // Header — elevated with orange accent bottom line
     tft.fillRect(0, 0, SCREEN_W, HEADER_H, COL_BG2);

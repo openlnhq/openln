@@ -1,4 +1,5 @@
 #include "WifiSetupScreen.h"
+#include "../motion/Motion.h"
 #include "../ui/Theme.h"
 #include <WiFi.h>
 
@@ -51,7 +52,7 @@ void WifiSetupScreen::enter(TFT_eSPI& tft) {
 
 // ── Scanning ──────────────────────────────────────────────────────────────
 void WifiSetupScreen::drawScanning(TFT_eSPI& tft) {
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
     tft.setTextDatum(MC_DATUM);
     tft.setTextFont(FONT_SMALL);
     tft.setTextColor(COL_TEXT, COL_BG);
@@ -114,7 +115,7 @@ String WifiSetupScreen::signalBars(int rssi) {
 }
 
 void WifiSetupScreen::drawNetworkList(TFT_eSPI& tft) {
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
 
     // Header
     tft.setTextDatum(TL_DATUM);
@@ -260,7 +261,7 @@ void WifiSetupScreen::drawKeyboard(TFT_eSPI& tft) {
 }
 
 void WifiSetupScreen::drawPasswordEntry(TFT_eSPI& tft) {
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
 
     // Header
     tft.setTextDatum(TL_DATUM);
@@ -299,7 +300,7 @@ void WifiSetupScreen::drawPasswordEntry(TFT_eSPI& tft) {
 
 // ── Connecting animation ─────────────────────────────────────────────────
 void WifiSetupScreen::drawConnecting(TFT_eSPI& tft) {
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
     tft.setTextDatum(MC_DATUM);
     tft.setTextFont(FONT_SMALL);
     tft.setTextColor(COL_TEXT, COL_BG);

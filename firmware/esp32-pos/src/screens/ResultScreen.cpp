@@ -1,4 +1,6 @@
 #include "ResultScreen.h"
+#include "../motion/Motion.h"
+#include "../motion/MotionUi.h"
 #include "../ui/Theme.h"
 #include "../ui/Icons.h"
 
@@ -12,45 +14,18 @@ void ResultScreen::draw(TFT_eSPI& tft, ResultType type,
     _drawTime = millis();
 
     if (type == RESULT_SUCCESS) {
-        // ── BRIGHT SUCCESS — pure green background, large icons, bold text ──
-        tft.fillScreen(COL_SUCCESS);
-
-        int cx = SCREEN_W / 2, cy = 80;
-
-        // Large white circle with dark checkmark — bold, eye-catching
-        tft.fillCircle(cx, cy, 36, COL_TEXT);         // white circle
-        tft.fillCircle(cx, cy, 32, COL_SUCCESS);       // green inner ring
-
-        // Checkmark — dark green, thick, drawn with multiple offsets for boldness
-        for (int d = -3; d <= 3; d++) {
-            tft.drawLine(cx - 16, cy + d, cx - 4, cy + 12 + d, COL_SUCCESS_DK);
-            tft.drawLine(cx - 4, cy + 12 + d, cx + 16, cy - 10 + d, COL_SUCCESS_DK);
-        }
-
-        // Title — white, large, bold
-        tft.setTextColor(COL_TEXT, COL_SUCCESS);
-        tft.setTextDatum(TC_DATUM);
-        tft.setTextFont(FONT_MED);
-        String title = successTitle.isEmpty()
-            ? (sent ? "Payment Sent" : "Payment received")
-            : successTitle;
-        tft.drawString(title, cx, 140);
-
-        // Amount — bright, large
-        if (amountSats > 0) {
-            char buf[32];
-            snprintf(buf, sizeof(buf), "%ld sats", amountSats);
-            tft.setTextFont(FONT_MED);
-            tft.setTextColor(COL_TEXT, COL_SUCCESS);
-            tft.drawString(buf, cx, 170);
-        }
-
-        // Bottom bar — dark green accent
-        tft.fillRect(0, SCREEN_H - 6, SCREEN_W, 6, COL_SUCCESS_DK);
-
+        // Success is a Motion scene: magnet pull / blast into a green flood
+        // for payments, the card finale for issue and wipe. The render task
+        // plays it; loop() keeps polling shouldAutoDismiss() as before.
+        if (successTitle.equalsIgnoreCase("Card Issued"))
+            MotionUi::cardDone(Scenes::CardOp::Issue);
+        else if (successTitle.equalsIgnoreCase("Card Wiped"))
+            MotionUi::cardDone(Scenes::CardOp::Wipe);
+        else
+            MotionUi::celebrate(sent, amountSats);
     } else {
         // ── ERROR — dark red bg, clear and readable ──
-        tft.fillScreen(COL_ERROR_DK);
+        Motion::stop(); tft.fillScreen(COL_ERROR_DK);
 
         int cx = SCREEN_W / 2, cy = 70;
 

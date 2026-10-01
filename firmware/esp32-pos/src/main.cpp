@@ -25,6 +25,8 @@
 #include "ui/Theme.h"
 #include "api/OTAManager.h"
 #include "core/InvoiceTtl.h"
+#include "motion/Motion.h"
+#include "motion/MotionUi.h"
 #include <time.h>
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -176,9 +178,6 @@ static void dispatchCardPayment(const String& pin);
 static void enterCreatingInvoice();
 static void drawCreatingInvoice(bool retrying);
 
-// WiFi connecting screen animation state (reset by enterConnectingWifi)
-static uint32_t wifiAnimLast  = 0;
-static int      wifiAnimFrame = 0;
 
 // Price retry interval when price is unknown (shorter than full TTL)
 static const uint32_t PRICE_RETRY_MS = 30000; // 30 s between retries when price = 0
@@ -239,23 +238,12 @@ static void enterConnectingWifi() {
     wifiConnectStart = millis();
     wifiLostAt       = 0;               // reset watchdog so it doesn't re-fire immediately
     currentPollInterval = POLL_INTERVAL_MS; // reset back-off for next invoice
-    wifiAnimLast     = 0;               // reset animation so dots start immediately
-    wifiAnimFrame    = 0;
     ProvisionService::setStatus("connecting");
 
-    tft.fillScreen(COL_BG);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(COL_MUTED, COL_BG);
-    tft.drawString("Connecting to WiFi", SCREEN_W / 2, SCREEN_H / 2 - 22);
-    tft.setTextColor(COL_TEXT, COL_BG);
-    tft.drawString(Config::ssid, SCREEN_W / 2, SCREEN_H / 2 + 4);
-    // Cancel button — tap to wipe credentials and return to BLE provisioning.
-    // Far more discoverable than "Hold BOOT 5s to reset" when the password is wrong.
-    tft.fillRoundRect((SCREEN_W - 140) / 2, 202, 140, 32, 6, tft.color565(180, 40, 40));
-    tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(TFT_WHITE, tft.color565(180, 40, 40));
-    tft.drawString("Cancel", SCREEN_W / 2, 218);
+    // Animated WiFi join (Motion engine). The Cancel button (90,202,140,32)
+    // wipes credentials and returns to BLE provisioning: far more
+    // discoverable than "Hold BOOT 5s to reset" when the password is wrong.
+    MotionUi::connect(Scenes::LinkPhase::Join, "Connecting to WiFi", Config::ssid.c_str(), true);
 
     // Radio settings for a payment terminal on a weak 2.4 GHz link:
     //  - no modem power-save: PS mode adds 100-300 ms latency spikes and is the
@@ -292,13 +280,18 @@ static void handleConnectingWifi() {
         // Offline, 5xx, TLS errors and rejection are distinct. Never erase NVS
         // or reboot-loop because a server is unavailable or returns 401.
         if (serverRetryAt && !RicPolicy::due(millis(),serverRetryAt)) return;
+        // WiFi is up: the link animation keeps running through the TLS
+        // handshake, currency/price fetches and the OTA check below.
+        MotionUi::connect(Scenes::LinkPhase::Link, "Linking to openLN", "Secure connection", false);
         auto authState=DeviceLink::hello();
         if (authState!=RicPolicy::AuthState::Accepted) {
             serverAuthenticated=false;
             const bool rejected=authState==RicPolicy::AuthState::Rejected;
             ProvisionService::setStatus(rejected?"error:token_invalid":"error:server_unreachable");
-            OTAManager::display(tft,rejected?"Device link rejected":"Reconnecting to openLN",
-                               rejected?"Check this device in your account":"Saved settings kept. Retrying.");
+            MotionUi::connect(Scenes::LinkPhase::Retry,
+                              rejected?"Device link rejected":"Reconnecting to openLN",
+                              rejected?"Check this device in your account":"Saved settings kept. Retrying.",
+                              false);
             serverRetryMs=rejected?60000:std::min(serverRetryMs*2,60000U);
             serverRetryAt=millis()+serverRetryMs+(esp_random()%1000);
             return;
@@ -350,7 +343,7 @@ static void handleConnectingWifi() {
 
     } else {
         // Cancel button hit-test — tap wipes credentials and re-enters BLE provisioning.
-        // Button is drawn at enterConnectingWifi(): fillRoundRect(90, 202, 140, 32).
+        // Button is drawn by ConnectScene (Join phase) at (90, 202, 140, 32).
         // readTouch() is leading-edge only, so a single tap fires once.
         int tx, ty;
         if (readTouch(tx, ty)) {
@@ -368,21 +361,6 @@ static void handleConnectingWifi() {
         if (millis() - lastWifiLog > 3000) {
             lastWifiLog = millis();
             DBG_PRINTF("WiFi status: %d  SSID: %s\n", (int)s, Config::ssid.c_str());
-        }
-        // 3-dot bounce animation while waiting for WiFi — updates every 500 ms.
-        // Only the dot row is redrawn; title + SSID remain from enterConnectingWifi().
-        if (millis() - wifiAnimLast > 500) {
-            wifiAnimLast  = millis();
-            wifiAnimFrame = (wifiAnimFrame + 1) % 3;
-            const int dotY = 175, dotR = 10, gap = 44, cx = SCREEN_W / 2;
-            tft.fillRect(0, dotY - dotR - 6, SCREEN_W, (dotR + 6) * 2, COL_BG);
-            for (int i = 0; i < 3; i++) {
-                int  x   = cx + (i - 1) * gap;
-                bool lit = (i == wifiAnimFrame);
-                int  yOff = lit ? -4 : 0;
-                if (lit) tft.fillCircle(x, dotY + yOff, dotR, COL_ACCENT);
-                else     tft.drawCircle(x, dotY + yOff, dotR, COL_MUTED);
-            }
         }
         if (RicPolicy::elapsed(millis(),wifiConnectStart,40000)) {
             // Keep configuration and retry without rebooting or erasing NVS.
@@ -566,14 +544,12 @@ static void drawCreatingInvoice(bool retrying);
 static void handleCreatingInvoice() {
     // Cancel: the cashier can always bail out while nothing exists yet.
     int tx, ty;
-    if (readTouch(tx, ty) && PaymentScreen::handleTouch(tx, ty)) {
+    if (readTouch(tx, ty) && MotionUi::cancelHit(tx, ty)) {
         enterIdleAmount();
         return;
     }
-    if (createAttemptAt && !RicPolicy::due(millis(), createAttemptAt)) {
-        PinScreen::updateConfirming(tft);   // keep the dots moving while we wait
-        return;
-    }
+    // The machine keeps animating on the render task while we wait.
+    if (createAttemptAt && !RicPolicy::due(millis(), createAttemptAt)) return;
 
     createAttempts++;
     String err; bool transient = false;
@@ -614,13 +590,13 @@ static void handleCreatingInvoice() {
     state = STATE_WAITING_PAYMENT;
 }
 
-// "Creating invoice" screen: same visual language as the confirming screen,
-// plus a Cancel button in the PaymentScreen's cancel zone so hit-testing is
-// shared. `retrying` swaps the subtitle so the cashier knows the link is slow,
-// not dead.
+// "Creating invoice" screen: the same machine as the confirming screen, plus
+// a Cancel button drawn by the scene (hit-tested by MotionUi::cancelHit).
+// `retrying` swaps the subtitle so the cashier knows the link is slow, not
+// dead. Re-drawing keeps the gears turning (no restart).
 static void drawCreatingInvoice(bool retrying) {
-    PinScreen::drawProcessing(tft, "Creating", retrying ? "invoice, retrying..." : "invoice...");
-    PaymentScreen::drawCancelButton(tft);
+    MotionUi::processing("Creating invoice", retrying ? "Slow connection, retrying" : "One moment",
+                         Scenes::Mood::Work, currentAmountSats, true);
 }
 
 static void enterCreatingInvoice() {
@@ -652,7 +628,7 @@ static void dispatchCardPayment(const String& pin) {
             lnurlCallbackSent = true;
             lastStatusPoll    = 0;               // poll immediately
             currentPollInterval = POLL_INTERVAL_MS;
-            PinScreen::drawConfirming(tft);
+            MotionUi::confirming(currentAmountSats, holdCommitted);
             state = STATE_WAITING_PAYMENT;
             return;
 
@@ -661,7 +637,8 @@ static void dispatchCardPayment(const String& pin) {
             // on the server. Retry the identical request a few times while the
             // customer keeps the card on the reader, then fall back to waiting.
             if (callbackAttempts < CALLBACK_CONNECT_RETRIES) {
-                PinScreen::drawProcessing(tft, "Connecting", "retrying...");
+                MotionUi::processing("Connecting", "Retrying. Keep the card on the reader.",
+                                     Scenes::Mood::Work, currentAmountSats);
                 callbackRetryAt = millis() + 800;
                 pendingCallbackPin = pin;
                 state = STATE_WAITING_PAYMENT;
@@ -729,7 +706,7 @@ static void handleWaitingPayment() {
 
     // ── Deferred callback retry (connect failed, card still present) ────────
     if (callbackRetryAt) {
-        if (!RicPolicy::due(now, callbackRetryAt)) { PinScreen::updateConfirming(tft); return; }
+        if (!RicPolicy::due(now, callbackRetryAt)) return;   // machine animates meanwhile
         callbackRetryAt = 0;
         dispatchCardPayment(pendingCallbackPin);
         pendingCallbackPin = "";
@@ -737,8 +714,8 @@ static void handleWaitingPayment() {
     }
 
     // ── Animate ─────────────────────────────────────────────────────────────
-    if (lnurlCallbackSent) PinScreen::updateConfirming(tft);
-    else {
+    // Once dispatched, the confirming machine runs on the Motion render task.
+    if (!lnurlCallbackSent) {
         PaymentScreen::update(tft);
         // A transient hint ("tap again", a decline reason) reverts to the
         // default prompt after a few seconds so the screen never looks stuck.
@@ -778,11 +755,11 @@ static void handleWaitingPayment() {
             currentPollInterval = std::min((uint32_t)15000, std::max(POLL_INTERVAL_MS, currentPollInterval * 2));
             if (pollFailCount == 3 && lnurlCallbackSent) {
                 // Tell the cashier the truth without changing the outcome.
-                PinScreen::drawProcessing(tft, "Confirming", "reconnecting...");
+                MotionUi::confirming(currentAmountSats, holdCommitted, true);
             }
         } else {
             // Server answered (pending / accepted / forwarding / forwarded).
-            if (pollFailCount >= 3 && lnurlCallbackSent) PinScreen::drawConfirming(tft);
+            if (pollFailCount >= 3 && lnurlCallbackSent) MotionUi::confirming(currentAmountSats, holdCommitted);
             pollFailCount       = 0;
             currentPollInterval = POLL_INTERVAL_MS;
             // The customer's funds are locked on the hold: the sale is
@@ -796,7 +773,7 @@ static void handleWaitingPayment() {
                 holdCommitted = true;
                 lnurlCallbackSent = true;   // no second tap against this invoice
                 Buzzer::playTap();
-                PinScreen::drawProcessing(tft, "Payment received", "finishing up, do not tap again");
+                MotionUi::confirming(currentAmountSats, true);   // "Finishing up. Do not tap again."
                 Serial.printf("RIC pay: hold %s hash=%.12s\n", status.c_str(), currentInvoice.paymentHash.c_str());
             }
         }
@@ -869,7 +846,7 @@ static void handleWaitingPayment() {
 
     // No PIN — dispatch immediately. fetchLnurl above was TLS call #1; the
     // callback is TLS call #2, so feed the watchdog in between.
-    PinScreen::drawProcessing(tft, "Processing", "payment...");
+    MotionUi::processing("Processing payment", "One moment", Scenes::Mood::Receive, currentAmountSats);
     dispatchCardPayment("");
 }
 
@@ -890,7 +867,7 @@ static void handlePinEntry() {
     }
     if (action == 'O') {
         // Show processing animation, then dispatch through the shared path.
-        PinScreen::drawProcessing(tft);
+        MotionUi::processing("Verifying PIN", "One moment", Scenes::Mood::Work, currentAmountSats);
         dispatchCardPayment(PinScreen::getPin());
     }
 }
@@ -943,7 +920,7 @@ static void handleSendPinEntry() {
     }
     if (action == 'O') {
         // PIN entered — show processing, create withdraw
-        PinScreen::drawProcessing(tft, "Creating", "withdraw...");
+        MotionUi::processing("Preparing send", "One moment", Scenes::Mood::Work, currentAmountSats);
 
         String pin = PinScreen::getPin();
         sendPin = pin;  // save for send-to-card NFC path
@@ -989,7 +966,7 @@ static void handleSendPinEntry() {
         invoiceCreateTime = millis();
         sendTtlMs = InvoiceTtl::secondsUntil(wdExpires.c_str(), (int64_t)time(nullptr)) * 1000U;
         Serial.printf("RIC send: ttl=%us\n", (unsigned)(sendTtlMs / 1000U));
-        tft.fillScreen(COL_BG);
+        Motion::stop(); tft.fillScreen(COL_BG);
         PaymentScreen::draw(tft, sendLnurlw, currentAmountSats, fiatLabel,
                            static_cast<int>(sendTtlMs / 1000U));
         PaymentScreen::setStage(tft, "Ready to send");
@@ -1064,7 +1041,7 @@ static void handleSendWaiting() {
     }
 
     // Send to card — server verifies card and pays the card holder
-    PinScreen::drawProcessing(tft, "Sending", "to card...");
+    MotionUi::processing("Sending payment", "Paying the tapped card", Scenes::Mood::Send, currentAmountSats);
 
     esp_task_wdt_reset();  // NFC + TLS can take time
 
@@ -1101,7 +1078,7 @@ static bool isBackButtonTapped(int tx, int ty) {
 }
 
 static void drawUpdateScreen() {
-    ledcWrite(0,255);tft.fillScreen(COL_BG);drawBackButton();
+    ledcWrite(0,255);Motion::stop(); tft.fillScreen(COL_BG);drawBackButton();
     tft.setTextDatum(TL_DATUM);tft.setTextFont(FONT_SMALL);tft.setTextColor(COL_TEXT,COL_BG);
     tft.drawString("Firmware & Updates",12,8);
     tft.drawString(String("Installed: v")+FIRMWARE_VERSION,16,50);
@@ -1121,17 +1098,12 @@ static void handleUpdateScreen() {
 }
 
 // Card write callback — updates the screen with each step
+// NfcWriter progress -> the animated step tracker. The finale starts the
+// moment the card reports done; the server bookkeeping that follows runs
+// while it plays.
 static void cardWriteStep(const char* label, bool done) {
-    tft.fillScreen(COL_BG);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(done ? COL_SUCCESS : COL_ACCENT, COL_BG);
-    tft.drawString(label, SCREEN_W / 2, SCREEN_H / 2 - 20);
-    if (!done) {
-        tft.setTextFont(FONT_SMALL);
-        tft.setTextColor(COL_MUTED, COL_BG);
-        tft.drawString("...", SCREEN_W / 2, SCREEN_H / 2 + 20);
-    }
+    if (done) MotionUi::cardFinish();
+    else      MotionUi::cardStepLabel(label);
     esp_task_wdt_reset();
 }
 
@@ -1160,7 +1132,7 @@ static void handleSettingsMenu() {
             {
                 screenOff = false;
                 ledcWrite(0, 255);
-                tft.fillScreen(COL_BG);
+                Motion::stop(); tft.fillScreen(COL_BG);
                 drawBackButton();
                 tft.setTextDatum(MC_DATUM);
                 tft.setTextFont(FONT_SMALL);
@@ -1174,7 +1146,7 @@ static void handleSettingsMenu() {
                 if (BitposClient::fetchNextProvision(g_provData, err)) {
                     g_provDataReady = true;
                     state = STATE_CARD_WRITE;
-                    tft.fillScreen(COL_BG);
+                    Motion::stop(); tft.fillScreen(COL_BG);
                     drawBackButton();
                     tft.setTextDatum(MC_DATUM);
                     tft.setTextFont(FONT_SMALL);
@@ -1194,7 +1166,7 @@ static void handleSettingsMenu() {
             state = STATE_CARD_WIPE;
             screenOff = false;
             ledcWrite(0, 255);
-            tft.fillScreen(COL_BG);
+            Motion::stop(); tft.fillScreen(COL_BG);
             drawBackButton();
             tft.setTextDatum(MC_DATUM);
             tft.setTextFont(FONT_SMALL);
@@ -1209,7 +1181,7 @@ static void handleSettingsMenu() {
             cardReadDone = false;
             screenOff = false;
             ledcWrite(0, 255);
-            tft.fillScreen(COL_BG);
+            Motion::stop(); tft.fillScreen(COL_BG);
             drawBackButton();
             tft.setTextDatum(MC_DATUM);
             tft.setTextFont(FONT_SMALL);
@@ -1241,6 +1213,7 @@ static void handleCardWrite() {
 
     Buzzer::playTap();
     g_provDataReady = false;
+    MotionUi::cardWork(Scenes::CardOp::Issue);   // animates through the blocking PN532 writes
 
     esp_task_wdt_reset();
 
@@ -1250,10 +1223,6 @@ static void handleCardWrite() {
         String markErr;
         BitposClient::markCardWritten(g_provData.cardId, markErr);
         ResultScreen::draw(tft, RESULT_SUCCESS, 0, "", false, "Payment failed", "Card Issued");
-        tft.setTextDatum(TC_DATUM);
-        tft.setTextFont(FONT_SMALL);
-        tft.setTextColor(COL_SUCCESS, COL_BG);
-        tft.drawString("Card issued", SCREEN_W / 2, 160);
         state = STATE_SUCCESS;
     } else {
         lastError = err;
@@ -1276,6 +1245,7 @@ static void handleCardWipe() {
     if (!NfcReader::detectCard(nfcUid)) return;
 
     Buzzer::playTap();
+    MotionUi::cardWork(Scenes::CardOp::Wipe);    // step 0 "Read": NDEF read + key fetch
 
     // Read NDEF URL to extract cardId
     String nfcUrl = NfcReader::readNdef();
@@ -1319,13 +1289,7 @@ static void handleCardWipe() {
         return;
     }
 
-    // Wipe the card
-    tft.fillScreen(COL_BG);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(COL_ERROR, COL_BG);
-    tft.drawString("Wiping...", SCREEN_W / 2, SCREEN_H / 2);
-
+    // Wipe the card (the step tracker advances from NfcWriter's labels)
     esp_task_wdt_reset();
 
     String wipeErr = NfcWriter::wipeCard(g_wipeData, cardWriteStep);
@@ -1333,10 +1297,6 @@ static void handleCardWipe() {
         String markErr;
         BitposClient::markCardWiped(cardId, markErr);
         ResultScreen::draw(tft, RESULT_SUCCESS, 0, "", false, "Wipe failed", "Card Wiped");
-        tft.setTextDatum(TC_DATUM);
-        tft.setTextFont(FONT_SMALL);
-        tft.setTextColor(COL_SUCCESS, COL_BG);
-        tft.drawString("Card wiped", SCREEN_W / 2, 160);
         state = STATE_SUCCESS;
     } else {
         lastError = wipeErr;
@@ -1376,7 +1336,7 @@ static void handleCardRead() {
 
     String nfcUrl = NfcReader::readNdef();
     cardReadDone = true;  // lock — don't read again until Back is tapped
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
     drawBackButton();
 
     tft.setTextDatum(TL_DATUM);
@@ -1417,12 +1377,16 @@ static void checkFactoryReset() {
     bool pressed = (digitalRead(BOOT_BTN_PIN) == LOW);
     if (pressed) {
         if (bootBtnPressStart == 0) bootBtnPressStart = millis();
+        // The bar draws over whatever is showing: take the screen from the
+        // Motion task first (a deliberate 5 s gesture; the next screen
+        // change resumes animation).
+        if (!barShown) Motion::stop();
 
         uint32_t held = millis() - bootBtnPressStart;
         if (held >= HOLD_MS) {
             // Clear bar and flash screen white briefly as confirmation feedback
             tft.fillRect(BAR_X - 2, BAR_Y - 2, BAR_MAXW + 4, BAR_H + 4, COL_BG);
-            tft.fillScreen(TFT_WHITE);
+            Motion::stop(); tft.fillScreen(TFT_WHITE);
             delay(120);
             DBG_PRINTLN("Factory reset triggered (5 s hold)");
             Config::clear();
@@ -1485,6 +1449,8 @@ void setup() {
     // shows as its photo-negative (black bg -> white, orange -> blue, etc.).
     tft.invertDisplay(true);
     tft.fillScreen(COL_BG);
+    // Animated screens: render task on core 0, static buffers (no heap).
+    MotionUi::begin(tft);
 
     // Touch init — VSPI bus: SCK=25, MISO=39, MOSI=32
     touchSpi.begin(25, 39, 32, 33);
@@ -1518,11 +1484,23 @@ void loop() {
     // Audible feedback on state transitions — one edge-detect covers every path
     // into SUCCESS/ERROR without touching each transition site individually.
     // The tap beep is fired inline at card detection (see handleWaitingPayment).
+    // The success chime lands on the celebration's flash (the visual peak),
+    // not when the scene starts; MotionUi reports how far away that is.
     static auto prevState = state;
+    static uint32_t chimeAt = 0;
+    static bool chimePending = false;
     if (state != prevState) {
-        if (state == STATE_SUCCESS)      Buzzer::playSuccess();
+        chimePending = false;
+        if (state == STATE_SUCCESS) {
+            chimeAt = millis() + MotionUi::chimeDelayMs();
+            chimePending = true;
+        }
         else if (state == STATE_ERROR)   Buzzer::playError();
         prevState = state;
+    }
+    if (chimePending && RicPolicy::due(millis(), chimeAt)) {
+        chimePending = false;
+        Buzzer::playSuccess();
     }
 
     // Heap monitor — log free heap every 30 s for serial visibility.
@@ -1560,7 +1538,11 @@ void loop() {
                     // Stop the RF beep if a card read was interrupted; tell the cashier.
                     // (PIN entry keeps its keypad; the dispatch itself reports the link.)
                     Buzzer::stopBeep();
-                    if (lnurlCallbackSent || state == STATE_CREATING_INVOICE) PinScreen::drawProcessing(tft, "Reconnecting", "WiFi lost, invoice kept");
+                    // The machine is on screen once a dispatch may be in flight, during a
+                    // deferred card retry, and while creating the invoice (keeps Cancel).
+                    if (lnurlCallbackSent || callbackRetryAt || state == STATE_CREATING_INVOICE)
+                        MotionUi::processing("Reconnecting", "WiFi lost, invoice kept", Scenes::Mood::Stall,
+                                             currentAmountSats, state == STATE_CREATING_INVOICE);
                     else PaymentScreen::setStage(tft, "WiFi lost, reconnecting");
                 }
             } else if (millis() - wifiLostAt > 5000) {
@@ -1587,7 +1569,10 @@ void loop() {
                 wifiLostAt = 0;
                 if (state == STATE_WAITING_PAYMENT) {
                     // Redraw the right screen for where the transaction is.
-                    if (lnurlCallbackSent) PinScreen::drawConfirming(tft);
+                    if (lnurlCallbackSent) MotionUi::confirming(currentAmountSats, holdCommitted);
+                    else if (callbackRetryAt)
+                        MotionUi::processing("Connecting", "Retrying. Keep the card on the reader.",
+                                             Scenes::Mood::Work, currentAmountSats);
                     else PaymentScreen::setStage(tft, "Ready to pay");
                     lastStatusPoll = 0;   // poll right away
                     currentPollInterval = POLL_INTERVAL_MS;

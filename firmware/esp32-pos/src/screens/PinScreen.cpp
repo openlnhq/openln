@@ -1,4 +1,6 @@
 #include "PinScreen.h"
+#include "../motion/Motion.h"
+#include "../motion/MotionUi.h"
 #include "../ui/Theme.h"
 
 String   PinScreen::_pin;
@@ -7,8 +9,6 @@ Numpad   PinScreen::_numpad;
 bool     PinScreen::_shaking       = false;
 uint32_t PinScreen::_shakeStart    = 0;
 int      PinScreen::_shakePhase    = 0;
-uint32_t PinScreen::_confirmAnimLast  = 0;
-int      PinScreen::_confirmAnimFrame = 0;
 
 void PinScreen::draw(TFT_eSPI& tft, const String& cardUid, int pinLength) {
     (void)cardUid;
@@ -16,7 +16,7 @@ void PinScreen::draw(TFT_eSPI& tft, const String& cardUid, int pinLength) {
     _pinLength = pinLength;
     _shaking   = false;
 
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
 
     // ── Top bar: [Enter PIN]  [● ● ● ●]  [Cancel] ────────────────────────
     // "Enter PIN" label — left zone
@@ -156,67 +156,19 @@ char PinScreen::handleTouch(TFT_eSPI& tft, int tx, int ty) {
 String PinScreen::getPin()   { return _pin; }
 void   PinScreen::clearPin() { _pin = ""; }
 
-// ── Confirming animation (post-PIN callback, waiting for invoice settlement) ──
-//
-// Drawn once via drawConfirming(), then updateConfirming() is called every
-// loop iteration and redraws only the dot row when the 450 ms frame period
-// elapses.  No full-screen repaint → no flicker.
-//
-// Dot layout shared with drawProcessing(): same coordinates so the visual is
-// consistent across both "processing" and "confirming" states.
-static const int CONF_DOT_Y = 155;
-static const int CONF_DOT_R = 11;
-static const int CONF_GAP   = 46;   // centre-to-centre
-
+// Processing / confirming screens are animated by the Motion engine (gears
+// crunching lightning, see motion/Scenes.cpp). The render task keeps them
+// moving while the main loop blocks on network I/O, so updateConfirming() has
+// nothing left to do and stays only for API compatibility.
 void PinScreen::drawConfirming(TFT_eSPI& tft) {
-    _confirmAnimFrame = 0;
-    _confirmAnimLast  = 0;      // force immediate first draw in updateConfirming()
-
-    tft.fillScreen(COL_BG);
-
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_TEXT, COL_BG);
-    tft.setTextFont(FONT_SMALL);
-    tft.drawString("Payment", SCREEN_W / 2, 78);
-    tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(COL_MUTED, COL_BG);
-    tft.drawString("Confirming...", SCREEN_W / 2, 114);
-
-    // Draw initial frame immediately so screen is never blank
-    updateConfirming(tft);
+    (void)tft;
+    MotionUi::confirming(0, false);
 }
 
-void PinScreen::updateConfirming(TFT_eSPI& tft) {
-    if (millis() - _confirmAnimLast < 450) return;
-    _confirmAnimLast  = millis();
-    _confirmAnimFrame = (_confirmAnimFrame + 1) % 3;
-
-    const int cx = SCREEN_W / 2;
-    // Clear only the dot row — height = 2*(radius+bounce+margin)
-    tft.fillRect(0, CONF_DOT_Y - CONF_DOT_R - 8, SCREEN_W,
-                 (CONF_DOT_R + 8) * 2, COL_BG);
-
-    for (int i = 0; i < 3; i++) {
-        int  x   = cx + (i - 1) * CONF_GAP;
-        bool lit = (i == _confirmAnimFrame);
-        int  yOff = lit ? -5 : 0;
-        if (lit) tft.fillCircle(x, CONF_DOT_Y + yOff, CONF_DOT_R, COL_ACCENT);
-        else     tft.drawCircle(x, CONF_DOT_Y + yOff, CONF_DOT_R, COL_MUTED);
-    }
-}
+void PinScreen::updateConfirming(TFT_eSPI& tft) { (void)tft; }
 
 // Network progress is indeterminate, never a made-up completion percentage.
-// Return immediately. The UI task calls updateConfirming while I/O is pending.
-void PinScreen::drawProcessing(TFT_eSPI& tft,const char* title,const char* subtitle) {
-    _confirmAnimFrame=0;
-    _confirmAnimLast=millis()-450U;
-    tft.fillScreen(COL_BG);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_TEXT,COL_BG);
-    tft.setTextFont(FONT_MED);
-    tft.drawString(title,SCREEN_W/2,75);
-    tft.setTextFont(FONT_SMALL);
-    tft.setTextColor(COL_MUTED,COL_BG);
-    tft.drawString(subtitle,SCREEN_W/2,111);
-    updateConfirming(tft);
+void PinScreen::drawProcessing(TFT_eSPI& tft, const char* title, const char* subtitle) {
+    (void)tft;
+    MotionUi::processing(title, subtitle, Scenes::Mood::Work);
 }

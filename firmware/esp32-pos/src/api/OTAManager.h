@@ -9,19 +9,22 @@
 #include <mbedtls/sha256.h>
 #include "../core/DeviceLink.h"
 #include "../ui/Theme.h"
+#include "../motion/Motion.h"
+#include "../motion/MotionUi.h"
 
 class OTAManager {
 public:
  static String& lastStatus(){static String value="Not checked";return value;}
  static String& lastCode(){static String value="not_checked";return value;}
  static String& lastConfirmedTarget(){static String value;return value;}
+ // Update screens are Motion scenes (progress ring, see UpdateScene); the
+ // render task keeps them alive while the download blocks this task.
+ static void show(Scenes::UpdatePhase phase,const String& title,const String& detail,const char* footer=""){
+  ledcWrite(0,255);
+  MotionUi::update(phase,title.c_str(),detail.c_str(),footer);
+ }
  static void display(TFT_eSPI& tft,const String& title,const String& detail){
-  ledcWrite(0,255);tft.fillScreen(COL_BG);tft.setTextDatum(MC_DATUM);
-  tft.setTextFont(FONT_MED);tft.setTextColor(COL_ACCENT,COL_BG);
-  tft.drawString(title,SCREEN_W/2,SCREEN_H/2-24);
-  tft.setTextFont(FONT_SMALL);tft.setTextColor(COL_TEXT,COL_BG);
-  tft.drawString(detail,SCREEN_W/2,SCREEN_H/2+4);
-  tft.setTextColor(COL_MUTED,COL_BG);tft.drawString(String("Installed v")+FIRMWARE_VERSION,SCREEN_W/2,SCREEN_H/2+30);
+  (void)tft;show(Scenes::UpdatePhase::Info,title,detail);
  }
  static void bootConfirmed(){
   Preferences prefs;if(!prefs.begin("ric-update",false))return;
@@ -39,7 +42,7 @@ public:
  static bool checkAndUpdate(TFT_eSPI& tft,bool manual=false){
   lastStatus()="Checking for updates";lastCode()="checking";
   Serial.printf("RIC OTA: check installed=%s heap=%u largest=%u\n",FIRMWARE_VERSION,ESP.getFreeHeap(),ESP.getMaxAllocHeap());
-  if(manual)display(tft,"Checking updates", "Secure connection to openLN");
+  if(manual)show(Scenes::UpdatePhase::Checking,"Checking updates","Secure connection to openLN");
   JsonDocument meta;
   int code=DeviceLink::jsonRequest("/firmware/posbox-version","GET","",meta);
   if(code!=200)return fail(tft,"metadata_http_"+String(code),manual);
@@ -50,7 +53,7 @@ public:
    lastStatus()=String("Up to date: v")+FIRMWARE_VERSION;lastCode()="up_to_date";
    Serial.printf("RIC OTA: up_to_date installed=%s offered=%s\n",FIRMWARE_VERSION,target);
    if(lastConfirmedTarget()!=FIRMWARE_VERSION)DeviceLink::report("up_to_date","up_to_date",target);
-   if(manual){display(tft,"Up to date",String("Version ")+FIRMWARE_VERSION);delay(1400);}return false;
+   if(manual){show(Scenes::UpdatePhase::UpToDate,"Up to date",String("Version ")+FIRMWARE_VERSION);delay(1400);}return false;
   }
   String targetVersion=target;String url=meta["url"]|"";String expectedSha=meta["sha256"]|"";
   if(strcmp(meta["board"]|"",RIC_BOARD)||strcmp(meta["partitionLayout"]|"",RIC_PARTITION_LAYOUT))return fail(tft,"board_or_layout",true,targetVersion);
@@ -60,7 +63,8 @@ public:
   const auto running=esp_ota_get_running_partition();const auto next=esp_ota_get_next_update_partition(nullptr);
   if(!running||!next||next->address==running->address||!expected||expected>next->size)return fail(tft,"no_compatible_slot",true,targetVersion);
   DeviceLink::report("downloading","started",targetVersion);
-  display(tft,String("Updating to v")+targetVersion,"Do not disconnect power");
+  MotionUi::updatePercent(0);
+  show(Scenes::UpdatePhase::Download,"Updating firmware",String("v")+FIRMWARE_VERSION+" to v"+targetVersion,"Do not disconnect power");
   Serial.printf("RIC OTA: download target=%s bytes=%u slot=%s heap=%u largest=%u\n",targetVersion.c_str(),expected,next->label,ESP.getFreeHeap(),ESP.getMaxAllocHeap());
   if(!Update.begin(expected,U_FLASH))return fail(tft,"flash_begin_"+String(Update.getError()),true,targetVersion);
   mbedtls_sha256_context hash;mbedtls_sha256_init(&hash);mbedtls_sha256_starts_ret(&hash,0);
@@ -100,10 +104,10 @@ public:
      if(Update.write(buffer,received)!=static_cast<size_t>(received)){error="flash_write_"+String(Update.getError());break;}
      mbedtls_sha256_update_ret(&hash,buffer,received);got+=received;written+=received;lastData=millis();
      int percent=static_cast<int>((uint64_t(written)*100)/expected);
-     if(percent/5!=lastPercent/5 || lastPercent<0){
-      Serial.printf("RIC OTA: progress=%d written=%u/%u heap=%u\n",percent,written,expected,ESP.getFreeHeap());
-      tft.fillRect(16,SCREEN_H/2+54,SCREEN_W-32,22,COL_BG);tft.setTextDatum(MC_DATUM);tft.setTextColor(COL_TEXT,COL_BG);tft.setTextFont(FONT_SMALL);
-      tft.drawString(String(percent)+"%",SCREEN_W/2,SCREEN_H/2+64);lastPercent=percent;
+     if(percent!=lastPercent){
+      if(percent/5!=lastPercent/5 || lastPercent<0)
+       Serial.printf("RIC OTA: progress=%d written=%u/%u heap=%u\n",percent,written,expected,ESP.getFreeHeap());
+      MotionUi::updatePercent(percent);lastPercent=percent;   // ring + percent on the render task
      }
     }else{
      if(!http.connected() || millis()-lastData>12000){chunkFailed=true;break;}
@@ -133,13 +137,16 @@ public:
   lastStatus()="Rebooting into update";lastCode()="rebooting";
   Serial.printf("RIC OTA: verified target=%s sha256=%s next=%s rebooting\n",targetVersion.c_str(),actual,next->label);
   DeviceLink::report("rebooting","verified",targetVersion);
-  display(tft,"Update verified","Restarting device");delay(1200);ESP.restart();return true;
+  MotionUi::updatePercent(100);
+  show(Scenes::UpdatePhase::Verified,"Update verified","Restarting device");delay(1500);
+  Motion::stop();ESP.restart();return true;
  }
 private:
- static bool fail(TFT_eSPI& tft,const String& reason,bool show,const String& target=""){
+ static bool fail(TFT_eSPI& tft,const String& reason,bool showIt,const String& target=""){
+  (void)tft;
   lastStatus()="Update not installed";lastCode()=reason;
   Serial.printf("RIC OTA: failed code=%s target=%s; current firmware retained heap=%u largest=%u\n",reason.c_str(),target.c_str(),ESP.getFreeHeap(),ESP.getMaxAllocHeap());
   DeviceLink::report("failed",reason,target);
-  if(show){display(tft,"Update not installed",reason);delay(2200);}return false;
+  if(showIt){OTAManager::show(Scenes::UpdatePhase::Failed,"Update not installed",reason);delay(2200);}return false;
  }
 };

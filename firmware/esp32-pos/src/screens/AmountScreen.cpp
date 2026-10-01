@@ -1,4 +1,5 @@
 #include "AmountScreen.h"
+#include "../motion/Motion.h"
 #include "../core/RicPolicy.h"
 #include "../ui/Theme.h"
 #include "../ui/Icons.h"
@@ -138,7 +139,7 @@ uint16_t AmountScreen::dotColor() {
 
 void AmountScreen::draw(TFT_eSPI& tft, bool keepAmount) {
     if (!keepAmount) { _whole = 0; _frac = 0; _fracLen = 0; _decimalMode = false; }
-    tft.fillScreen(COL_BG);
+    Motion::stop(); tft.fillScreen(COL_BG);
     drawHeader(tft);
     _numpad.draw(tft, NUMPAD_Y, NUMPAD_AMOUNT, NUMPAD_KH, _sendMode);
     drawPayButton(tft, keepAmount && getAmountSats() > 0);

@@ -15,18 +15,17 @@ public:
     static void   clearPin();
     static void   setWrongPin(TFT_eSPI& tft);
 
-    // Draw once without delay. updateConfirming() animates while the I/O worker runs.
+    // Animated "machine" screen (Motion engine). Returns immediately; the
+    // render task keeps it moving while the caller blocks on I/O.
     static void drawProcessing(TFT_eSPI& tft,
                                const char* title    = "Verifying",
                                const char* subtitle = "PIN...");
 
     // Confirming screen: shown after the PIN callback succeeds, while the poll
     // loop waits for invoice settlement. Replaces the QR so the cashier never
-    // sees the payment screen a second time. Call drawConfirming() once to draw
-    // the full screen, then call updateConfirming() every loop iteration to
-    // animate the dots without redrawing the whole screen.
+    // sees the payment screen a second time. Animated by the Motion engine.
     static void drawConfirming(TFT_eSPI& tft);
-    static void updateConfirming(TFT_eSPI& tft);
+    static void updateConfirming(TFT_eSPI& tft);   // no-op, kept for API compatibility
 
 private:
     static String _pin;
@@ -35,8 +34,6 @@ private:
     static bool     _shaking;
     static uint32_t _shakeStart;
     static int      _shakePhase;
-    static uint32_t _confirmAnimLast;
-    static int      _confirmAnimFrame;
 
     // Layout (landscape 320x240):
     // Top bar (inline, y=2, h=36):

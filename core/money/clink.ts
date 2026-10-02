@@ -240,6 +240,15 @@ export async function clinkRequestInvoice(opts: {
       throw new ClinkError("the wallet returned an invoice openLN could not read");
     }
     return { bolt11: res.bolt11, paymentHash };
+  } catch (err) {
+    if (err instanceof ClinkError) throw err;
+    // The SDK can reject with bare strings ("websocket error") - normalize so
+    // the connect probe and invoice mints surface a readable reason.
+    const raw = typeof err === "string" ? err : err instanceof Error ? err.message : "";
+    if (/websocket|failed to connect|econnrefused|enotfound|getaddrinfo|timed? ?out|timeout/i.test(raw)) {
+      throw new ClinkError("could not reach the wallet's relay - check the wallet app is online and try again");
+    }
+    throw new ClinkError(raw || "the request failed");
   } finally {
     client.stop();
   }
@@ -329,8 +338,17 @@ export function describeClinkError(err: unknown): string {
     }
     return OFFER_ERRORS[err.code] ?? `Your wallet could not complete the request (${err.message}).`;
   }
-  if (err instanceof ClinkError) return `Your wallet could not complete the request (${err.message}).`;
-  return err instanceof Error ? err.message : "The CLINK request failed.";
+  if (err instanceof ClinkError) {
+    if (/could not reach the wallet's relay/i.test(err.message)) {
+      return "Could not reach your wallet's relay. Check the wallet app is online and try again.";
+    }
+    return `Your wallet could not complete the request (${err.message}).`;
+  }
+  const raw = typeof err === "string" ? err : err instanceof Error ? err.message : "";
+  if (/websocket|failed to connect|econnrefused|enotfound|getaddrinfo|timed? ?out|timeout/i.test(raw)) {
+    return "Could not reach your wallet's relay. Check the wallet app is online and try again.";
+  }
+  return "The CLINK request failed.";
 }
 
 /** Update a saved connection's pointer after a wallet reports it moved (code 3 with `latest`). */

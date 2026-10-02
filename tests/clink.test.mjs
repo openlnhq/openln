@@ -7,7 +7,8 @@ import { createHash } from 'node:crypto';
 import { nofferEncode, ndebitEncode, OfferPriceType } from '@shocknet/clink-sdk';
 import {
   parseClinkPointer, generateClinkAppKey, clinkRequestInvoice, clinkPayInvoice,
-  preimageMatchesHash, clinkLatestFrom, ClinkError, ClinkDebitError, ClinkAmbiguousError,
+  preimageMatchesHash, clinkLatestFrom, describeClinkError,
+  ClinkError, ClinkDebitError, ClinkAmbiguousError,
   __setClinkClientFactoryForTests,
 } from '../dist/core/money/clink.js';
 
@@ -114,4 +115,21 @@ test('a wallet reporting a moved offer surfaces its replacement pointer', () => 
   assert.equal(clinkLatestFrom(moved), noffer);
   assert.equal(clinkLatestFrom(new ClinkError('no latest', 3)), null);
   assert.equal(clinkLatestFrom(new Error('x')), null);
+});
+
+test('failures read like causes: an unreachable relay never surfaces SDK internals', async () => {
+  // The SDK rejects with bare strings ("websocket error") - user copy must
+  // still say what happened and what to do.
+  assert.match(describeClinkError('websocket error'), /relay/i);
+  assert.match(describeClinkError(new Error('Failed to connect to wss://relay.x')), /relay/i);
+  scriptClient({ request: async () => { throw 'websocket error'; } });
+  try {
+    await clinkRequestInvoice({ pointer: parseClinkPointer(noffer), appKey: 'a'.repeat(64), amountSats: 1 });
+    assert.fail('the request should have thrown');
+  } catch (e) {
+    assert.ok(e instanceof ClinkError, 'the bare string is normalized to a ClinkError');
+    assert.match(describeClinkError(e), /relay/i);
+    assert.ok(!/websocket/i.test(describeClinkError(e)), 'no SDK internals leak into user copy');
+  }
+  __setClinkClientFactoryForTests(null);
 });

@@ -245,7 +245,7 @@ export async function clinkRequestInvoice(opts: {
     // The SDK can reject with bare strings ("websocket error") - normalize so
     // the connect probe and invoice mints surface a readable reason.
     const raw = typeof err === "string" ? err : err instanceof Error ? err.message : "";
-    if (/websocket|failed to connect|econnrefused|enotfound|getaddrinfo|timed? ?out|timeout/i.test(raw)) {
+    if (/websocket|network error|non-101|failed to connect|econnrefused|enotfound|getaddrinfo|timed? ?out|timeout/i.test(raw)) {
       throw new ClinkError("could not reach the wallet's relay - check the wallet app is online and try again");
     }
     throw new ClinkError(raw || "the request failed");
@@ -345,7 +345,7 @@ export function describeClinkError(err: unknown): string {
     return `Your wallet could not complete the request (${err.message}).`;
   }
   const raw = typeof err === "string" ? err : err instanceof Error ? err.message : "";
-  if (/websocket|failed to connect|econnrefused|enotfound|getaddrinfo|timed? ?out|timeout/i.test(raw)) {
+  if (/websocket|network error|non-101|failed to connect|econnrefused|enotfound|getaddrinfo|timed? ?out|timeout/i.test(raw)) {
     return "Could not reach your wallet's relay. Check the wallet app is online and try again.";
   }
   return "The CLINK request failed.";

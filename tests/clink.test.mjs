@@ -122,6 +122,7 @@ test('failures read like causes: an unreachable relay never surfaces SDK interna
   // still say what happened and what to do.
   assert.match(describeClinkError('websocket error'), /relay/i);
   assert.match(describeClinkError(new Error('Failed to connect to wss://relay.x')), /relay/i);
+  assert.match(describeClinkError(new Error('Received network error or non-101 status code.')), /relay/i);
   scriptClient({ request: async () => { throw 'websocket error'; } });
   try {
     await clinkRequestInvoice({ pointer: parseClinkPointer(noffer), appKey: 'a'.repeat(64), amountSats: 1 });

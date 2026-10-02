@@ -17,6 +17,7 @@ test('settings wallet card reflects every funding lane, not just NWC',()=>{
   assert.ok(source.includes('Wallet connection options'),'Settings lists every connection option the account accepts');
   assert.ok(source.includes('NIP-47')&&source.includes('Wallet of Satoshi'),'Connection options name the wallet families (NIP-47; the address lane covers Wallet of Satoshi)');
   assert.ok(source.includes('href="https://albyhub.com/"')&&source.includes('href="https://www.walletofsatoshi.com/"'),'Wallet names in the connection options link to their own sites (like the landing wall tiles)');
+  assert.ok(source.includes('CLINK')&&source.includes('href="https://lightning.pub/"')&&source.includes('href="https://shockwallet.app/"'),'CLINK is listed as a connection option with its wallets linked');
 });
 test('connect modal teaches each lane capability and the wallets that work',()=>{
   const modes=html.slice(html.indexOf('function walletModalModes('),html.indexOf('function walletModal('));

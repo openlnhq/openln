@@ -35,4 +35,5 @@ test('compatibility section lists every wallet provider with a link',()=>{
   assert.ok(ghosts.includes('Any NWC wallet'),'the universal NWC tile is present');
   assert.ok(ghosts.includes('Any Lightning Address'),'the universal Lightning Address tile is present');
   assert.ok(wallets.some(w=>w.name==='Wallet of Satoshi'&&!w.ghost),'Wallet of Satoshi is listed on the wall');
+  assert.ok(groups.some(g=>g.group==='CLINK'&&g.caps==='Send + receive'&&g.wallets.some(w=>w.name==='Lightning.Pub'&&!w.ghost)&&g.wallets.some(w=>w.name==='ShockWallet'&&!w.ghost)),'CLINK is on the wall with Lightning.Pub and ShockWallet');
 });

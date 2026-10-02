@@ -574,10 +574,10 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
   <div class="sechead rv">
     <span class="lbl teal">Compatibility</span>
     <h2 class="sec">Your wallet is<br><span class="g">already supported.</span></h2>
-    <p class="sub">openLN connects to the Lightning wallet you already run: send and receive over <b>Nostr Wallet Connect</b>, connect <b>Blink</b> with an API key, or point a <b>Lightning Address</b> at your account for receive-only. Your keys, your sats, nothing to migrate.</p>
+    <p class="sub">openLN connects to the Lightning wallet you already run: send and receive over <b>Nostr Wallet Connect</b>, connect <b>Blink</b> with an API key, point a <b>Lightning Address</b> at your account for receive-only, or connect <b>CLINK</b> codes from Lightning.Pub or ShockWallet, one for receive and one for send. Your keys, your sats, nothing to migrate.</p>
   </div>
   <div class="cgrid rv" id="cgrid"></div>
-  <p class="cfoot rv">Compatibility is by standard, not by brand: any NIP-47 wallet connects over Nostr Wallet Connect (send + receive), any Lightning Address connects receive-only with sales confirmed by openLN's wrapped settlement, any node backs an account through a Hub or bridge, and Blink accounts connect with an API key. This wall lists only what connects today.</p>
+  <p class="cfoot rv">Compatibility is by standard, not by brand: any NIP-47 wallet connects over Nostr Wallet Connect (send + receive), any Lightning Address connects receive-only with sales confirmed by openLN's wrapped settlement, any node backs an account through a Hub or bridge, Blink accounts connect with an API key, and CLINK codes from Lightning.Pub or ShockWallet cover receive and send. This wall lists only what connects today.</p>
 </div></section>
 
 <!-- NETWORK / BTC MAP -->
@@ -792,6 +792,10 @@ a.ctile:hover{transform:translateY(-2px);border-color:var(--teal-b);box-shadow:0
       {name:'Alby',logo:'/media/compat/alby.png',url:'https://getalby.com/'},
       {name:'Wallet of Satoshi',logo:'/media/compat/walletofsatoshi.png',url:'https://www.walletofsatoshi.com/'},
       {name:'Any Lightning Address',ghost:true}
+    ]},
+    {group:'CLINK',caps:'Send + receive',meta:'One code per direction',wallets:[
+      {name:'Lightning.Pub',logo:'/media/compat/lightningpub.png',url:'https://lightning.pub/'},
+      {name:'ShockWallet',logo:'/media/compat/shockwallet.png',url:'https://shockwallet.app/'}
     ]},
     {group:'Self-hosted',caps:'Send + receive',meta:'Your own node',wallets:[
       {name:'LND',logo:'/media/compat/lnd.png',url:'https://lightning.engineering/'},

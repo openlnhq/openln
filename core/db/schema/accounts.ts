@@ -40,11 +40,18 @@ export const accountsTable = pgTable("accounts", {
   lnurlVerifySupported: boolean("lnurl_verify_supported"),
   // Saved wallet connections (account_connections). The default is what every
   // surface without its own assignment uses; RIC and Cards carry their own
-  // pointers and fall back to the default when unset. ON DELETE SET NULL in
-  // the DB, so removing a connection can never leave a dangling pointer.
+  // receive + send pointers and fall back to the default when unset.
+  // ON DELETE SET NULL in the DB, so removing a connection can never leave a
+  // dangling pointer. (ric_connection_id / cards_connection_id are the
+  // pre-split single assignment; migration 0019 consumes them into the four
+  // direction columns.)
   defaultConnectionId: uuid("default_connection_id"),
   ricConnectionId: uuid("ric_connection_id"),
   cardsConnectionId: uuid("cards_connection_id"),
+  ricReceiveConnectionId: uuid("ric_receive_connection_id"),
+  ricSendConnectionId: uuid("ric_send_connection_id"),
+  cardsReceiveConnectionId: uuid("cards_receive_connection_id"),
+  cardsSendConnectionId: uuid("cards_send_connection_id"),
   balanceSats: bigint("balance_sats", { mode: "number" }).notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

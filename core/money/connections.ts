@@ -1,15 +1,17 @@
 /**
  * Saved wallet connections: what a connection kind can do, and how it is
- * named. Kinds are open-ended on purpose - future integrations (for example
- * CLINK nDebit / nOffer strings from lightning.pub, which split send and
- * receive into separate pointers) become new kinds with their own capability
- * entry here, without touching the resolution code in walletSource.ts.
+ * named. Kinds are open-ended on purpose - new integrations become new
+ * kinds with their own capability entry here, without touching the
+ * resolution code in walletSource.ts.
  */
 export type ConnectionCapabilities = { send: boolean; receive: boolean };
 
 /**
  * Capabilities by connection kind. Unknown kinds are inert until given an
  * entry here: connecting a wallet is not a claim that it can move money.
+ * CLINK pointers are inherently one-directional: a noffer (Lightning.Pub /
+ * ShockWallet static offer) only receives, an ndebit only sends - connect
+ * both halves to make one full wallet.
  */
 export function connectionCapabilities(kind: string): ConnectionCapabilities {
   switch (kind) {
@@ -19,6 +21,10 @@ export function connectionCapabilities(kind: string): ConnectionCapabilities {
       return { send: true, receive: true };
     case "lnaddress":
       return { send: false, receive: true };
+    case "noffer":
+      return { send: false, receive: true };
+    case "ndebit":
+      return { send: true, receive: false };
     default:
       return { send: false, receive: false };
   }
@@ -32,6 +38,10 @@ export function connectionKindLabel(kind: string): string {
       return "Blink";
     case "lnaddress":
       return "Lightning Address";
+    case "noffer":
+      return "CLINK Offer";
+    case "ndebit":
+      return "CLINK Debit";
     default:
       return "Wallet";
   }

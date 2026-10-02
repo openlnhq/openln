@@ -47,7 +47,7 @@ test('POS ships an item pad, numpad, checkout and a wallet entry point',()=>{
 });
 test('send opens a camera-first scanner with Paste, Keyboard and Images for every lightning code',()=>{
   const send=html.slice(html.indexOf('/* ---- SEND ---- */'),html.indexOf('/* ---- WALLET CONNECT ---- */'));
-  assert.ok(html.includes('st.connected?sendScan:walletModal'),'Send opens the fullscreen scanner, not a form');
+  assert.ok(html.includes('canSend?sendScan'),'Send opens the fullscreen scanner when the wallet can send');
   assert.ok(send.includes('function sendScan('),'fullscreen scanner exists');
   assert.ok(send.includes('sndVid')&&send.includes('getUserMedia'),'scanner attaches the live camera');
   assert.ok(send.includes('sndPaste')&&send.includes('Clipboard'),'Paste button reads the clipboard');
@@ -107,7 +107,8 @@ test('wallet connections: several wallets on file, per-feature assignment, capab
   assert.ok(helpers.includes("api('/api/connections'"),'connections come from the saved-connections API');
   assert.ok(helpers.includes('/api/connections/assign'),'feature sections save an assignment');
   assert.ok(helpers.includes('/default'),'a connection can be made the default');
-  assert.ok(helpers.includes('receive-only'),'receive-only assignments are flagged in the picker');
+  assert.ok(helpers.includes('Receive wallet')&&helpers.includes('Send wallet'),'each feature has separate receive and send pickers');
+  assert.ok(helpers.includes('c.capabilities.receive')&&helpers.includes('c.capabilities.send'),'each picker lists only wallets that can do that direction');
   assert.ok(helpers.includes('connCapChips')&&helpers.includes('Default'),'list shows capability chips and the default tag');
   assert.ok(helpers.includes('Name this wallet')&&helpers.includes("method:'PATCH'"),'wallets can be renamed');
   const wal=html.slice(html.indexOf('async function vWallet('),html.indexOf('function txDetail('));
@@ -118,4 +119,5 @@ test('wallet connections: several wallets on file, per-feature assignment, capab
   assert.ok(html.includes("loadConnectionsFor('cards',"),'the Cards section assigns its wallet');
   const modal=html.slice(html.indexOf('function walletModal('),html.indexOf('async function loadAuthedImage('));
   assert.ok(modal.includes('r.connection'),'the connect modal reads the saved-connection response');
+  assert.ok(html.includes('noffer1'),'CLINK codes are accepted by the connect modal');
 });

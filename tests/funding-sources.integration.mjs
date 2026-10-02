@@ -110,7 +110,7 @@ test('lightning address: connect is receive-only, POS invoice settles via LUD-21
   assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,LN_ADDR);assert.equal(row.lnurl_verify_supported,true);
 
   const sj=await (await fetch(base+'/api/wallet/status',{headers:auth(a.token)})).json();
-  assert.equal(sj.walletMode,'lnaddress');assert.equal(sj.receiveOnly,true);assert.equal(sj.canSend,false);assert.equal(sj.connected,false);assert.equal(sj.lightningAddress,LN_ADDR);assert.equal(sj.verifySupported,true);
+  assert.equal(sj.walletMode,'lnaddress');assert.equal(sj.receiveOnly,true);assert.equal(sj.canSend,false);assert.equal(sj.connected,true,'a receive-only wallet still counts as connected');assert.equal(sj.lightningAddress,LN_ADDR);assert.equal(sj.verifySupported,true);
 
   const inv=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...auth(a.token)},body:JSON.stringify({amountSats:1500,memo:'qa ln address'})});
   assert.equal(inv.status,201);
@@ -126,7 +126,7 @@ test('lightning address: connect is receive-only, POS invoice settles via LUD-21
   verifySettled=true;
   await sleep(5300);
   const bj=await (await fetch(base+'/api/wallet/balance',{headers:auth(a.token)})).json();
-  assert.equal(bj.receiveOnly,true);assert.equal(bj.connected,false);
+  assert.equal(bj.receiveOnly,true);assert.equal(bj.connected,false,'balance stays unreadable - no live balance for a receive-only wallet');
 
   ({rows:[row]}=await q('SELECT paid_at FROM pending_invoices WHERE payment_hash=$1',[ij.paymentHash]));
   assert.ok(row.paid_at instanceof Date,'invoice settled via LUD-21 verify');

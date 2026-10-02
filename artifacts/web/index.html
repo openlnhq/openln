@@ -796,16 +796,19 @@ async function vWallet(st,bal,version=renderVersion){
   let txs=[];try{txs=await api('/api/reports/transactions?limit=500')}catch(e){}
   const rows=(Array.isArray(txs)?txs:txs.transactions||[]);
   const latest=rows[0];
-  const receiveOnly=st.walletMode==='lnaddress';
+  const receiveOnly=st.receiveOnly!==undefined?!!st.receiveOnly:st.walletMode==='lnaddress';
+  const canSend=st.canSend!==undefined?!!st.canSend:!!st.connected;
+  const canRecv=st.canReceive!==undefined?!!st.canReceive:(!!st.connected||receiveOnly);
+  const sendOnly=!!st.connected&&!canRecv&&canSend;
   let lnAddr='';if(receiveOnly){try{const me=await api('/api/me');lnAddr=(me&&me.account&&me.account.lightningAddress)||''}catch(e){}}
   if(version!==renderVersion || VIEW!=='wallet')return;
   $('#view').innerHTML=`
   <div class="wos">
     <div class="wos-hero">
-      <div class="conn"><span class="dot ${bal.connected||receiveOnly?'':'off'}"></span>${receiveOnly?'Receive-only'+(lnAddr?' · '+esc(lnAddr):''):bal.connected?'Your connected wallet':st.connected?'Wallet temporarily unavailable':'Connect your wallet'}</div>
+      <div class="conn"><span class="dot ${bal.connected||receiveOnly?'':'off'}"></span>${receiveOnly?'Receive-only'+(lnAddr?' · '+esc(lnAddr):''):sendOnly?'Send-only wallet':bal.connected?'Your connected wallet':st.connected?'Wallet temporarily unavailable':'Connect your wallet'}</div>
       <div class="wos-bal">${bal.connected?fmt(bal.balanceSats)+'<span class="cur">sats</span>':''}</div>
       <div class="wos-fiat">${receiveOnly?'Your balance stays in your funding wallet. openLN never holds your sats.':bal.connected?'Live balance · held in your wallet':st.connected?'Unable to read your balance. Your wallet still holds your funds.':'Your wallet funds your cards and RIC.'}</div>
-      ${!st.connected&&!receiveOnly?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">NWC wallet, Blink API key, or a Lightning Address</p>':''}
+      ${!st.connected&&!receiveOnly?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">NWC wallet, Blink API key, Lightning Address, or a CLINK code</p>':''}
     </div>
     <div id="pinNudge"></div>
     <div class="wos-latest" id="txlist">${latest?txRow(latest):emptyTx()}</div>
@@ -826,8 +829,8 @@ async function vWallet(st,bal,version=renderVersion){
     api('/api/account/send-pin').then(p=>{const n=$('#pinNudge');if(!n||p.set||VIEW!=='wallet')return;n.innerHTML=`<div class="card" style="margin:0 16px 10px;padding:12px 14px;border-color:var(--accent);display:flex;gap:10px;align-items:center"><div style="flex:1"><b style="font-size:13px">Set your 6-digit send PIN</b><div class="dim" style="font-size:12px;margin-top:2px">Needed before your RIC or this wallet can send sats.</div></div><button class="btn teal sm" id="pinNudgeGo">Set</button><button class="xbtn" id="pinNudgeX" title="Later">✕</button></div>`;$('#pinNudgeGo').onclick=()=>{settingsFocus='pin';navigate('settings')};$('#pinNudgeX').onclick=()=>{localStorage.setItem('openln_pin_nudge_dismissed','1');n.innerHTML='';};}).catch(()=>{});
   }
   $('#bpos').onclick=()=>navigate('pos');
-  $('#brecv').onclick=(st.connected||receiveOnly)?receiveModal:walletModal;
-  $('#bsend').onclick=receiveOnly?()=>toast('Receive-only: sending needs a full wallet (NWC or a Blink API key)'):(st.connected?sendScan:walletModal);
+  $('#brecv').onclick=canRecv?receiveModal:(st.connected?()=>toast('Receiving needs a wallet that can receive. Add one in Settings.'):walletModal);
+  $('#bsend').onclick=canSend?sendScan:(st.connected?()=>toast('Sending needs a wallet that can send. Add one in Settings.'):walletModal);
   document.querySelectorAll('[data-tx]').forEach(b=>b.onclick=()=>{const tx=rows.find(r=>(r.id||r.payment_hash||r.paymentHash)===b.dataset.tx);if(tx)txDetail(tx)});
   $('#bhist').onclick=async()=>{
     const list=$('#txlist');
@@ -925,7 +928,7 @@ async function vPos(version=renderVersion){
   await posLoadRate();
   pos.items=(resp&&resp.items)||[];
   if(version!==renderVersion||VIEW!=='pos')return;
-  pos.canSell=!!(st.connected||st.receiveOnly);
+  pos.canSell=!!(st.canReceive!==undefined?st.canReceive:(st.connected||st.receiveOnly));
   $('#view').innerHTML=`<div style="max-width:900px;margin:0 auto">
     <div class="poshead">
       <div>
@@ -1956,6 +1959,9 @@ function walletModalModes(){return {
   lnaddress:{tab:'Lightning Address',label:'Lightning Address',ph:'name@wallet.com',caps:['recv'],
     works:'Works with any Lightning Address: Blink, Coinos, Alby, Wallet of Satoshi, and others.',
     hint:'Receive-only. We check your address when you connect, and confirm each sale through openLN’s wrapped settlement, so it works even with wallets that cannot verify payments themselves.'},
+  clink:{tab:'CLINK',label:'CLINK code',ph:'noffer1… or ndebit1…',caps:['recv','send'],
+    works:'Works with Lightning.Pub and ShockWallet (clinkme.dev). Each code covers one direction: a noffer receives, an ndebit sends. Connect one of each for a full wallet.',
+    hint:'CLINK is a static code your wallet shows under Linked apps. An offer (noffer1…) receives: openLN asks your wallet for each invoice. A debit (ndebit1…) sends: openLN hands your wallet invoices to pay.'},
 };}
 function walletModal(){
   const WM=walletModalModes();let mode=Object.keys(WM)[0];
@@ -1975,12 +1981,12 @@ function walletModal(){
   const setTab=tb=>m.querySelectorAll('[data-wm]').forEach(x=>{x.classList.toggle('on',x===tb);x.setAttribute('aria-selected',String(x===tb))});
   m.querySelectorAll('[data-wm]').forEach(b=>b.onclick=()=>{mode=b.dataset.wm;setTab(b);paint()});
   const wmInp=m.querySelector('#wf [name=connection]');
-  const wmDetect=v=>{v=String(v||'').trim();if(/^nostr\+walletconnect:/i.test(v))return'nwc';if(/^blink_/i.test(v))return'blink';if(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v))return'lnaddress';return ''};
+  const wmDetect=v=>{v=String(v||'').trim();if(/^nostr\+walletconnect:/i.test(v))return'nwc';if(/^blink_/i.test(v))return'blink';if(/^(noffer1|ndebit1)[a-z0-9]{10,}$/i.test(v))return'clink';if(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v))return'lnaddress';return ''};
   let wmAutoT=null;
   wmInp.addEventListener('input',()=>{if(wmAutoT){clearTimeout(wmAutoT);wmAutoT=null}const d=wmDetect(wmInp.value);if(!d||d===mode||!WM[d])return;wmAutoT=setTimeout(()=>{const v=wmInp.value;mode=d;setTab(m.querySelector('[data-wm="'+d+'"]'));paint();wmInp.value=v;wmInp.focus();try{wmInp.setSelectionRange(v.length,v.length)}catch(e){}},400)});
   paint();
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();const kind=(r.connection&&r.connection.kind)||r.walletMode;toast(kind==='lnaddress'?'Lightning Address connected · receive-only':'Wallet connected');render()}
+    try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();const kind=(r.connection&&r.connection.kind)||r.walletMode;toast(kind==='lnaddress'?'Lightning Address connected · receive-only':kind==='noffer'?'CLINK offer connected · receive-only':kind==='ndebit'?'CLINK debit connected · send-only':'Wallet connected');render()}
     catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${prose(x.message)}</p>`}
   };
 }
@@ -1988,7 +1994,7 @@ function walletModal(){
    each feature (RIC / Cards) receives. An account keeps several wallets and
    each feature picks one; everything else uses the default wallet. */
 function connCapChips(caps){return `<span class="wchip ${caps&&caps.receive?'on':'off'}">Receive</span><span class="wchip ${caps&&caps.send?'on':'off'}">Send</span>`}
-function connUseTags(c,d){const t=[];if(c.id===d.defaultId)t.push('<span class="wpill ok">Default</span>');(c.usedBy||[]).forEach(u=>t.push(`<span class="wpill warn">${u==='ric'?'RIC':'Cards'}</span>`));return t.join(' ')}
+function connUseTags(c,d){const m={ric_receive:'RIC receive',ric_send:'RIC send',cards_receive:'Cards receive',cards_send:'Cards send'};const t=[];if(c.id===d.defaultId)t.push('<span class="wpill ok">Default</span>');(c.usedBy||[]).forEach(u=>t.push(`<span class="wpill warn">${m[u]||esc(u)}</span>`));return t.join(' ')}
 async function loadWalletConnections(){
   const box=$('#setConnList'); if(!box)return;
   let d;try{d=await api('/api/connections')}catch(e){return}
@@ -2011,33 +2017,37 @@ async function loadWalletConnections(){
   box.querySelectorAll('[data-cedit]').forEach(b=>b.addEventListener('click',async()=>{const c=conns.find(x=>x.id===b.dataset.cedit);if(!c)return;const name=await dlgPrompt({title:'Name this wallet',body:'Shown in the RIC and Cards wallet pickers.',label:'Wallet name',value:c.label||'',maxlength:40,confirmText:'Save name'});if(name===null)return;if(!name){toast('Wallet name cannot be empty');return}try{await api('/api/connections/'+encodeURIComponent(c.id),{method:'PATCH',body:JSON.stringify({label:name})});toast('Wallet name saved');render()}catch(x){toast(x.message||'Could not rename')}}));
   box.querySelectorAll('[data-cremove]').forEach(b=>b.addEventListener('click',async()=>{if(conns.length<2){toast('Add another wallet before removing this one');return}if(!confirm('Remove this wallet connection? You can add it again any time.'))return;b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cremove),{method:'DELETE'});toast('Wallet removed');render()}catch(x){toast(x.message||'Could not remove');b.disabled=false}}));
 }
-async function loadConnectionsFor(purpose,sel,title,blurb){
+async function loadConnectionsFor(feature,sel,title,blurb){
   const box=document.querySelector(sel); if(!box)return;
   let d;try{d=await api('/api/connections')}catch(e){box.innerHTML='';return}
   const conns=(d&&d.connections)||[];
   if(!conns.length){box.innerHTML='';return}
-  const assigned=(d.assignments||{})[purpose]||'';
+  const asg=(d.assignments||{});
   const def=conns.find(c=>c.id===d.defaultId);
+  const recv=conns.filter(c=>c.capabilities&&c.capabilities.receive);
+  const send=conns.filter(c=>c.capabilities&&c.capabilities.send);
+  const defLabel='Default wallet'+(def?' - '+esc(def.label):'');
+  const opts=(list,sel)=>(`<option value="" ${sel?'':'selected'}>${defLabel}</option>`+list.map(c=>`<option value="${esc(c.id)}" ${c.id===sel?'selected':''}>${esc(c.label)}</option>`).join(''));
+  const rAssigned=asg[feature+'_receive']||'',sAssigned=asg[feature+'_send']||'';
   box.innerHTML=`<div class="setcard">
     <h3>${esc(title)}</h3>
     <div class="sub">${esc(blurb)}</div>
-    <div class="setrow"><label>Wallet<small>Receiving and sending both use this wallet</small></label>
-      <select id="connSel_${purpose}">
-        <option value="" ${assigned?'':'selected'}>Default wallet${def?' - '+esc(def.label):''}</option>
-        ${conns.map(c=>`<option value="${esc(c.id)}" ${c.id===assigned?'selected':''}>${esc(c.label)}</option>`).join('')}
-      </select>
+    <div class="setrow"><label>Receive wallet<small>Where payments to this device arrive</small></label>
+      <select id="connSel_${feature}_receive">${opts(recv,rAssigned)}</select>
     </div>
-    <div class="hint" id="connHint_${purpose}" style="margin-top:8px"></div>
+    <div class="setrow"><label>Send wallet<small>What this device pays out of</small></label>
+      <select id="connSel_${feature}_send">${opts(send,sAssigned)}</select>
+    </div>
+    <div class="hint" id="connHint_${feature}" style="margin-top:8px"></div>
   </div>`;
-  const selEl=box.querySelector('#connSel_'+purpose),hint=box.querySelector('#connHint_'+purpose);
+  const rSel=box.querySelector('#connSel_'+feature+'_receive'),sSel=box.querySelector('#connSel_'+feature+'_send'),hint=box.querySelector('#connHint_'+feature);
   const paint=()=>{
-    const c=conns.find(x=>x.id===selEl.value);
-    if(!c){hint.textContent='This section follows your default wallet, wherever that points.';return}
-    if(c.capabilities&&!c.capabilities.send){hint.innerHTML=`<span style="color:var(--warn,#e0a83a)">${esc(c.label)} is receive-only. Receiving works; sending will be unavailable until you pick a wallet that can send.</span>`;return}
-    hint.textContent='This wallet handles both directions: receiving and sending.';
+    const rc=conns.find(x=>x.id===rSel.value),sc=conns.find(x=>x.id===sSel.value);
+    hint.textContent=`Receives into ${rc?rc.label:'the default wallet'} · sends from ${sc?sc.label:'the default wallet'}.`;
   };
   paint();
-  selEl.addEventListener('change',async()=>{const v=selEl.value||null;try{await api('/api/connections/assign',{method:'POST',body:JSON.stringify({[purpose]:v})});toast(v?'Wallet saved for this section':'Back to the default wallet')}catch(x){toast(x.message||'Could not save')}paint()});
+  rSel.addEventListener('change',async()=>{const v=rSel.value||null;try{await api('/api/connections/assign',{method:'POST',body:JSON.stringify({[feature+'_receive']:v})});toast(v?'Receive wallet saved':'Receiving follows the default wallet')}catch(x){toast(x.message||'Could not save')}paint()});
+  sSel.addEventListener('change',async()=>{const v=sSel.value||null;try{await api('/api/connections/assign',{method:'POST',body:JSON.stringify({[feature+'_send']:v})});toast(v?'Send wallet saved':'Sending follows the default wallet')}catch(x){toast(x.message||'Could not save')}paint()});
 }
 async function loadAuthedImage(path, imgEl){
   try{
@@ -2181,7 +2191,7 @@ async function vCards(){
     <div id="cardsBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
   </div>`;
   $('#cardsShop').onclick=e=>{e.preventDefault();openCardShop()};
-  loadConnectionsFor('cards','#cardsConnBox','Cards wallet','Card taps pay from this wallet, and transfers sent to the card land here.');
+  loadConnectionsFor('cards','#cardsConnBox','Cards wallet','Card spending pays from this wallet, and anything sent to the card lands here.');
   await renderCardsList();
 }
 async function renderCardsList(){
@@ -2434,7 +2444,7 @@ async function vRic(){
   </div>`;
   $('#ricFlashTile').onclick=()=>ricFlashModal();
   $('#ricLinkTile').onclick=()=>ricLinkModal();
-  loadConnectionsFor('ric','#ricConnBox','RIC wallet','Your RIC receives sales into this wallet, and RIC send pays out of it.');
+  loadConnectionsFor('ric','#ricConnBox','RIC wallet','Your RIC receives sales into the receive wallet, and RIC send pays out of the send wallet.');
   // Proactive: a RIC cannot send (QR or card tap) until the account has a
   // 6-digit send PIN. Ask for it here, before the first device error does.
   api('/api/account/send-pin').then(p=>{const g=$('#ricPinGate');if(!g||p.set)return;g.innerHTML=`<div class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Set your 6-digit send PIN</b><p class="dim" style="font-size:12.5px;margin-top:6px">Receiving works without it. Sending sats from the RIC (Send mode QR or tapping a card) is refused until this PIN exists. Set it once now so the device is ready.</p><button class="btn teal sm" id="ricSetPinNow" style="margin-top:10px">Set send PIN</button></div>`;$('#ricSetPinNow').onclick=()=>{settingsFocus='pin';navigate('settings')};}).catch(()=>{});
@@ -2708,15 +2718,25 @@ async function vSettings(version=renderVersion){
   const wFull=!!status.connected, wReceive=!!status.receiveOnly, wAny=wFull||wReceive;
   const wAddr=status.lightningAddress||'';
   const wBal=(walletBal&&typeof walletBal.balanceSats==='number'&&walletBal.connected)?walletBal.balanceSats:null;
-  const wTitle=wFull?(status.walletMode==='blink'?'Blink API wallet':'Nostr Wallet Connect'):(wReceive?'Lightning Address':'No wallet connected');
-  const wPill=wFull?'<span class="wpill ok">Connected</span>':wReceive?'<span class="wpill warn">Receive-only</span>':'';
-  const wDetail=wFull
-    ?(status.walletMode==='blink'
-      ?'Receive, send, and card payments run through your Blink wallet'+(wBal!=null?` · balance ${wBal.toLocaleString()} sats`:'')+'.'
-      :'Receive, send, and card payments run through your connected wallet'+(wBal!=null?` · balance ${wBal.toLocaleString()} sats`:'')+'.')
-    :wReceive
-      ?'Receive-only: incoming payments land in this wallet. To send from openLN, connect a full wallet (NWC or Blink API key).'
-      :'Add a Nostr Wallet Connect (NWC) connection or a Blink API key for send and receive, or a Lightning Address for receive-only.';
+  const wKind=status.walletMode||'';
+  const wCanSend=status.canSend!==undefined?!!status.canSend:wFull;
+  const wCanRecv=status.canReceive!==undefined?!!status.canReceive:(wFull||wReceive);
+  const wTitle=!wAny?'No wallet connected'
+    :wKind==='blink'?'Blink API wallet'
+    :wKind==='noffer'?'CLINK offer'
+    :wKind==='ndebit'?'CLINK debit'
+    :wKind==='lnaddress'?'Lightning Address'
+    :'Nostr Wallet Connect';
+  const wPill=!wAny?'':(wCanRecv&&wCanSend)?'<span class="wpill ok">Connected</span>':wCanRecv?'<span class="wpill warn">Receive-only</span>':'<span class="wpill warn">Send-only</span>';
+  const wDetail=!wAny
+    ?'Add a Nostr Wallet Connect (NWC) connection, a Blink API key, a Lightning Address, or a CLINK code.'
+    :(wCanRecv&&wCanSend)
+      ?(wKind==='blink'
+        ?'Receive, send, and card payments run through your Blink wallet'+(wBal!=null?` · balance ${wBal.toLocaleString()} sats`:'')+'.'
+        :'Receive, send, and card payments run through your connected wallet'+(wBal!=null?` · balance ${wBal.toLocaleString()} sats`:'')+'.')
+    :wCanRecv
+      ?'Receive-only: incoming payments land in this wallet. To send from openLN, connect or assign a wallet that can send (NWC, Blink, or a CLINK debit).'
+      :'Send-only: openLN pays out of this wallet. To receive, connect a wallet that can receive (NWC, Blink, Lightning Address, or a CLINK offer).';
   if(version!==renderVersion || VIEW!=='settings')return;
   $('#view').innerHTML=`<div style="margin-top:30px">
     <div class="overline">Settings</div>

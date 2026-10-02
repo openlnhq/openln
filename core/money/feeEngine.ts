@@ -7,6 +7,7 @@ import { and, eq, isNotNull, or, inArray } from "drizzle-orm";
 import { payInvoice, makeInvoice, getAccountNwcUrl, isAmbiguousPayError, lookupOutgoingPayment, lookupInvoice, PLATFORM_NWC_URL } from "./nwc.js";
 import { blinkPayInvoice, blinkOutgoingStatus, BlinkAmbiguousError } from "./blink.js";
 import { resolveWalletSource, type WalletPurpose } from "./walletSource.js";
+import { clinkPayInvoice, preimageMatchesHash, ClinkAmbiguousError, type NdebitPointer } from "./clink.js";
 import { advanceWrap, type WrapRow } from "./holdWrap.js";
 import { extractPaymentHash } from "./lnAddress.js";
 import { logger } from "./logger.js";
@@ -48,6 +49,7 @@ export function calculateFee(amountSats: number): {
  */
 type PayFunding =
   | { kind: "nwc"; nwcUrl: string; connectionId?: string }
+  | { kind: "clink"; pointer: NdebitPointer; appKey: string; connectionId?: string }
   | { kind: "blink"; apiKey: string; walletId: string | null; connectionId?: string };
 
 /**
@@ -59,8 +61,12 @@ async function resolvePayFunding(accountId: string, explicitNwcUrl: string | und
   const source = await resolveWalletSource(accountId, purpose ?? "default");
   if (source.kind === "nwc") return { kind: "nwc", nwcUrl: source.nwcUrl, connectionId: source.connectionId };
   if (source.kind === "blink") return { kind: "blink", apiKey: source.apiKey, walletId: source.walletId, connectionId: source.connectionId };
+  if (source.kind === "ndebit") return { kind: "clink", pointer: source.pointer, appKey: source.appKey, connectionId: source.connectionId };
+  if (source.kind === "noffer") {
+    throw new Error("This wallet receives only (a CLINK offer). Connect or assign a wallet that can send (an ndebit, an NWC wallet, or a Blink key) in Settings.");
+  }
   if (source.kind === "lnaddress") {
-    throw new Error("This account is receive-only - connect a wallet that can send (NWC or Blink)");
+    throw new Error("This account is receive-only - connect a wallet that can send (NWC, Blink, or a CLINK debit)");
   }
   throw new Error("No wallet configured for this account");
 }
@@ -131,7 +137,7 @@ export async function processExternalPayment(
   // dropped/slow the outcome is handled as ambiguous below and the background
   // reconciler finalizes by payment_hash.
   const payStarted = Date.now();
-  const payMethod = funding.kind === "blink" ? "blink.lnInvoicePaymentSend" : "pay_invoice";
+  const payMethod = funding.kind === "blink" ? "blink.lnInvoicePaymentSend" : funding.kind === "clink" ? "clink.debit" : "pay_invoice";
   recordPaymentEvent({
     paymentId: pendingTx.id,
     accountId,
@@ -151,11 +157,26 @@ export async function processExternalPayment(
       const payResult = await payInvoice(bolt11, funding.nwcUrl);
       paymentHash = payResult.paymentHash;
       feeSats = payResult.feesPaidSats;
-    } else {
+    } else if (funding.kind === "blink") {
       const res = await blinkPayInvoice(funding.apiKey, funding.walletId, bolt11, memo);
       if (res.status === "PENDING") throw new BlinkAmbiguousError("Blink reports the payment as pending");
       if (res.status !== "SUCCESS" && res.status !== "ALREADY_PAID") {
         throw new Error(`Blink payment failed${res.detail ? `: ${res.detail}` : ` (${res.status})`}`);
+      }
+    } else {
+      // CLINK debit: the wallet's own node pays the invoice we hand it, and
+      // confirms with a preimage. Verify the proof against the invoice's
+      // payment hash when we have both - a mismatch means this reply does not
+      // prove OUR invoice was paid, so the row must stay unresolved.
+      const { preimage } = await clinkPayInvoice({
+        pointer: funding.pointer,
+        appKey: funding.appKey,
+        bolt11,
+        amountSats,
+        description: (memo && memo.trim() ? memo : "openLN send").slice(0, 100),
+      });
+      if (preimage && decodedHash && !preimageMatchesHash(preimage, decodedHash)) {
+        throw new ClinkAmbiguousError("the wallet's settlement proof does not match the invoice");
       }
     }
 
@@ -187,7 +208,10 @@ export async function processExternalPayment(
     return { paymentHash, feeSats };
   } catch (err) {
     const failureReason = err instanceof Error ? err.message : String(err);
-    const ambiguous = funding.kind === "blink" ? err instanceof BlinkAmbiguousError : isAmbiguousPayError(err);
+    const ambiguous =
+      funding.kind === "blink" ? err instanceof BlinkAmbiguousError
+      : funding.kind === "clink" ? err instanceof ClinkAmbiguousError
+      : isAmbiguousPayError(err);
     if (ambiguous) {
       // Outcome unknown - the wallet may have executed the payment. Keep the
       // row pending; resolveAmbiguousPayment / the background reconciler will
@@ -461,6 +485,12 @@ export async function resolveAmbiguousPayment(
             return { status: "failed" };
           }
           // PENDING / NONE - keep polling within the window
+        } else if (source.kind === "ndebit") {
+          // CLINK lane: no lookup verb exists - the wallet's reply was the
+          // only proof, and it never came. Leave the row pending; a blind
+          // retry could double-pay. The merchant checks the wallet.
+          logger.warn({ txId: err.pendingTxId }, "Ambiguous CLINK debit - no lookup path, leaving pending");
+          return { status: "pending" };
         }
       }
     } catch (lookupErr) {

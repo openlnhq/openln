@@ -24,6 +24,7 @@ import { eq, and, gte, isNull, isNotNull, sql } from "drizzle-orm";
 import { decryptSunP, verifySunC, parseBolt11AmountSats, generateK1 } from "../core/money/boltcard.js";
 import { processExternalPayment, AmbiguousPaymentError, resolveAmbiguousPayment } from "../core/money/feeEngine.js";
 import { resolveWalletSource } from "../core/money/walletSource.js";
+import { connectionCapabilities } from "../core/money/connections.js";
 import { settleInvoiceByPaymentHash } from "../core/money/invoiceMonitor.js";
 import { decrypt } from "../core/money/encrypt.js";
 import { logger } from "../core/money/logger.js";
@@ -381,11 +382,11 @@ async function callback(req: Request, res: Response): Promise<void> {
   // no longer used. Veil charges 1% on outgoing payments, so require that
   // headroom up front for a clear error; Veil still enforces authoritatively.
   // ── Paying wallet check ──────────────────────────────────────────────────
-  // The card's account funds the tap from its funding source: NWC (Veil or
-  // custom) or Blink. Lightning-address accounts are receive-only.
-  const cardSource = await resolveWalletSource(cardAccountId, "cards");
-  if (cardSource.kind === "none" || cardSource.kind === "lnaddress") {
-    res.json({ status: "ERROR", reason: "Card spending needs a wallet that can send. The Cards wallet is receive-only - assign another in Settings." });
+  // The card's account funds the tap from its Cards send assignment: NWC
+  // (Veil or custom), Blink, or a CLINK debit. Receive-only wallets error.
+  const cardSource = await resolveWalletSource(cardAccountId, "cards_send");
+  if (cardSource.kind === "none" || !connectionCapabilities(cardSource.kind).send) {
+    res.json({ status: "ERROR", reason: "Card spending needs a wallet that can send. The Cards wallet can't - assign another in Settings." });
     return;
   }
   const nwcUrl = cardSource.kind === "nwc" ? cardSource.nwcUrl : undefined;
@@ -418,7 +419,7 @@ async function callback(req: Request, res: Response): Promise<void> {
         undefined,
         cardId,
         "card",
-        "cards",
+        "cards_send",
       );
       logger.info({ cardId, accountId: cardAccountId, amountSats, feeSats, paymentHash }, "Bolt Card payment completed via Veil");
 
@@ -444,7 +445,7 @@ async function callback(req: Request, res: Response): Promise<void> {
           { cardId, accountId: cardAccountId, amountSats, err: err.message },
           "Bolt Card payment outcome ambiguous - resolving before responding",
         );
-        const outcome = await resolveAmbiguousPayment(err, nwcUrl, cardAccountId, "cards");
+        const outcome = await resolveAmbiguousPayment(err, nwcUrl, cardAccountId, "cards_send");
         if (outcome.status === "completed") {
           logger.info(
             { cardId, accountId: cardAccountId, amountSats, paymentHash: outcome.paymentHash },

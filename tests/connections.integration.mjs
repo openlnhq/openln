@@ -1,5 +1,5 @@
 import test,{before,after} from 'node:test';import assert from 'node:assert/strict';import {randomBytes} from 'node:crypto';import {once} from 'node:events';
-if(!new URL(process.env.DATABASE_URL).pathname.startsWith('/openln_qa_'))throw Error('Scratch only');process.env.PORT='0';const {default:server}=await import('../dist/core/server.js');const {pool}=await import('../dist/core/db/index.js');const {encrypt}=await import('../dist/core/money/encrypt.js');const {resolveWalletSource,resolveConnectionSource}=await import('../dist/core/money/walletSource.js');let base,a;
+if(!new URL(process.env.DATABASE_URL).pathname.startsWith('/openln_qa_'))throw Error('Scratch only');process.env.PORT='0';const {default:server}=await import('../dist/core/server.js');const {pool}=await import('../dist/core/db/index.js');const {encrypt}=await import('../dist/core/money/encrypt.js');const {resolveWalletSource,resolveConnectionSource}=await import('../dist/core/money/walletSource.js');const clinkmod=await import('../dist/core/money/clink.js');const sdkmod=await import('@shocknet/clink-sdk');let base,a;
 before(async()=>{if(!server.listening)await once(server,'listening');base='http://127.0.0.1:'+server.address().port;const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'qa_conn_'+randomBytes(5).toString('hex'),password:randomBytes(20).toString('hex')})});a=await r.json()});
 after(async()=>{server.closeAllConnections();await new Promise(r=>server.close(r));await pool.end()});
 const hdr=()=>({'Content-Type':'application/json',Authorization:'Bearer '+a.token});
@@ -28,15 +28,19 @@ test('saved connections list carries capabilities but never secrets; assignment 
   assert.equal(list.defaultId,firstId);
   assert.ok(!JSON.stringify(list).includes('nostr+walletconnect'),'no connection string in the API view');
   assert.ok(!JSON.stringify(list).toLowerCase().includes('encrypted'),'no store fields in the API view');
-  const asg=await (await post('/api/connections/assign',{ric:secondId,cards:firstId})).json();
-  assert.equal(asg.assignments.ric,secondId);assert.equal(asg.assignments.cards,firstId);
-  const bad=await post('/api/connections/assign',{ric:'00000000-0000-0000-0000-000000000000'});
+  const asg=await (await post('/api/connections/assign',{ric_receive:secondId,cards_receive:firstId,cards_send:firstId})).json();
+  assert.equal(asg.assignments.ric_receive,secondId);assert.equal(asg.assignments.cards_receive,firstId);assert.equal(asg.assignments.cards_send,firstId);
+  const wrongDir=await post('/api/connections/assign',{ric_send:secondId});
+  assert.equal(wrongDir.status,400,'a receive-only wallet cannot fill the RIC send slot');
+  const bad=await post('/api/connections/assign',{ric_receive:'00000000-0000-0000-0000-000000000000'});
   assert.equal(bad.status,400,'assigning a connection that is not yours is refused');
 });
 test('purpose resolution reads each assignment; capability decides what a feature can do',async()=>{
-  const ric=await resolveWalletSource(a.account.id,'ric');
+  const ric=await resolveWalletSource(a.account.id,'ric_receive');
   assert.equal(ric.kind,'lnaddress');assert.equal(ric.address,'alice@ln.test');assert.equal(ric.connectionId,secondId);
-  const cards=await resolveWalletSource(a.account.id,'cards');
+  const ricSend=await resolveWalletSource(a.account.id,'ric_send');
+  assert.equal(ricSend.kind,'nwc','unset ric_send falls back to the default wallet');assert.equal(ricSend.connectionId,firstId);
+  const cards=await resolveWalletSource(a.account.id,'cards_send');
   assert.equal(cards.kind,'nwc');assert.equal(cards.connectionId,firstId);
   const def=await resolveWalletSource(a.account.id,'default');
   assert.equal(def.kind,'nwc');assert.equal(def.connectionId,firstId);
@@ -49,9 +53,11 @@ test('set default rewrites the legacy mirror; removal falls back and the last wa
   const row=(await pool.query('SELECT wallet_mode,lightning_address,custom_nwc_url FROM accounts WHERE id=$1',[a.account.id])).rows[0];
   assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,'alice@ln.test');assert.equal(row.custom_nwc_url,null);
   const d1=await del('/api/connections/'+firstId);assert.equal(d1.status,200);
-  const after=(await pool.query('SELECT cards_connection_id FROM accounts WHERE id=$1',[a.account.id])).rows[0];
-  assert.equal(after.cards_connection_id,null,'deleting a wallet clears pointers at it');
-  const cards2=await resolveWalletSource(a.account.id,'cards');
+  const after=(await pool.query('SELECT cards_receive_connection_id,cards_send_connection_id,ric_receive_connection_id FROM accounts WHERE id=$1',[a.account.id])).rows[0];
+  assert.equal(after.cards_receive_connection_id,null,'deleting a wallet clears pointers at it');
+  assert.equal(after.cards_send_connection_id,null,'both directions are cleared');
+  assert.equal(after.ric_receive_connection_id,secondId,'the other feature keeps its own assignment');
+  const cards2=await resolveWalletSource(a.account.id,'cards_send');
   assert.equal(cards2.connectionId,secondId,'a cleared pointer falls back to the default wallet');
   const d2=await del('/api/connections/'+secondId);
   assert.equal(d2.status,409,'the last connection cannot be removed');
@@ -87,4 +93,38 @@ test('a poisoned wallet string cannot take the balance route down',async()=>{
   assert.equal(body.unavailable,true);
   const still=await (await fetch(base+'/api/connections',{headers:h})).json();
   assert.equal(still.connections.length,1,'the app is still alive and serving');
+});
+test('CLINK: connect proves an offer against the stubbed relay; each direction assigns and gates',async()=>{
+  const {__setClinkClientFactoryForTests}=clinkmod,{nofferEncode,ndebitEncode}=sdkmod;
+  const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const mkBolt11=(hashHex,sats=null)=>{const words=[0,0,0,0,0,0,0];const hw=[];let acc=0,bits=0;for(const b of Buffer.from(hashHex,'hex')){acc=(acc<<8)|b;bits+=8;while(bits>=5){bits-=5;hw.push((acc>>bits)&31);}}if(bits)hw.push((acc<<(5-bits))&31);words.push(1,hw.length>>5,hw.length&31,...hw);return (sats?'lnbc'+(sats*10)+'n':'lnbc')+'1'+words.map(w=>CHARSET[w]).join('')+'qqqqqq';};
+  const hash='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  __setClinkClientFactoryForTests(()=>({requestInvoice:async()=>({bolt11:mkBolt11(hash,21)}),debit:async()=>({res:'ok'}),stop:()=>{}}));
+  try{
+    const noffer=nofferEncode({pubkey:'a'.repeat(64),relay:'wss://relay.example',offer:'qa-offer-token',priceType:2});
+    const ndebit=ndebitEncode({pubkey:'b'.repeat(64),relay:'wss://relay.example'});
+    const c1=await post('/api/wallet/connect',{connection:noffer});
+    assert.equal(c1.status,200);const rc=await c1.json();assert.equal(rc.connection.kind,'noffer');assert.equal(rc.receiveOnly,true);
+    const c2=await post('/api/wallet/connect',{connection:ndebit});
+    assert.equal(c2.status,200);const rd=await c2.json();assert.equal(rd.connection.kind,'ndebit');assert.equal(rd.sendOnly,true);
+    const dup=await post('/api/wallet/connect',{connection:noffer});
+    assert.equal(dup.status,409,'the same pointer cannot be connected twice');
+    const nid=rc.connection.id,did=rd.connection.id;
+    const asg=await (await post('/api/connections/assign',{ric_receive:nid,ric_send:did})).json();
+    assert.equal(asg.assignments.ric_receive,nid);assert.equal(asg.assignments.ric_send,did);
+    const wrongRecv=await post('/api/connections/assign',{cards_receive:did});
+    assert.equal(wrongRecv.status,400,'a send-only wallet cannot fill a receive slot');
+    const list=await (await get('/api/connections')).json();
+    const nv=list.connections.find(c=>c.id===nid),dv=list.connections.find(c=>c.id===did);
+    assert.deepEqual(nv.capabilities,{send:false,receive:true});
+    assert.deepEqual(dv.capabilities,{send:true,receive:false});
+    assert.ok(!JSON.stringify(list).includes('qa-offer-token'),'the pointer never leaks through the API view');
+    const rr=await resolveWalletSource(a.account.id,'ric_receive');
+    assert.equal(rr.kind,'noffer');assert.equal(rr.pointer.pubkey,'a'.repeat(64));assert.equal(rr.connectionId,nid);
+    const rs=await resolveWalletSource(a.account.id,'ric_send');
+    assert.equal(rs.kind,'ndebit');assert.equal(rs.connectionId,did);
+    const sess=ndebitEncode({pubkey:'b'.repeat(64),relay:'wss://relay.example',k1:'cc'.repeat(32)});
+    const sessRes=await post('/api/wallet/connect',{connection:sess});
+    assert.equal(sessRes.status,400,'one-time session codes are refused at connect time');
+  }finally{__setClinkClientFactoryForTests(null)}
 });

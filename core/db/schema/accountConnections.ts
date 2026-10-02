@@ -22,6 +22,11 @@ export const accountConnectionsTable = pgTable("account_connections", {
   blinkWalletCurrency: text("blink_wallet_currency"),
   lightningAddress: text("lightning_address"),
   lnurlVerifySupported: boolean("lnurl_verify_supported"),
+  // CLINK (clinkme.dev): the static pointer string (noffer1.../ndebit1...;
+  // shareable by design) and the per-connection app key used to sign/encrypt
+  // requests to the wallet's node service (secret, encrypted at rest).
+  clinkPointer: text("clink_pointer"),
+  clinkAppKeyEncrypted: text("clink_app_key_encrypted"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

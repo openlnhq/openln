@@ -54,7 +54,8 @@ import {
 } from "./nwc.js";
 import { requestLnurlInvoice } from "./lnAddress.js";
 import { blinkMakeInvoice } from "./blink.js";
-import type { MerchantFunding } from "./walletSource.js";
+import { updateConnectionClinkPointer, type MerchantFunding } from "./walletSource.js";
+import { clinkRequestInvoice, clinkLatestFrom, parseClinkPointer, type ParsedClinkPointer } from "./clink.js";
 import { logger } from "./logger.js";
 import { recordPaymentEvent } from "./paymentLog.js";
 import { recordPartnerEarning } from "./partnerShare.js";
@@ -163,6 +164,23 @@ async function mintMerchantInvoice(
     case "nwc": {
       const inv = await makeInvoice(amountSats, memo, MERCHANT_EXPIRY_SECONDS, funding.nwcUrl);
       return { bolt11: inv.bolt11, paymentHash: inv.paymentHash };
+    }
+    case "clink_offer": {
+      // CLINK offer: request the invoice from the wallet's node service over
+      // Nostr. If the wallet reports the offer moved (code 3 with a `latest`
+      // replacement), adopt the new pointer once and retry.
+      const attempt = (pointer: ParsedClinkPointer) =>
+        clinkRequestInvoice({ pointer, appKey: funding.appKey, amountSats, description: memo });
+      try {
+        return await attempt(funding.pointer);
+      } catch (err) {
+        const latest = clinkLatestFrom(err);
+        const fresh = latest ? parseClinkPointer(latest) : null;
+        if (!fresh || fresh.kind !== "noffer") throw err;
+        if (funding.connectionId) await updateConnectionClinkPointer(funding.connectionId, fresh.raw).catch(() => {});
+        logger.info({ connectionId: funding.connectionId ?? null }, "CLINK offer moved - adopted the wallet's latest pointer");
+        return await attempt(fresh);
+      }
     }
     case "lnaddress": {
       const inv = await requestLnurlInvoice(funding.address, amountSats, memo);

@@ -5,24 +5,25 @@ import assert from 'node:assert/strict';
 import { connectionCapabilities, connectionKindLabel, connectionDisplayLabel, nextConnectionLabel, connectionPublicView, deriveConnectionLabel, uniqueConnectionLabel, providerFromHost } from '../dist/core/money/connections.js';
 import { connectionChainForPurpose } from '../dist/core/money/walletSource.js';
 
-test('capabilities by kind: address lanes receive only; unknown kinds stay inert', () => {
+test('capabilities by kind: half-capable wallets gate each direction; unknown kinds stay inert', () => {
   assert.deepEqual(connectionCapabilities('nwc'), { send: true, receive: true });
   assert.deepEqual(connectionCapabilities('blink'), { send: true, receive: true });
   assert.deepEqual(connectionCapabilities('lnaddress'), { send: false, receive: true });
-  // Future kinds (e.g. lightning.pub nDebit / nOffer) get an entry when they ship.
-  assert.deepEqual(connectionCapabilities('ndebit'), { send: false, receive: false });
-  assert.deepEqual(connectionCapabilities('noffer'), { send: false, receive: false });
+  assert.deepEqual(connectionCapabilities('noffer'), { send: false, receive: true });
+  assert.deepEqual(connectionCapabilities('ndebit'), { send: true, receive: false });
+  // Unknown kinds stay inert until they get their own capability entry.
+  assert.deepEqual(connectionCapabilities('mystery'), { send: false, receive: false });
 });
 
-test('resolution chain: feature assignment first, default fallback, de-duplicated', () => {
-  const account = { defaultConnectionId: 'd', ricConnectionId: 'r', cardsConnectionId: null };
-  assert.deepEqual(connectionChainForPurpose(account, 'ric'), ['r', 'd']);
-  assert.deepEqual(connectionChainForPurpose(account, 'cards'), ['d']);
+test('resolution chain: direction assignment first, default fallback, de-duplicated', () => {
+  const account = { defaultConnectionId: 'd', ricReceiveConnectionId: 'r', ricSendConnectionId: 's', cardsReceiveConnectionId: null, cardsSendConnectionId: null };
+  assert.deepEqual(connectionChainForPurpose(account, 'ric_receive'), ['r', 'd']);
+  assert.deepEqual(connectionChainForPurpose(account, 'ric_send'), ['s', 'd']);
+  assert.deepEqual(connectionChainForPurpose(account, 'cards_receive'), ['d']);
+  assert.deepEqual(connectionChainForPurpose(account, 'cards_send'), ['d']);
   assert.deepEqual(connectionChainForPurpose(account, 'default'), ['d']);
-  assert.deepEqual(connectionChainForPurpose({ defaultConnectionId: 'd', ricConnectionId: 'd', cardsConnectionId: null }, 'ric'), ['d']);
-  assert.deepEqual(connectionChainForPurpose({ defaultConnectionId: null, ricConnectionId: null, cardsConnectionId: null }, 'ric'), []);
-  const both = { defaultConnectionId: 'd', ricConnectionId: 'r', cardsConnectionId: 'c' };
-  assert.deepEqual(connectionChainForPurpose(both, 'cards'), ['c', 'd']);
+  assert.deepEqual(connectionChainForPurpose({ ...account, ricReceiveConnectionId: 'd' }, 'ric_receive'), ['d'], 'the same id in both spots never repeats');
+  assert.deepEqual(connectionChainForPurpose({ defaultConnectionId: null, ricReceiveConnectionId: null, ricSendConnectionId: null, cardsReceiveConnectionId: null, cardsSendConnectionId: null }, 'ric_send'), []);
 });
 
 test('public view never carries stored secrets and names kinds in human terms', () => {
@@ -31,6 +32,8 @@ test('public view never carries stored secrets and names kinds in human terms', 
   assert.ok(!/nwc_url|api_key|encrypted|secret/i.test(JSON.stringify(view)), 'no store fields leak into the API view');
   assert.equal(connectionKindLabel('nwc'), 'Nostr Wallet Connect');
   assert.equal(connectionKindLabel('blink'), 'Blink');
+  assert.equal(connectionKindLabel('noffer'), 'CLINK Offer');
+  assert.equal(connectionKindLabel('ndebit'), 'CLINK Debit');
   assert.equal(connectionDisplayLabel('nwc', '  My Hub '), 'My Hub');
   assert.equal(connectionDisplayLabel('nwc', ''), 'Nostr Wallet Connect');
 });

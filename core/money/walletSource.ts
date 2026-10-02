@@ -4,30 +4,40 @@
  *
  * Sources come from saved wallet connections (account_connections): an
  * account can keep several wallets on file, and each feature resolves its
- * own. RIC and Cards carry a per-feature assignment; every other surface
- * uses the account's default connection. Both directions of a feature (send
- * and receive) run through its assigned connection - what is possible
- * depends on the wallet's capabilities (core/money/connections.ts).
+ * own. RIC and Cards carry separate receive + send assignments (CLINK
+ * pointers are one-directional: an offer receives, a debit sends); every
+ * other surface uses the account's default connection. What is possible in
+ * each direction depends on the wallet's capabilities
+ * (core/money/connections.ts).
  *
  *   - kind 'nwc'       : Veil or custom NWC wallet (receive + spend + balance)
  *   - kind 'blink'     : Blink API wallet (receive + spend + balance; spending
  *                        needs the API key's Write scope)
  *   - kind 'lnaddress' : lightning address (receive-only; wrapped settlement,
  *                        LUD-21 verify used where the provider serves it)
+ *   - kind 'noffer'    : CLINK offer (receive-only; invoice requested over Nostr)
+ *   - kind 'ndebit'    : CLINK debit (send-only; the wallet pays an invoice we hand it)
  *   - kind 'none'      : wallet setup not completed
  */
 import { db } from "../db/index.js";
 import { accountsTable, accountConnectionsTable } from "../db/index.js";
 import { and, eq } from "drizzle-orm";
 import { getAccountNwcUrl, getAccountVeilNwcUrl, normalizeNwcUrl, resolveNwcUrl } from "./nwc.js";
+import { parseClinkPointer, type NofferPointer, type NdebitPointer } from "./clink.js";
 
-/** Which feature a resolution is for. More purposes (pos, shop, ...) later. */
-export type WalletPurpose = "default" | "ric" | "cards";
+/**
+ * Which resolution a caller asks for. Features resolve per direction
+ * (ric_receive / ric_send / cards_receive / cards_send); every other
+ * surface uses "default".
+ */
+export type WalletPurpose = "default" | "ric_receive" | "ric_send" | "cards_receive" | "cards_send";
 
 export type WalletSource =
   | { kind: "nwc"; nwcUrl: string; mode: "veil" | "custom"; connectionId?: string }
   | { kind: "blink"; apiKey: string; walletId: string | null; currency: string | null; connectionId?: string }
   | { kind: "lnaddress"; address: string; verifySupported: boolean; connectionId?: string }
+  | { kind: "noffer"; pointer: NofferPointer; appKey: string; connectionId?: string }
+  | { kind: "ndebit"; pointer: NdebitPointer; appKey: string; connectionId?: string }
   | { kind: "none"; connectionId?: string };
 
 /**
@@ -40,7 +50,8 @@ export type WalletSource =
 export type MerchantFunding =
   | { kind: "nwc"; nwcUrl: string }
   | { kind: "blink"; apiKey: string; walletId: string | null }
-  | { kind: "lnaddress"; address: string };
+  | { kind: "lnaddress"; address: string }
+  | { kind: "clink_offer"; pointer: NofferPointer; appKey: string; connectionId?: string };
 
 export function merchantFundingFromSource(source: WalletSource): MerchantFunding | null {
   switch (source.kind) {
@@ -50,22 +61,40 @@ export function merchantFundingFromSource(source: WalletSource): MerchantFunding
       return { kind: "blink", apiKey: source.apiKey, walletId: source.walletId };
     case "lnaddress":
       return { kind: "lnaddress", address: source.address };
+    case "noffer":
+      return { kind: "clink_offer", pointer: source.pointer, appKey: source.appKey, connectionId: source.connectionId };
     default:
       return null;
   }
 }
 
 /**
- * The connection ids a purpose resolves through, in order: the feature's own
- * assignment first, then the default connection. Pure - exported for tests.
- * A stale pointer (row deleted) falls through the chain; a connection whose
- * payload cannot be read fails closed instead of silently rerouting.
+ * The connection ids a purpose resolves through, in order: the feature's
+ * direction-specific assignment first, then the default connection. Pure -
+ * exported for tests. A stale pointer (row deleted) falls through the chain;
+ * a connection whose payload cannot be read fails closed instead of
+ * silently rerouting.
  */
 export function connectionChainForPurpose(
-  account: { defaultConnectionId: string | null; ricConnectionId: string | null; cardsConnectionId: string | null },
+  account: {
+    defaultConnectionId: string | null;
+    ricReceiveConnectionId: string | null;
+    ricSendConnectionId: string | null;
+    cardsReceiveConnectionId: string | null;
+    cardsSendConnectionId: string | null;
+  },
   purpose: WalletPurpose,
 ): string[] {
-  const featureId = purpose === "ric" ? account.ricConnectionId : purpose === "cards" ? account.cardsConnectionId : null;
+  const featureId =
+    purpose === "ric_receive"
+      ? account.ricReceiveConnectionId
+      : purpose === "ric_send"
+        ? account.ricSendConnectionId
+        : purpose === "cards_receive"
+          ? account.cardsReceiveConnectionId
+          : purpose === "cards_send"
+            ? account.cardsSendConnectionId
+            : null;
   const chain: string[] = [];
   if (featureId) chain.push(featureId);
   if (account.defaultConnectionId && account.defaultConnectionId !== featureId) chain.push(account.defaultConnectionId);
@@ -76,6 +105,18 @@ type ConnectionRow = typeof accountConnectionsTable.$inferSelect;
 
 /** Build a WalletSource from one saved connection row. Null when unusable. */
 async function walletSourceFromConnection(accountId: string, conn: ConnectionRow): Promise<WalletSource | null> {
+  if (conn.kind === "noffer" || conn.kind === "ndebit") {
+    // CLINK pointer: public string + per-connection app key (secret). The
+    // stored pointer must decode as the kind it was saved under, otherwise
+    // the row is unusable - fail closed, never guess.
+    const parsed = conn.clinkPointer ? parseClinkPointer(conn.clinkPointer) : null;
+    if (!parsed || parsed.kind !== conn.kind) return null;
+    const appKey = resolveNwcUrl(conn.clinkAppKeyEncrypted);
+    if (!appKey) return null;
+    return parsed.kind === "noffer"
+      ? { kind: "noffer", pointer: parsed, appKey, connectionId: conn.id }
+      : { kind: "ndebit", pointer: parsed, appKey, connectionId: conn.id };
+  }
   if (conn.kind === "lnaddress") {
     if (!conn.lightningAddress) return null;
     return { kind: "lnaddress", address: conn.lightningAddress, verifySupported: conn.lnurlVerifySupported !== false, connectionId: conn.id };
@@ -119,8 +160,10 @@ export async function resolveWalletSource(accountId: string, purpose: WalletPurp
       blinkWalletCurrency: accountsTable.blinkWalletCurrency,
       lnurlVerifySupported: accountsTable.lnurlVerifySupported,
       defaultConnectionId: accountsTable.defaultConnectionId,
-      ricConnectionId: accountsTable.ricConnectionId,
-      cardsConnectionId: accountsTable.cardsConnectionId,
+      ricReceiveConnectionId: accountsTable.ricReceiveConnectionId,
+      ricSendConnectionId: accountsTable.ricSendConnectionId,
+      cardsReceiveConnectionId: accountsTable.cardsReceiveConnectionId,
+      cardsSendConnectionId: accountsTable.cardsSendConnectionId,
     })
     .from(accountsTable)
     .where(eq(accountsTable.id, accountId));
@@ -175,6 +218,20 @@ export async function resolveConnectionSource(accountId: string, connectionId: s
     .where(and(eq(accountConnectionsTable.id, connectionId), eq(accountConnectionsTable.accountId, accountId)));
   if (!conn) return null;
   return walletSourceFromConnection(accountId, conn);
+}
+
+/**
+ * Adopt a wallet-reported replacement pointer (a CLINK code-3 response can
+ * carry `latest`). Only the pointer string changes; the per-connection app
+ * key stays, so the wallet keeps recognising openLN as the same app.
+ */
+export async function updateConnectionClinkPointer(connectionId: string, newPointerRaw: string): Promise<boolean> {
+  const [row] = await db
+    .update(accountConnectionsTable)
+    .set({ clinkPointer: newPointerRaw, updatedAt: new Date() })
+    .where(eq(accountConnectionsTable.id, connectionId))
+    .returning({ id: accountConnectionsTable.id });
+  return !!row;
 }
 
 /**

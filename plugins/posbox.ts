@@ -9,6 +9,8 @@ import { verifySendPin, SEND_PIN_UNSET } from "../core/auth/send-pin.js";
 import { generateK1, encodeLnurl, decryptSunP, verifySunC } from "../core/money/boltcard.js";
 import { captureFiatSnapshot } from "../core/money/fiatSnapshot.js";
 import { resolveWalletSource } from "../core/money/walletSource.js";
+import { connectionCapabilities } from "../core/money/connections.js";
+import { clinkRequestInvoice } from "../core/money/clink.js";
 import { makeInvoice } from "../core/money/nwc.js";
 import { blinkMakeInvoice } from "../core/money/blink.js";
 import { processExternalPayment } from "../core/money/feeEngine.js";
@@ -88,10 +90,10 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   const pin = String(v.pin ?? "");
   if (!amountSats || !Number.isInteger(amountSats) || amountSats < 1) return json(res, 400, { error: "amountSats must be a positive integer" });
   const denied = await sendPinGuard(account.id, pin); if (denied) return json(res, denied.status, denied.body);
-  // RIC sends run through the wallet assigned to the RIC in Settings.
-  const source = await resolveWalletSource(account.id, "ric");
+  // RIC sends run through the wallet assigned to the RIC's send direction in Settings.
+  const source = await resolveWalletSource(account.id, "ric_send");
   if (source.kind === "none") return json(res, 400, { error: "Wallet not configured" });
-  if (source.kind === "lnaddress") return json(res, 400, { error: "This RIC's wallet is receive-only. Assign a wallet that can send in Settings to use RIC send." });
+  if (!connectionCapabilities(source.kind).send) return json(res, 400, { error: "This RIC's wallet can't send. Assign a wallet that can send in Settings to use RIC send." });
   const k1 = generateK1();
   const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "send");
   const expiresAt = new Date(Date.now() + WITHDRAW_EXPIRY_MS);
@@ -125,7 +127,7 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   if (!pr) return json(res, 200, { tag: "withdrawRequest", callback: `https://${DOMAIN}/api/pos/withdraw/callback`, k1, defaultDescription: "openLN send", minWithdrawable: pending.amountSats * 1000, maxWithdrawable: pending.amountSats * 1000 });
   if (pending.paidAt) return json(res, 200, { status: "ERROR", reason: "Withdrawal already claimed" });
   try {
-   const { paymentHash, feeSats } = await processExternalPayment(pending.accountId, pr, pending.amountSats, undefined, WITHDRAW_MEMO, undefined, undefined, "ric", "ric");
+   const { paymentHash, feeSats } = await processExternalPayment(pending.accountId, pr, pending.amountSats, undefined, WITHDRAW_MEMO, undefined, undefined, "ric", "ric_send");
    logger.info({ accountId: pending.accountId, amountSats: pending.amountSats, feeSats, paymentHash }, "RIC send: payment sent via QR");
    await db.update(pendingInvoicesTable).set({ paidAt: new Date(), bolt11: pr }).where(eq(pendingInvoicesTable.id, pending.id));
    return json(res, 200, { status: "OK" });
@@ -165,23 +167,24 @@ export async function handlePosboxRoute(req:IncomingMessage,res:ServerResponse,u
   if (!sunData) return json(res, 400, { error: "Card authentication failed" });
   if (!verifySunC(key2Hex, sunData.uid, sunData.counter, cHex.toLowerCase())) return json(res, 400, { error: "Card verification failed" });
   const cardAccountId = card.accountId;
-  // The card's own wallet (Cards assignment) receives; the merchant's wallet
-  // (RIC assignment) pays. Receiving works on any wallet kind; paying needs a
-  // wallet that can send.
-  const cardSource = await resolveWalletSource(cardAccountId, "cards");
+  // The card's own wallet (Cards receive assignment) receives; the merchant's
+  // wallet (RIC send assignment) pays. Receiving works on any wallet kind;
+  // paying needs a wallet that can send.
+  const cardSource = await resolveWalletSource(cardAccountId, "cards_receive");
   if (cardSource.kind === "none") {
    return json(res, 400, { error: "The card holder has no wallet connected to receive a transfer" });
   }
-  const merchantSource = await resolveWalletSource(merchantAccountId, "ric");
+  const merchantSource = await resolveWalletSource(merchantAccountId, "ric_send");
   if (merchantSource.kind === "none") return json(res, 400, { error: "Merchant wallet not configured" });
-  if (merchantSource.kind === "lnaddress") return json(res, 400, { error: "This RIC's wallet is receive-only. Assign a wallet that can send in Settings to use RIC send." });
+  if (!connectionCapabilities(merchantSource.kind).send) return json(res, 400, { error: "This RIC's wallet can't send. Assign a wallet that can send in Settings to use RIC send." });
   try {
-   const invoice = cardSource.kind === "blink"
-    ? await blinkMakeInvoice(cardSource.apiKey, cardSource.walletId, amountSats, "openLN send from merchant", 5)
-    : cardSource.kind === "lnaddress"
-     ? await requestLnurlInvoice(cardSource.address, amountSats, "openLN send from merchant")
-     : await makeInvoice(amountSats, "openLN send from merchant", 300, cardSource.nwcUrl);
-   const { paymentHash, feeSats } = await processExternalPayment(merchantAccountId, invoice.bolt11, amountSats, undefined, "RIC send to card", undefined, undefined, "ric", "ric");
+   let invoice: { bolt11: string; paymentHash: string };
+   if (cardSource.kind === "blink") invoice = await blinkMakeInvoice(cardSource.apiKey, cardSource.walletId, amountSats, "openLN send from merchant", 5);
+   else if (cardSource.kind === "lnaddress") invoice = await requestLnurlInvoice(cardSource.address, amountSats, "openLN send from merchant");
+   else if (cardSource.kind === "noffer") invoice = await clinkRequestInvoice({ pointer: cardSource.pointer, appKey: cardSource.appKey, amountSats, description: "openLN send from merchant" });
+   else if (cardSource.kind === "nwc") invoice = await makeInvoice(amountSats, "openLN send from merchant", 300, cardSource.nwcUrl);
+   else return json(res, 400, { error: "The card holder's Cards wallet can't receive. Ask them to assign a wallet that can receive in Settings." });
+   const { paymentHash, feeSats } = await processExternalPayment(merchantAccountId, invoice.bolt11, amountSats, undefined, "RIC send to card", undefined, undefined, "ric", "ric_send");
    logger.info({ cardId, merchantAccountId, cardAccountId, amountSats, feeSats, paymentHash }, "RIC send: payment sent to card holder");
    await db.insert(transactionsTable).values({ cardId, accountId: cardAccountId, amountSats, direction: "in", type: "receive", status: "completed", bolt11: invoice.bolt11, paymentHash, memo: "openLN send to card", origin: "card", class: "top_up", classSource: "system", ...((await captureFiatSnapshot(cardAccountId, amountSats, "receive").catch(() => null)) ?? {}) });
    return json(res, 200, { status: "OK" });

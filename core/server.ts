@@ -12,7 +12,8 @@ import { captureFiatSnapshot } from "./money/fiatSnapshot.js";
 import { createWrappedInvoice, cancelWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource, merchantFundingFromSource, assignDefaultIfUnset, syncLegacyWalletMirror } from "./money/walletSource.js";
-import { connectionPublicView, connectionKindLabel, deriveConnectionLabel, uniqueConnectionLabel } from "./money/connections.js";
+import { connectionPublicView, connectionKindLabel, deriveConnectionLabel, uniqueConnectionLabel, connectionCapabilities } from "./money/connections.js";
+import { parseClinkPointer, clinkRequestInvoice, generateClinkAppKey, describeClinkError } from "./money/clink.js";
 import { detectFunding } from "./money/fundingInput.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
@@ -366,7 +367,7 @@ const server = createServer(async (req, res) => {
       const detected = detectFunding(connection);
       if (!detected) return json(res, 400, { error: "Paste a Nostr Wallet Connect connection, a Lightning Address (name@provider.com), or a Blink API key" });
       const existing = await db
-        .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind, mode: accountConnectionsTable.mode, label: accountConnectionsTable.label, nwcUrlEncrypted: accountConnectionsTable.nwcUrlEncrypted, blinkApiKeyEncrypted: accountConnectionsTable.blinkApiKeyEncrypted, lightningAddress: accountConnectionsTable.lightningAddress })
+        .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind, mode: accountConnectionsTable.mode, label: accountConnectionsTable.label, nwcUrlEncrypted: accountConnectionsTable.nwcUrlEncrypted, blinkApiKeyEncrypted: accountConnectionsTable.blinkApiKeyEncrypted, lightningAddress: accountConnectionsTable.lightningAddress, clinkPointer: accountConnectionsTable.clinkPointer })
         .from(accountConnectionsTable)
         .where(eq(accountConnectionsTable.accountId, account.id));
 
@@ -408,6 +409,33 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, receiveOnly: true, verifySupported: check.verifySupported });
       }
 
+      if (detected.kind === "noffer" || detected.kind === "ndebit") {
+        // CLINK pointer from Lightning.Pub / ShockWallet. noffer = receive,
+        // proven at connect time with a tiny invoice request (nothing is
+        // paid; the probe invoice just expires). ndebit = send - structural
+        // check only, a probe would move money. The wallet sees one stable
+        // app key per connection it can approve or rate-limit.
+        const pointer = parseClinkPointer(detected.pointer);
+        if (!pointer) return json(res, 400, { error: "That CLINK code could not be read. Paste the complete noffer1... or ndebit1... string." });
+        if (pointer.kind === "ndebit" && pointer.k1) {
+          return json(res, 400, { error: "That is a one-time session code. In your wallet open Linked apps and copy your static ndebit." });
+        }
+        if (existing.some((row) => row.kind === pointer.kind && row.clinkPointer === pointer.raw)) {
+          return json(res, 409, { error: "This wallet is already connected." });
+        }
+        const appKey = generateClinkAppKey();
+        if (pointer.kind === "noffer") {
+          try {
+            await clinkRequestInvoice({ pointer, appKey, amountSats: 21, description: "openLN connection check" });
+          } catch (err) {
+            return json(res, 422, { error: describeClinkError(err) });
+          }
+        }
+        const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: pointer.kind, label: uniqueConnectionLabel(existing, deriveConnectionLabel(pointer.kind, pointer.raw)), clinkPointer: pointer.raw, clinkAppKeyEncrypted: encrypt(appKey) }).returning();
+        const becameDefault = await assignDefaultIfUnset(account.id, created.id);
+        return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, receiveOnly: pointer.kind === "noffer", sendOnly: pointer.kind === "ndebit" });
+      }
+
       // Blink API key (custodial accounts). Read + Receive scopes cover
       // receiving and balance; sending still runs through NWC in this
       // release, so a Write scope is not required to connect.
@@ -433,7 +461,7 @@ const server = createServer(async (req, res) => {
       req.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
       return;
     }
-    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc" || source.kind === "blink", receiveOnly: source.kind === "lnaddress", canSend: source.kind === "nwc" || source.kind === "blink", walletMode: source.kind === "nwc" ? source.mode : source.kind, lightningAddress: source.kind === "lnaddress" ? source.address : null, verifySupported: source.kind === "lnaddress" ? source.verifySupported : null, plugins: [] }); }
+    if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); const caps = connectionCapabilities(source.kind); return json(res, 200, { wallet: "non-custodial", connected: source.kind !== "none", receiveOnly: caps.receive && !caps.send, canSend: caps.send, canReceive: caps.receive, walletMode: source.kind === "nwc" ? source.mode : source.kind, lightningAddress: source.kind === "lnaddress" ? source.address : null, verifySupported: source.kind === "lnaddress" ? source.verifySupported : null, plugins: [] }); }
     if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); await reconcileAccountInvoicesBounded(account.id); const source = await resolveWalletSource(account.id); if (source.kind === "nwc") { try { const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } catch { /* a stored wallet that cannot answer must never take the route (or the process) down */ return json(res, 200, { balanceSats: 0, connected: false, unavailable: true }); } } if (source.kind === "blink") { try { const { blinkGetBalance } = await import("./money/blink.js"); const balance = await blinkGetBalance(source.apiKey, source.walletId); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } catch { return json(res, 200, { balanceSats: 0, connected: false, unavailable: true }); } } if (source.kind === "lnaddress") return json(res, 200, { balanceSats: 0, connected: false, receiveOnly: true }); return json(res, 200, { balanceSats: 0, connected: false }); }
 
     // Saved wallet connections: list with capabilities and assignments, set
@@ -442,7 +470,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/connections") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const [acc] = await db
-        .select({ defaultConnectionId: accountsTable.defaultConnectionId, ricConnectionId: accountsTable.ricConnectionId, cardsConnectionId: accountsTable.cardsConnectionId })
+        .select({ defaultConnectionId: accountsTable.defaultConnectionId, ricReceiveConnectionId: accountsTable.ricReceiveConnectionId, ricSendConnectionId: accountsTable.ricSendConnectionId, cardsReceiveConnectionId: accountsTable.cardsReceiveConnectionId, cardsSendConnectionId: accountsTable.cardsSendConnectionId })
         .from(accountsTable)
         .where(eq(accountsTable.id, account.id));
       const rows = await db
@@ -468,34 +496,46 @@ const server = createServer(async (req, res) => {
       const connections = rows.map((row) => {
         const view = connectionPublicView(row);
         const usedBy: string[] = [];
-        if (acc?.ricConnectionId === row.id) usedBy.push("ric");
-        if (acc?.cardsConnectionId === row.id) usedBy.push("cards");
+        if (acc?.ricReceiveConnectionId === row.id) usedBy.push("ric_receive");
+        if (acc?.ricSendConnectionId === row.id) usedBy.push("ric_send");
+        if (acc?.cardsReceiveConnectionId === row.id) usedBy.push("cards_receive");
+        if (acc?.cardsSendConnectionId === row.id) usedBy.push("cards_send");
         return { ...view, isDefault: acc?.defaultConnectionId === row.id, usedBy };
       });
-      return json(res, 200, { connections, assignments: { ric: acc?.ricConnectionId ?? null, cards: acc?.cardsConnectionId ?? null }, defaultId: acc?.defaultConnectionId ?? null });
+      return json(res, 200, { connections, assignments: { ric_receive: acc?.ricReceiveConnectionId ?? null, ric_send: acc?.ricSendConnectionId ?? null, cards_receive: acc?.cardsReceiveConnectionId ?? null, cards_send: acc?.cardsSendConnectionId ?? null }, defaultId: acc?.defaultConnectionId ?? null });
     }
     if (req.method === "POST" && u.pathname === "/api/connections/assign") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req);
-      const patch: { ricConnectionId?: string | null; cardsConnectionId?: string | null } = {};
-      for (const [key, field] of [["ric", "ricConnectionId"], ["cards", "cardsConnectionId"]] as const) {
+      const patch: { ricReceiveConnectionId?: string | null; ricSendConnectionId?: string | null; cardsReceiveConnectionId?: string | null; cardsSendConnectionId?: string | null } = {};
+      const slotFields = [
+        ["ric_receive", "ricReceiveConnectionId"],
+        ["ric_send", "ricSendConnectionId"],
+        ["cards_receive", "cardsReceiveConnectionId"],
+        ["cards_send", "cardsSendConnectionId"],
+      ] as const;
+      const slotNeeds: Record<string, "receive" | "send"> = { ric_receive: "receive", ric_send: "send", cards_receive: "receive", cards_send: "send" };
+      for (const [key, field] of slotFields) {
         if (!(key in v)) continue;
         const raw = v[key];
-        if (raw === null) { patch[field] = null; continue; }
+        if (raw === null || raw === "") { patch[field] = null; continue; }
         const id = String(raw);
         const [conn] = await db
-          .select({ id: accountConnectionsTable.id })
+          .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind })
           .from(accountConnectionsTable)
           .where(and(eq(accountConnectionsTable.id, id), eq(accountConnectionsTable.accountId, account.id)));
         if (!conn) return json(res, 400, { error: "That wallet connection does not exist" });
+        const caps = connectionCapabilities(conn.kind);
+        if (slotNeeds[key] === "send" && !caps.send) return json(res, 400, { error: `${connectionKindLabel(conn.kind)} can't send - pick a wallet that can send for this slot` });
+        if (slotNeeds[key] === "receive" && !caps.receive) return json(res, 400, { error: `${connectionKindLabel(conn.kind)} can't receive - pick a wallet that can receive for this slot` });
         patch[field] = id;
       }
       if (Object.keys(patch).length) await db.update(accountsTable).set(patch).where(eq(accountsTable.id, account.id));
       const [acc] = await db
-        .select({ ricConnectionId: accountsTable.ricConnectionId, cardsConnectionId: accountsTable.cardsConnectionId })
+        .select({ ricReceiveConnectionId: accountsTable.ricReceiveConnectionId, ricSendConnectionId: accountsTable.ricSendConnectionId, cardsReceiveConnectionId: accountsTable.cardsReceiveConnectionId, cardsSendConnectionId: accountsTable.cardsSendConnectionId })
         .from(accountsTable)
         .where(eq(accountsTable.id, account.id));
-      return json(res, 200, { ok: true, assignments: { ric: acc?.ricConnectionId ?? null, cards: acc?.cardsConnectionId ?? null } });
+      return json(res, 200, { ok: true, assignments: { ric_receive: acc?.ricReceiveConnectionId ?? null, ric_send: acc?.ricSendConnectionId ?? null, cards_receive: acc?.cardsReceiveConnectionId ?? null, cards_send: acc?.cardsSendConnectionId ?? null } });
     }
     {
       const connDefault = u.pathname.match(/^\/api\/connections\/([^/]+)\/default$/);
@@ -562,7 +602,7 @@ const server = createServer(async (req, res) => {
       // Receive-only funding sources get an honest message instead of a
       // cryptic wallet error; NWC and Blink accounts both send.
       const paySource = await resolveWalletSource(account.id);
-      if (paySource.kind === "lnaddress") return json(res, 400, { error: "Lightning Address accounts are receive-only - connect a wallet that can send (NWC or Blink)" });
+      if (!connectionCapabilities(paySource.kind).send) return json(res, 400, { error: "This wallet can't send. It may be receive-only or not fully set up - connect a wallet that can send (NWC, Blink, or a CLINK debit) in Settings." });
       try { const { parseBolt11AmountSats } = await import("./money/boltcard.js"); const { processExternalPayment, AmbiguousPaymentError } = await import("./money/feeEngine.js"); const amountSats = parseBolt11AmountSats(bolt11); if (!amountSats) return json(res, 400, { error: "Invoice has no valid amount" }); const result = await processExternalPayment(account.id, bolt11, amountSats, undefined, typeof v.memo === "string" ? v.memo.slice(0, 140) : "openLN send", undefined, undefined, "wallet");
         // Books: the sender declared what this payment is (spend / transfer to own wallet / refund). Stored as a user classification on the row.
         const purpose = String(v.purpose ?? ""); if (["spend", "transfer_out", "refund"].includes(purpose) && result.paymentHash) { await db.update(transactionsTable).set({ class: purpose as "spend" | "transfer_out" | "refund", classSource: "user" }).where(and(eq(transactionsTable.accountId, account.id), eq(transactionsTable.paymentHash, result.paymentHash), eq(transactionsTable.direction, "out"))).catch(() => {}); }
@@ -621,7 +661,7 @@ const server = createServer(async (req, res) => {
       const fromRic = typeof v.deviceId === "string" || (req.headers["user-agent"] ?? "").toString().startsWith("openLN-RIC");
       // RIC sales land in the wallet assigned to the RIC in Settings; every
       // other surface on this route (web POS, wallet top-up) uses the default.
-      const source = await resolveWalletSource(account.id, fromRic ? "ric" : "default");
+      const source = await resolveWalletSource(account.id, fromRic ? "ric_receive" : "default");
       const funding = merchantFundingFromSource(source);
       if (!funding) return json(res, 400, { error: "Wallet not configured" });
       // The wallet's own Receive screen declares purpose "top_up" (owner funding the wallet:
@@ -653,6 +693,14 @@ const server = createServer(async (req, res) => {
           feeSats: wrap.feeSats,
         });
         return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, feeSats:wrap.feeSats, merchantAmountSats:amountSats-wrap.feeSats, expiresAt: wrap.expiresAt });
+      }
+      if (funding.kind === "clink_offer") {
+        // A CLINK offer can mint an invoice, but nothing on our side could
+        // observe a directly paid one (no LUD-21 verify, no lookup verb).
+        // Like a verify-less Lightning Address: settled only through the
+        // wrapped path; refuse the direct fallback so we never sell blind.
+        recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "pos", message: `Direct fallback refused (wrapped path unavailable, CLINK offer has no payment observer); ${amountSats} sat sale was not started`, amountSats });
+        return json(res, 503, { error: "Payments to this wallet are temporarily unavailable. Please retry in a moment." });
       }
       // Direct (unwrapped) invoice - the fallback when wrapping is not
       // available, so a sale is never blocked. The funding source decides how
@@ -735,6 +783,13 @@ const server = createServer(async (req, res) => {
       if (wrap) {
         await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, connectionId: source.connectionId ?? null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), origin: "ln_address", expiresAt: wrap.expiresAt, ...(lnFiat ?? {}) });
         return json(res, 200, { pr: wrap.bolt11, routes: [] });
+      }
+      if (funding.kind === "clink_offer") {
+        // Same policy as the POS route: an offer invoice can be minted, but
+        // nothing on our side could observe a direct payment to it. The
+        // wrapped path is the only safe settlement for a CLINK offer.
+        recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "lnurlp", message: `Direct fallback refused (wrapped path unavailable, CLINK offer has no payment observer); ${sats} sat payment was not started`, amountSats: sats });
+        return json(res, 503, { status: "ERROR", reason: "This merchant cannot receive right now. Please retry in a moment." });
       }
       if (funding.kind === "nwc") {
         const invoice = await makeInvoice(sats, "openLN payment", 3600, funding.nwcUrl);

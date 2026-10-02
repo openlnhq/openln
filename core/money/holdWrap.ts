@@ -80,6 +80,11 @@ const WRAP_MAX_OPEN = Number(process.env.WRAP_MAX_OPEN ?? 200);
 const FORWARD_STALE_MS = 90 * 1000;
 // After this long stuck in forwarding with no resolution, flag for manual review.
 const FORWARD_ABANDON_MS = 30 * 60 * 1000;
+// Never-initiated forwards (the platform node holds NO outgoing record) are
+// retried at most this often so a wedged hub cannot be hammered; resolved
+// rows drop their entry (see the "not_found" branch of forwarding recovery).
+const FORWARD_RETRY_THROTTLE_MS = 2 * 60 * 1000;
+const forwardRetryAt = new Map<string, number>(); // invoiceId → last retry attempt
 
 /** 2% incoming fee: max(1 sat, ceil(2%)), clamped so the merchant always gets >= 1 sat. */
 export function incomingFeeSats(amountSats: number): number {
@@ -363,9 +368,10 @@ function isAlreadyPaidError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   // "duplicate payment" belongs here too: on LDK it means an outgoing payment
   // with this hash was already initiated - possibly one that SUCCEEDED (or is
-  // still in flight). Like "already paid", it must be resolved by checking
-  // the outgoing payment's actual state, never by cancelling blindly.
-  return /already.?paid|invoice.?(is.)?paid|duplicate.?payment/i.test(msg);
+  // still in flight). "Already underway / in progress" say the same in wallet
+  // wording. All of them must be resolved by checking the outgoing payment's
+  // actual state, never by cancelling blindly.
+  return /already.?paid|invoice.?(is.)?paid|duplicate.?payment|already.?underway|already in progress|already being processed/i.test(msg);
 }
 
 function isAlreadySettledError(err: unknown): boolean {
@@ -402,7 +408,7 @@ async function cancelHoldTolerant(paymentHash: string): Promise<void> {
  * Check the platform node's OWN record of the outgoing merchant payment.
  * This is the authoritative forward-state source: it works even when the
  * merchant's wallet (e.g. Primal) never reports settlement over NWC.
- * Returns "settled" | "failed" | "pending" | "unknown".
+ * Returns "settled" | "failed" | "pending" | "not_found" | "unknown".
  */
 async function platformOutgoingState(merchantHash: string): Promise<{ state: string; preimage?: string }> {
   try {
@@ -414,7 +420,11 @@ async function platformOutgoingState(merchantHash: string): Promise<{ state: str
     return { state: "unknown" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/not.?found|no.?such/i.test(msg)) return { state: "failed" }; // never initiated
+    // NOT_FOUND = the node holds NO outgoing record for this hash: the forward
+    // was never initiated. Distinct from state="failed" (an attempt exists and
+    // failed - on LDK that hash is burned); a never-initiated forward can
+    // still be paid, so the recovery retries it instead of refunding.
+    if (/not.?found|no.?such/i.test(msg)) return { state: "not_found" };
     return { state: "unknown" };
   }
 }
@@ -708,11 +718,72 @@ async function doAdvance(row: WrapRow): Promise<string> {
       status = "forwarded";
       resolved = true;
     } else if (outgoing.state === "failed") {
-      // The forward definitively failed (or was never initiated). On LDK the
-      // hash is burned, so a retry can never succeed - refund the customer.
+      // The forward definitively failed on the node; on LDK the hash is
+      // burned, so a retry can never succeed - refund the customer.
+      forwardRetryAt.delete(row.id);
       await cancelHoldTolerant(row.paymentHash);
       await setWrapStatus(row.id, ["forwarding"], "cancelled");
       return "cancelled";
+    } else if (outgoing.state === "not_found") {
+      // No outgoing record at all: the forward was never initiated (e.g. the
+      // process crashed right after claiming "forwarding", before the node
+      // ever saw the request). Unlike a failed payment this can still be
+      // paid - retry it (throttled) instead of refunding; a sale should not
+      // be lost while the merchant invoice still exists.
+      if (!row.merchantBolt11) {
+        await setWrapStatus(row.id, ["forwarding"], "needs_reconciliation");
+        logger.error({ invoiceId: row.id }, "Wrap in forwarding has no merchant bolt11 - needs manual reconciliation");
+        return "needs_reconciliation";
+      }
+      const lastRetry = forwardRetryAt.get(row.id) ?? 0;
+      if (Date.now() - lastRetry >= FORWARD_RETRY_THROTTLE_MS) {
+        if (forwardRetryAt.size > 500) forwardRetryAt.clear();
+        forwardRetryAt.set(row.id, Date.now());
+        try {
+          const pay = await payInvoice(row.merchantBolt11, PLATFORM_NWC_URL);
+          const cas = await setWrapStatus(row.id, ["forwarding"], "forwarded", { preimage: pay.preimage });
+          if (!cas) return currentWrapStatus(row.id, "forwarded"); // concurrent advance won - trust the DB
+          recordPaymentEvent({
+            paymentId: row.id,
+            accountId: row.accountId,
+            kind: "wrap",
+            event: "wrap.forward_retried",
+            status: "success",
+            mile: "last_mile",
+            message: "Forward was never initiated - retried and paid",
+            paymentHash: row.paymentHash,
+            merchantPaymentHash: row.merchantPaymentHash,
+            amountSats: row.amountSats,
+            feeSats: row.feeSats,
+          });
+          row.preimage = pay.preimage;
+          status = "forwarded";
+          resolved = true;
+          forwardRetryAt.delete(row.id);
+          logger.info({ invoiceId: row.id }, "Forward was never initiated - retried and paid");
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (isAlreadyPaidError(err)) {
+            // Contradicts the not-found lookup: an attempt surfaced after all.
+            // Leave it for the outgoing-state check on a later sweep.
+            logger.warn({ invoiceId: row.id, err: msg }, "Forward retry found an existing attempt - awaiting resolution");
+          } else if (isDefinitivePayFailure(err)) {
+            logger.warn({ invoiceId: row.id, err: msg }, "Forward retry failed definitively - cancelling hold");
+            try {
+              forwardRetryAt.delete(row.id);
+              await cancelHoldTolerant(row.paymentHash);
+              await setWrapStatus(row.id, ["forwarding"], "cancelled");
+              return "cancelled";
+            } catch (cancelErr) {
+              logger.error({ invoiceId: row.id, err: cancelErr }, "Hold cancel failed after forward retry failure");
+            }
+          } else {
+            // Ambiguous (timeout, relay hiccup): the retry may still be in
+            // flight - leave it; the next sweep resolves via the outgoing state.
+            logger.warn({ invoiceId: row.id, err: msg }, "Forward retry ambiguous - awaiting resolution");
+          }
+        }
+      }
     }
     if (!resolved && status === "forwarding") {
       if (age > FORWARD_ABANDON_MS) {
@@ -757,7 +828,9 @@ async function doAdvance(row: WrapRow): Promise<string> {
  */
 export async function advanceWrapBatch(rows: WrapRow[]): Promise<void> {
   for (const row of rows) {
-    if (relayInCooldown()) return;
+    // Wraps advance through the PLATFORM wallet (hold + forward + settle);
+    // only its relay going quiet should pause the batch.
+    if (relayInCooldown(PLATFORM_NWC_URL)) return;
     await advanceWrap(row);
   }
 }

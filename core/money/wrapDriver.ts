@@ -20,7 +20,7 @@
 import { and, inArray, isNull, eq, asc } from "drizzle-orm";
 import { db, pendingInvoicesTable } from "../db/index.js";
 import { advanceWrap, cancelWrap, type WrapRow } from "./holdWrap.js";
-import { relayInCooldown } from "./nwc.js";
+import { relayInCooldown, PLATFORM_NWC_URL } from "./nwc.js";
 import { emitAccountEvent } from "../events.js";
 import { logger } from "./logger.js";
 
@@ -100,7 +100,7 @@ async function drive(reason: "sweep" | "kick"): Promise<void> {
   if (running) return;
   running = true;
   try {
-    if (relayInCooldown() && reason === "sweep") return;
+    if (reason === "sweep" && relayInCooldown(PLATFORM_NWC_URL)) return;
     const rows = await db
       .select()
       .from(pendingInvoicesTable)

@@ -249,7 +249,7 @@ async function checkInvoiceBatch(invoices: PendingInvoiceRow[], context: string)
   }
 
   for (const [nwcUrl, group] of byWallet) {
-    if (relayInCooldown()) return;
+    if (relayInCooldown(nwcUrl)) continue; // this wallet's relay is cooling - others keep going
 
     // Invoices still needing a check after the batch pass. A truncated
     // list_transactions page (busy wallet) must NOT leave paid invoices
@@ -288,7 +288,7 @@ async function checkInvoiceBatch(invoices: PendingInvoiceRow[], context: string)
         }
         remaining = unmatched;
       } catch (err) {
-        if (noteRelayOverload(err)) return;
+        if (noteRelayOverload(err, nwcUrl)) continue;
         if (isUnsupportedMethodError(err)) {
           walletsWithoutListTx.add(nwcUrl);
           logger.info(`${context}: wallet does not support list_transactions - using per-invoice lookups`);
@@ -302,14 +302,14 @@ async function checkInvoiceBatch(invoices: PendingInvoiceRow[], context: string)
     // Bounded per-invoice lookups: fallback for unsupported wallets, and
     // completeness pass for invoices unmatched on a truncated page.
     for (const inv of remaining) {
-      if (relayInCooldown()) return;
+      if (relayInCooldown(nwcUrl)) break; // relay cooling - move to the next wallet
       try {
         const status = await lookupInvoice(inv.paymentHash, nwcUrl);
         if (status.paid) {
           await settleInvoice(inv, status.paidAt ?? new Date());
         }
       } catch (err) {
-        if (noteRelayOverload(err)) return;
+        if (noteRelayOverload(err, nwcUrl)) break;
         logger.warn({ err, invoiceId: inv.id }, `${context}: failed to check invoice`);
       }
     }
@@ -342,7 +342,10 @@ export function reconcileAccountInvoices(accountId: string): Promise<void> {
 }
 
 async function doReconcile(accountId: string): Promise<void> {
-  if (relayInCooldown()) return;
+  // Scope the gate to the account's own relay (checkInvoiceBatch re-checks
+  // per wallet as well); receive-only lanes have no relay to cool.
+  const src = await resolveWalletSource(accountId).catch(() => ({ kind: "none" } as const));
+  if (src.kind === "nwc" && relayInCooldown(src.nwcUrl)) return;
 
   const unpaid = await db
     .select()
@@ -403,7 +406,7 @@ export async function subscribeSubWalletInvoice(
     logger.warn({ paymentHash, active: subWalletUnsubs.size }, "Invoice subscription budget reached - relying on reconcile/cron");
     return;
   }
-  if (relayInCooldown()) return;
+  if (relayInCooldown(nwcUrl)) return;
 
   try {
     const client = new NWCClient({ nostrWalletConnectUrl: nwcUrl });
@@ -438,7 +441,7 @@ export async function subscribeSubWalletInvoice(
     subWalletUnsubs.set(paymentHash, cleanup);
     logger.info({ paymentHash, active: subWalletUnsubs.size }, "Veil invoice subscription active");
   } catch (err) {
-    if (!noteRelayOverload(err)) {
+    if (!noteRelayOverload(err, nwcUrl)) {
       logger.warn({ err, paymentHash }, "Veil invoice subscription failed - cron will cover it");
     }
   }
@@ -455,8 +458,8 @@ export async function subscribeSubWalletInvoice(
 let sweepCursor: { createdAt: Date; id: string } | null = null;
 
 async function runFallbackSweep(): Promise<void> {
-  if (relayInCooldown()) return;
-
+  // No coarse relay gate: checkInvoiceBatch scopes its skips per wallet, so
+  // one cooling relay never stops the sweep for everyone else.
   const graceCutoff = new Date(Date.now() - EXPIRY_GRACE_MS);
   const baseWhere = and(
     isNull(pendingInvoicesTable.paidAt),
@@ -556,8 +559,9 @@ export async function resolveStalledHoldSend(
 }
 
 export async function reconcilePendingSends(): Promise<void> {
-  if (relayInCooldown()) return;
-
+  // No coarse relay gate: the DB-only safety nets below (own-settlement
+  // proof, hold non-arrival) must run regardless; relay lookups gate per
+  // wallet further down.
   const now = Date.now();
   const rows = await db
     .select({
@@ -635,8 +639,8 @@ export async function reconcilePendingSends(): Promise<void> {
     }
     if (source.kind !== "nwc") continue;
 
-    if (relayInCooldown()) return;
     const nwcUrl = source.nwcUrl;
+    if (relayInCooldown(nwcUrl)) continue;
     try {
       const inv = await lookupOutgoingPayment(tx.bolt11!, nwcUrl);
       if (inv.paid) {
@@ -662,7 +666,7 @@ export async function reconcilePendingSends(): Promise<void> {
       }
       // pending / unknown state - leave for the next sweep
     } catch (err) {
-      if (noteRelayOverload(err)) return;
+      if (noteRelayOverload(err, nwcUrl)) continue;
       if (isPaymentNotFoundError(err) && tx.createdAt.getTime() < now - SEND_NOT_FOUND_FAIL_AGE_MS) {
         // NOT_FOUND after the grace window. A false "failed" on real money is
         // the worst outcome, so corroborate against the wallet's transaction
@@ -721,7 +725,7 @@ async function corroborateNotFound(
     // was complete - a truncated page may simply not reach this payment.
     return txs.length < 100 ? "failed" : "unknown";
   } catch (err) {
-    noteRelayOverload(err);
+    noteRelayOverload(err, nwcUrl);
     logger.warn({ err, txId }, "NOT_FOUND corroboration via list_transactions failed - leaving pending");
     return "unknown";
   }

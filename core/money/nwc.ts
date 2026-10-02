@@ -238,7 +238,16 @@ setInterval(() => {
   }
 }, 60 * 1000).unref();
 
-function isTransientRelayError(err: unknown): boolean {
+/**
+ * Transient transport errors worth one retry with a fresh connection. Covers
+ * relay pushback AND connection failures ("Failed to connect to wss://..."):
+ * the request never left us, so retrying cannot double-act - this is what
+ * lets non-pay ops (balance, mint, lookups, hold ops) survive a flaky fresh
+ * connect instead of failing on the first attempt. Pay ops have their own
+ * pre-send gate (isPreSendPayRetryable) with the same connection coverage.
+ */
+export function isTransientRelayError(err: unknown): boolean {
+  if (isConnectionFailure(err)) return true;
   const msg = err instanceof Error ? err.message : String(err);
   return /no info event|timeout|timed out|connection|closed|socket|failed to publish|promises were rejected|rate.?limit|slow down/i.test(msg);
 }
@@ -276,7 +285,12 @@ export function isAmbiguousPayError(err: unknown): boolean {
   // Connection failures are NOT ambiguous - the request never left. They are
   // pre-send retryable and, if exhausted, definitive connection failures.
   if (isConnectionFailure(err)) return false;
-  return /reply timeout|publish timeout|timeout waiting for|no response from wallet/i.test(msg);
+  // "Already underway / already paid / duplicate payment" all mean an attempt
+  // for this payment ALREADY EXISTS (ours, or a concurrent one): the outcome
+  // is unknown, not failed. Resolve it by lookup - never report a false
+  // failure (that drove real double-charges when users retapped) and never
+  // retry blindly.
+  return /reply timeout|publish timeout|timeout waiting for|no response from wallet|already.?underway|already in progress|already being processed|already.?paid|invoice.?(is.)?paid|duplicate.?payment/i.test(msg);
 }
 
 /**
@@ -346,27 +360,73 @@ function delay(ms: number): Promise<void> {
 }
 
 // ── Relay overload cooldown ──────────────────────────────────────────────────
-// When the relay refuses fresh connections or rate-limits us, ALL background
-// work (reconcile, sweeps, subscriptions) must back off so the limited request
-// budget goes to user-facing calls. User-facing ops still attempt (with one
-// retry) - the cooldown only silences background traffic.
+// When a relay refuses fresh connections or rate-limits us, background work
+// AGAINST THAT RELAY backs off so the limited request budget goes to
+// user-facing calls. Cooldowns are scoped per relay host: one flaky wallet's
+// relay must never pause background work for wallets on other relays.
+// Unattributable overloads (no relay in the error and no wallet URL) still
+// gate everything as a safety net. User-facing ops keep attempting (with one
+// retry) - this only silences background traffic.
 
 const RELAY_COOLDOWN_MS = 2 * 60 * 1000;
-let relayCooldownUntil = 0;
+const relayCooldowns = new Map<string, number>(); // relay host → cooldown end (ms)
+let unattributedCooldownUntil = 0;
 
-export function relayInCooldown(): boolean {
-  return Date.now() < relayCooldownUntil;
+/** First relay host of an NWC URL (relay= params may repeat; ws→http to parse). */
+function relayKeyFromUrl(nwcUrl: string | undefined | null): string | null {
+  if (!nwcUrl) return null;
+  const m = String(nwcUrl).match(/[?&]relay=([^&]*)/);
+  if (!m) return null;
+  try {
+    const first = decodeURIComponent(m[1]).split(",")[0];
+    return new URL(first.replace(/^ws/, "http")).host;
+  } catch {
+    return null;
+  }
+}
+
+/** Relay hosts implicated by an error: URLs in the message win, else the wallet URL. */
+function relayKeysFor(err: unknown, nwcUrl?: string | null): string[] {
+  const msg = err instanceof Error ? err.message : String(err);
+  const keys = new Set<string>();
+  for (const m of msg.matchAll(/wss?:\/\/[^\s"'`)\]]+/gi)) {
+    try { keys.add(new URL(m[0]).host); } catch { /* ignore */ }
+  }
+  if (keys.size === 0) {
+    const k = relayKeyFromUrl(nwcUrl);
+    if (k) keys.add(k);
+  }
+  return [...keys];
+}
+
+/**
+ * Background-traffic gate. Pass the wallet's NWC URL so the check scopes to
+ * that wallet's relay; unattributed cooldowns still gate everything.
+ */
+export function relayInCooldown(nwcUrl?: string | null): boolean {
+  const now = Date.now();
+  if (now < unattributedCooldownUntil) return true;
+  const key = relayKeyFromUrl(nwcUrl ?? undefined);
+  if (!key) return false;
+  return now < (relayCooldowns.get(key) ?? 0);
 }
 
 /**
  * Record a relay-side failure. Returns true if the error indicates the relay
- * is overloaded / refusing us, in which case a cooldown window starts.
+ * is overloaded / refusing us, in which case a cooldown window starts for the
+ * implicated relay(s).
  */
-export function noteRelayOverload(err: unknown): boolean {
+export function noteRelayOverload(err: unknown, nwcUrl?: string | null): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   if (/no info event|failed to publish|promises were rejected|failed to connect|rate.?limit|slow down/i.test(msg)) {
-    relayCooldownUntil = Date.now() + RELAY_COOLDOWN_MS;
-    logger.warn({ err: msg }, "Relay overload detected - pausing background NWC traffic for cooldown");
+    const until = Date.now() + RELAY_COOLDOWN_MS;
+    const keys = relayKeysFor(err, nwcUrl);
+    if (keys.length) {
+      for (const k of keys) relayCooldowns.set(k, until);
+    } else {
+      unattributedCooldownUntil = until;
+    }
+    logger.warn({ err: msg, relays: keys }, "Relay overload detected - pausing background NWC traffic for cooldown");
     return true;
   }
   return false;
@@ -395,10 +455,11 @@ async function withClient<T>(nwcUrl: string | undefined, op: (client: NWCClient)
       return await op(getClient(nwcUrl));
     } catch (retryErr) {
       // A FRESH connection also failed - that is a relay-side problem, not a
-      // stale socket. Start the cooldown so background traffic backs off.
+      // stale socket. Start the cooldown (scoped to the failing relay) so
+      // background traffic backs off.
       evictClient(nwcUrl);
       if (pinnedNow) clearEncryptionPin(nwcUrl);
-      noteRelayOverload(retryErr);
+      noteRelayOverload(retryErr, nwcUrl);
       throw retryErr;
     }
   }
@@ -517,7 +578,7 @@ export async function payInvoice(bolt11: string, nwcUrl?: string): Promise<PayIn
     } catch (retryErr) {
       evictClient(nwcUrl);
       if (pinnedNow) clearEncryptionPin(nwcUrl);
-      noteRelayOverload(retryErr);
+      noteRelayOverload(retryErr, nwcUrl);
       throw retryErr;
     }
   }

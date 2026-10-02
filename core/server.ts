@@ -12,7 +12,7 @@ import { captureFiatSnapshot } from "./money/fiatSnapshot.js";
 import { createWrappedInvoice, cancelWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource, merchantFundingFromSource, assignDefaultIfUnset, syncLegacyWalletMirror } from "./money/walletSource.js";
-import { connectionPublicView, nextConnectionLabel } from "./money/connections.js";
+import { connectionPublicView, connectionKindLabel, deriveConnectionLabel, uniqueConnectionLabel } from "./money/connections.js";
 import { detectFunding } from "./money/fundingInput.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
@@ -357,7 +357,7 @@ const server = createServer(async (req, res) => {
       const detected = detectFunding(connection);
       if (!detected) return json(res, 400, { error: "Paste a Nostr Wallet Connect connection, a Lightning Address (name@provider.com), or a Blink API key" });
       const existing = await db
-        .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind, mode: accountConnectionsTable.mode, nwcUrlEncrypted: accountConnectionsTable.nwcUrlEncrypted, blinkApiKeyEncrypted: accountConnectionsTable.blinkApiKeyEncrypted, lightningAddress: accountConnectionsTable.lightningAddress })
+        .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind, mode: accountConnectionsTable.mode, label: accountConnectionsTable.label, nwcUrlEncrypted: accountConnectionsTable.nwcUrlEncrypted, blinkApiKeyEncrypted: accountConnectionsTable.blinkApiKeyEncrypted, lightningAddress: accountConnectionsTable.lightningAddress })
         .from(accountConnectionsTable)
         .where(eq(accountConnectionsTable.accountId, account.id));
 
@@ -373,7 +373,7 @@ const server = createServer(async (req, res) => {
         }
         const {getBalance}=await import("./money/nwc.js");
         try{await getBalance(connection)}catch{return json(res,422,{error:"Could not read this wallet. Check its NWC permissions and connection; nothing was changed."});}
-        const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "nwc", mode: "custom", label: nextConnectionLabel(existing, "nwc"), nwcUrlEncrypted: encrypt(connection) }).returning();
+        const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "nwc", mode: "custom", label: uniqueConnectionLabel(existing, deriveConnectionLabel("nwc", connection)), nwcUrlEncrypted: encrypt(connection) }).returning();
         const becameDefault = await assignDefaultIfUnset(account.id, created.id);
         return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, relays: (connection.match(/relay=/g) ?? []).length });
       }
@@ -394,7 +394,7 @@ const server = createServer(async (req, res) => {
         if (existing.some((row) => row.kind === "lnaddress" && (row.lightningAddress ?? "").toLowerCase() === detected.address.toLowerCase())) {
           return json(res, 409, { error: "This wallet is already connected." });
         }
-        const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "lnaddress", label: nextConnectionLabel(existing, "lnaddress"), lightningAddress: detected.address, lnurlVerifySupported: check.verifySupported }).returning();
+        const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "lnaddress", label: uniqueConnectionLabel(existing, deriveConnectionLabel("lnaddress", detected.address)), lightningAddress: detected.address, lnurlVerifySupported: check.verifySupported }).returning();
         const becameDefault = await assignDefaultIfUnset(account.id, created.id);
         return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, receiveOnly: true, verifySupported: check.verifySupported });
       }
@@ -409,7 +409,7 @@ const server = createServer(async (req, res) => {
       if (existing.some((row) => row.kind === "blink" && resolveNwcUrl(row.blinkApiKeyEncrypted) === detected.apiKey)) {
         return json(res, 409, { error: "This wallet is already connected." });
       }
-      const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "blink", label: nextConnectionLabel(existing, "blink"), blinkApiKeyEncrypted: encrypt(detected.apiKey), blinkWalletId: blinkInfo.walletId, blinkWalletCurrency: blinkInfo.walletCurrency }).returning();
+      const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "blink", label: uniqueConnectionLabel(existing, deriveConnectionLabel("blink", null)), blinkApiKeyEncrypted: encrypt(detected.apiKey), blinkWalletId: blinkInfo.walletId, blinkWalletCurrency: blinkInfo.walletCurrency }).returning();
       const becameDefault = await assignDefaultIfUnset(account.id, created.id);
       return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, balanceSats: blinkInfo.balanceSats });
     }
@@ -441,6 +441,21 @@ const server = createServer(async (req, res) => {
         .from(accountConnectionsTable)
         .where(eq(accountConnectionsTable.accountId, account.id))
         .orderBy(accountConnectionsTable.createdAt, accountConnectionsTable.id);
+      // Backfilled connections arrive with generic names ("Nostr Wallet
+      // Connect"). Where the stored wallet itself names a provider, adopt
+      // that name once so the pickers read like the wallet merchants chose.
+      for (const row of rows) {
+        const generic = connectionKindLabel(row.kind);
+        if (row.label && row.label.trim() && row.label.trim() !== generic) continue;
+        if (row.kind === "nwc" && row.mode !== "custom") continue;
+        const raw = row.kind === "nwc" ? resolveNwcUrl(row.nwcUrlEncrypted) : row.kind === "lnaddress" ? row.lightningAddress : null;
+        if (!raw) continue;
+        const derived = deriveConnectionLabel(row.kind, raw);
+        if (derived === generic) continue;
+        const label = uniqueConnectionLabel(rows.filter((r) => r.id !== row.id), derived);
+        await db.update(accountConnectionsTable).set({ label, updatedAt: new Date() }).where(eq(accountConnectionsTable.id, row.id));
+        row.label = label;
+      }
       const connections = rows.map((row) => {
         const view = connectionPublicView(row);
         const usedBy: string[] = [];
@@ -487,6 +502,21 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { ok: true, defaultId: conn.id });
       }
       const connDelete = u.pathname.match(/^\/api\/connections\/([^/]+)$/);
+      if (req.method === "PATCH" && connDelete) {
+        // Rename only. Shown in Settings and the RIC / Cards pickers.
+        const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+        const id = decodeURIComponent(connDelete[1]);
+        const v = await body(req);
+        const label = typeof v.label === "string" ? v.label.trim().slice(0, 40) : "";
+        if (!label) return json(res, 400, { error: "Wallet name cannot be empty" });
+        const [conn] = await db
+          .select({ id: accountConnectionsTable.id })
+          .from(accountConnectionsTable)
+          .where(and(eq(accountConnectionsTable.id, id), eq(accountConnectionsTable.accountId, account.id)));
+        if (!conn) return json(res, 404, { error: "Connection not found" });
+        await db.update(accountConnectionsTable).set({ label, updatedAt: new Date() }).where(eq(accountConnectionsTable.id, id));
+        return json(res, 200, { ok: true, label });
+      }
       if (req.method === "DELETE" && connDelete) {
         const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
         const id = decodeURIComponent(connDelete[1]);

@@ -109,8 +109,11 @@ test('wallet connections: several wallets on file, per-feature assignment, capab
   assert.ok(helpers.includes('/default'),'a connection can be made the default');
   assert.ok(helpers.includes('receive-only'),'receive-only assignments are flagged in the picker');
   assert.ok(helpers.includes('connCapChips')&&helpers.includes('Default'),'list shows capability chips and the default tag');
+  assert.ok(helpers.includes('Name this wallet')&&helpers.includes("method:'PATCH'"),'wallets can be renamed');
   const wal=html.slice(html.indexOf('async function vWallet('),html.indexOf('function txDetail('));
-  assert.ok(wal.includes('loadWalletConnections')&&wal.includes('connListBlock'),'the wallet view lists every saved connection');
+  assert.ok(!wal.includes('connListBlock')&&!wal.includes('loadWalletConnections'),'the wallet home stays a status view');
+  const set=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));
+  assert.ok(set.includes('setConnList')&&set.includes('loadWalletConnections'),'the Settings wallet card lists every saved wallet');
   assert.ok(html.includes("loadConnectionsFor('ric',"),'the RIC section assigns its wallet');
   assert.ok(html.includes("loadConnectionsFor('cards',"),'the Cards section assigns its wallet');
   const modal=html.slice(html.indexOf('function walletModal('),html.indexOf('async function loadAuthedImage('));

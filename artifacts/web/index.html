@@ -579,7 +579,7 @@ async function api(path,opts={}){opts.headers={'content-type':'application/json'
 function toast(m){document.querySelectorAll('.toast').forEach(t=>t.remove());const t=document.createElement('div');t.className='toast';t.style.pointerEvents='none';t.setAttribute('role','status');t.textContent=displayText(m);document.body.append(t);setTimeout(()=>t.remove(),3200)}
 function modal(html){const w=document.createElement('div');w.className='modal';w.innerHTML=`<div class="modalbox">${html}</div>`;w.addEventListener('click',e=>{if(e.target===w)w.remove()});document.body.append(w);w.querySelector('.xbtn')?.addEventListener('click',()=>w.remove());return w}
 function dlgConfirm(o){return new Promise(res=>{o=o||{};let done=false;const m=modal(`<div class="modalhead"><h2>${esc(o.title||'Are you sure?')}</h2><button class="xbtn" aria-label="Close">✕</button></div><p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:16px">${o.body||''}</p><div style="display:flex;gap:8px"><button class="btn ghost" id="dlgNo" style="flex:1;justify-content:center">${esc(o.cancelText||'Keep it')}</button><button class="btn ${o.danger?'danger':'teal'}" id="dlgYes" style="flex:1;justify-content:center">${esc(o.confirmText||'Confirm')}</button></div>`);const fin=v=>{if(done)return;done=true;m.remove();res(v)};m.querySelector('#dlgYes').onclick=()=>fin(true);m.querySelector('#dlgNo').onclick=()=>fin(false);m.querySelector('.xbtn').addEventListener('click',()=>fin(false));m.addEventListener('click',e=>{if(e.target===m)fin(false)})})}
-function dlgPrompt(o){return new Promise(res=>{o=o||{};let done=false;const m=modal(`<div class="modalhead"><h2>${esc(o.title||'')}</h2><button class="xbtn" aria-label="Close">✕</button></div>${o.body?`<p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">${o.body}</p>`:''}<form id="dlgf"><label class="field"><span>${esc(o.label||'')}</span><input class="input${o.mono?' mono':''}" id="dlgIn" type="${o.type||'text'}" inputmode="${esc(o.inputmode||'text')}" maxlength="${o.maxlength||40}" autocomplete="off" placeholder="${esc(o.placeholder||'')}"><div class="hint" id="dlgErr" style="color:var(--err);min-height:14px"></div></label><div style="display:flex;gap:8px"><button type="button" class="btn ghost" id="dlgNo" style="flex:1;justify-content:center">${esc(o.cancelText||'Cancel')}</button><button type="submit" class="btn teal" id="dlgYes" style="flex:1;justify-content:center">${esc(o.confirmText||'OK')}</button></div></form>`);const fin=v=>{if(done)return;done=true;m.remove();res(v)};const inp=m.querySelector('#dlgIn');m.querySelector('#dlgf').onsubmit=e=>{e.preventDefault();const v=inp.value.trim();if(o.minLength&&v.length<o.minLength){m.querySelector('#dlgErr').textContent=o.minLengthMsg||('Enter '+o.minLength+' characters');inp.focus();return}fin(v)};m.querySelector('#dlgNo').onclick=()=>fin(null);m.querySelector('.xbtn').addEventListener('click',()=>fin(null));m.addEventListener('click',e=>{if(e.target===m)fin(null)});setTimeout(()=>{try{inp.focus()}catch(e){}},40)})}
+function dlgPrompt(o){return new Promise(res=>{o=o||{};let done=false;const m=modal(`<div class="modalhead"><h2>${esc(o.title||'')}</h2><button class="xbtn" aria-label="Close">✕</button></div>${o.body?`<p class="muted" style="font-size:13px;line-height:1.5;margin-bottom:14px">${o.body}</p>`:''}<form id="dlgf"><label class="field"><span>${esc(o.label||'')}</span><input class="input${o.mono?' mono':''}" id="dlgIn" type="${o.type||'text'}" inputmode="${esc(o.inputmode||'text')}" maxlength="${o.maxlength||40}" autocomplete="off" placeholder="${esc(o.placeholder||'')}" value="${esc(o.value||'')}"><div class="hint" id="dlgErr" style="color:var(--err);min-height:14px"></div></label><div style="display:flex;gap:8px"><button type="button" class="btn ghost" id="dlgNo" style="flex:1;justify-content:center">${esc(o.cancelText||'Cancel')}</button><button type="submit" class="btn teal" id="dlgYes" style="flex:1;justify-content:center">${esc(o.confirmText||'OK')}</button></div></form>`);const fin=v=>{if(done)return;done=true;m.remove();res(v)};const inp=m.querySelector('#dlgIn');m.querySelector('#dlgf').onsubmit=e=>{e.preventDefault();const v=inp.value.trim();if(o.minLength&&v.length<o.minLength){m.querySelector('#dlgErr').textContent=o.minLengthMsg||('Enter '+o.minLength+' characters');inp.focus();return}fin(v)};m.querySelector('#dlgNo').onclick=()=>fin(null);m.querySelector('.xbtn').addEventListener('click',()=>fin(null));m.addEventListener('click',e=>{if(e.target===m)fin(null)});setTimeout(()=>{try{inp.focus()}catch(e){}},40)})}
 </script>
 <script>
 /* ============ APP ============ */
@@ -808,7 +808,6 @@ async function vWallet(st,bal,version=renderVersion){
       ${!st.connected&&!receiveOnly?'<button class="btn gold connect-home" id="connectWalletHome">Connect wallet</button><p class="hint">NWC wallet, Blink API key, or a Lightning Address</p>':''}
     </div>
     <div id="pinNudge"></div>
-    <div id="connListBlock" style="margin:0 16px 10px"></div>
     <div class="wos-latest" id="txlist">${latest?txRow(latest):emptyTx()}</div>
     <button class="wos-hist" id="bhist" aria-expanded="false">▾ History</button>
     <div class="wos-spacer"></div>
@@ -821,7 +820,6 @@ async function vWallet(st,bal,version=renderVersion){
     </div>
   </div>`;
   $('#connectWalletHome')?.addEventListener('click',walletModal);
-  loadWalletConnections();
   // One-time nudge (per browser) until the 6-digit send PIN exists. The RIC
   // and Send need it; asking here beats the first failed send on a device.
   if(st.connected && !localStorage.getItem('openln_pin_nudge_dismissed')){
@@ -1992,27 +1990,25 @@ function walletModal(){
 function connCapChips(caps){return `<span class="wchip ${caps&&caps.receive?'on':'off'}">Receive</span><span class="wchip ${caps&&caps.send?'on':'off'}">Send</span>`}
 function connUseTags(c,d){const t=[];if(c.id===d.defaultId)t.push('<span class="wpill ok">Default</span>');(c.usedBy||[]).forEach(u=>t.push(`<span class="wpill warn">${u==='ric'?'RIC':'Cards'}</span>`));return t.join(' ')}
 async function loadWalletConnections(){
-  const box=$('#connListBlock'); if(!box)return;
+  const box=$('#setConnList'); if(!box)return;
   let d;try{d=await api('/api/connections')}catch(e){return}
   const conns=(d&&d.connections)||[];
-  if(!conns.length){box.innerHTML='';return}
-  box.innerHTML=`<div class="card" style="padding:14px 16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <b style="font-size:13px">Wallet connections</b>
-      <button class="btn ghost sm" id="connAdd">Add wallet</button>
-    </div>
-    ${conns.map(c=>`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)">
+  if(!conns.length){box.innerHTML='<p class="hint" style="margin-top:10px">No wallet saved yet. Connect one to start receiving.</p>';return}
+  box.innerHTML=`<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+    <div style="font-size:12px;font-weight:590;color:var(--text2)">Saved wallets</div>
+    ${conns.map(c=>`<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:590;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${esc(c.label)} ${connUseTags(c,d)}</div>
         <div class="wchips" style="margin-top:5px">${connCapChips(c.capabilities)}${c.address?`<span class="dim" style="font-size:11px">${esc(c.address)}</span>`:''}</div>
       </div>
       ${c.id!==d.defaultId?`<button class="btn ghost sm" data-cdefault="${esc(c.id)}">Default</button>`:''}
+      <button class="btn ghost sm" data-cedit="${esc(c.id)}">Rename</button>
       <button class="btn ghost sm dangerText" data-cremove="${esc(c.id)}">Remove</button>
     </div>`).join('')}
-    <p class="hint" style="margin-top:8px">RIC and Cards use the wallet picked in their sections. Everything else uses the default wallet.</p>
+    <p class="hint" style="margin-top:6px">RIC and Cards use the wallet picked in their sections. Everything else uses the default wallet.</p>
   </div>`;
-  const add=$('#connAdd');if(add)add.addEventListener('click',walletModal);
   box.querySelectorAll('[data-cdefault]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cdefault)+'/default',{method:'POST',body:'{}'});toast('Default wallet updated');render()}catch(x){toast(x.message||'Could not update');b.disabled=false}}));
+  box.querySelectorAll('[data-cedit]').forEach(b=>b.addEventListener('click',async()=>{const c=conns.find(x=>x.id===b.dataset.cedit);if(!c)return;const name=await dlgPrompt({title:'Name this wallet',body:'Shown in the RIC and Cards wallet pickers.',label:'Wallet name',value:c.label||'',maxlength:40,confirmText:'Save name'});if(name===null)return;if(!name){toast('Wallet name cannot be empty');return}try{await api('/api/connections/'+encodeURIComponent(c.id),{method:'PATCH',body:JSON.stringify({label:name})});toast('Wallet name saved');render()}catch(x){toast(x.message||'Could not rename')}}));
   box.querySelectorAll('[data-cremove]').forEach(b=>b.addEventListener('click',async()=>{if(conns.length<2){toast('Add another wallet before removing this one');return}if(!confirm('Remove this wallet connection? You can add it again any time.'))return;b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cremove),{method:'DELETE'});toast('Wallet removed');render()}catch(x){toast(x.message||'Could not remove');b.disabled=false}}));
 }
 async function loadConnectionsFor(purpose,sel,title,blurb){
@@ -2767,8 +2763,9 @@ async function vSettings(version=renderVersion){
             ${wReceive&&wAddr?`<div class="waddr">${esc(wAddr)}</div>`:''}
             ${wAny?`<div class="wchips"><span class="wchip on">Receive</span><span class="wchip ${wFull?'on':'off'}">Send</span></div>`:''}
           </div>
-          <button class="btn ghost sm" id="setWalletBtn">${wAny?'Replace':'Connect'}</button>
+          <button class="btn ghost sm" id="setWalletBtn">${wAny?'Add wallet':'Connect'}</button>
         </div>
+        <div id="setConnList"></div>
         <div class="wlanehead">Wallet connection options</div>
         <div class="wlane">
           <div class="wlanetop"><span class="wlanename">Nostr Wallet Connect</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip on">Send</span></div></div>
@@ -2908,6 +2905,7 @@ async function vSettings(version=renderVersion){
 
   // wallet connect/replace
   $('#setWalletBtn').onclick=walletModal;
+  loadWalletConnections();
   if(settingsFocus){const tgt=settingsFocus==='pin'?$('#setPinNew'):$('#setCurrency');const sCard=tgt?tgt.closest('.setcard'):null;if(sCard){sCard.scrollIntoView({block:'start'});sCard.style.outline='2px solid var(--accent)';sCard.style.outlineOffset='2px';setTimeout(()=>{sCard.style.outline=''},2400)}if(settingsFocus==='pin'&&tgt){try{tgt.focus()}catch(e){}}settingsFocus=''}
 
   // telegram account link

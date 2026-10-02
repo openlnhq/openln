@@ -58,3 +58,20 @@ test('set default rewrites the legacy mirror; removal falls back and the last wa
   const still=await (await get('/api/connections')).json();
   assert.equal(still.connections.length,1);
 });
+test('wallets adopt their provider name once; renames stick and survive refresh',async()=>{
+  const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'qa_conn2_'+randomBytes(5).toString('hex'),password:randomBytes(20).toString('hex')})});
+  const b=await r.json();const h={'Content-Type':'application/json',Authorization:'Bearer '+b.token};
+  const ins=await pool.query("INSERT INTO account_connections (account_id,kind,mode,label,nwc_url_encrypted) VALUES ($1,'nwc','custom',NULL,$2) RETURNING id",[b.account.id,encrypt('nostr+walletconnect://'+'c'.repeat(64)+'?relay=wss%3A%2F%2Frelay.coinos.io&secret='+'d'.repeat(64))]);
+  const ins2=await pool.query("INSERT INTO account_connections (account_id,kind,label,lightning_address,lnurl_verify_supported) VALUES ($1,'lnaddress','Lightning Address','pay@walletofsatoshi.com',false) RETURNING id",[b.account.id]);
+  const list=await (await fetch(base+'/api/connections',{headers:h})).json();
+  assert.equal(list.connections.find(c=>c.id===ins.rows[0].id).label,'Coinos NWC','a generic name is replaced by the provider it declares');
+  assert.equal(list.connections.find(c=>c.id===ins2.rows[0].id).label,'Wallet of Satoshi','an address is named by its domain');
+  const persisted=(await pool.query('SELECT label FROM account_connections WHERE id=$1',[ins.rows[0].id])).rows[0].label;
+  assert.equal(persisted,'Coinos NWC','the adopted name is persisted');
+  const ren=await fetch(base+'/api/connections/'+ins.rows[0].id,{method:'PATCH',headers:h,body:JSON.stringify({label:'My Coinos'})});
+  assert.equal(ren.status,200);
+  const again=await (await fetch(base+'/api/connections',{headers:h})).json();
+  assert.equal(again.connections.find(c=>c.id===ins.rows[0].id).label,'My Coinos','a rename survives the next refresh');
+  const empty=await fetch(base+'/api/connections/'+ins.rows[0].id,{method:'PATCH',headers:h,body:JSON.stringify({label:'   '})});
+  assert.equal(empty.status,400,'an empty name is refused');
+});

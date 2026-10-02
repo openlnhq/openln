@@ -2,7 +2,7 @@
 // the secret-free public view (pure unit checks; no network, no DB).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { connectionCapabilities, connectionKindLabel, connectionDisplayLabel, nextConnectionLabel, connectionPublicView } from '../dist/core/money/connections.js';
+import { connectionCapabilities, connectionKindLabel, connectionDisplayLabel, nextConnectionLabel, connectionPublicView, deriveConnectionLabel, uniqueConnectionLabel, providerFromHost } from '../dist/core/money/connections.js';
 import { connectionChainForPurpose } from '../dist/core/money/walletSource.js';
 
 test('capabilities by kind: address lanes receive only; unknown kinds stay inert', () => {
@@ -40,4 +40,24 @@ test('auto labels number repeat kinds', () => {
   assert.equal(nextConnectionLabel([{ kind: 'nwc' }], 'nwc'), 'Nostr Wallet Connect 2');
   assert.equal(nextConnectionLabel([{ kind: 'nwc' }, { kind: 'nwc' }], 'nwc'), 'Nostr Wallet Connect 3');
   assert.equal(nextConnectionLabel([{ kind: 'nwc' }], 'lnaddress'), 'Lightning Address');
+});
+
+test('provider naming: names come from what the wallet itself declares', () => {
+  const nwc = (q) => 'nostr+walletconnect://' + 'a'.repeat(64) + '?' + q + '&secret=' + 'b'.repeat(64);
+  assert.equal(deriveConnectionLabel('nwc', nwc('lud16=user%40coinos.io&relay=wss%3A%2F%2Frelay.example')), 'Coinos NWC');
+  assert.equal(deriveConnectionLabel('nwc', nwc('relay=wss%3A%2F%2Frelay.coinos.io')), 'Coinos NWC');
+  assert.equal(deriveConnectionLabel('nwc', nwc('relay=wss%3A%2F%2Frelay.getalby.com%2Fv1')), 'Alby NWC');
+  assert.equal(deriveConnectionLabel('nwc', nwc('relay=ws%3A%2F%2F127.0.0.1%3A7777&relay=wss%3A%2F%2Funknown.example')), 'Nostr Wallet Connect');
+  assert.equal(deriveConnectionLabel('lnaddress', 'alice@blink.sv'), 'Blink');
+  assert.equal(deriveConnectionLabel('lnaddress', 'pay@walletofsatoshi.com'), 'Wallet of Satoshi');
+  assert.equal(deriveConnectionLabel('lnaddress', 'someone@unknown.example'), 'Lightning Address');
+  assert.equal(deriveConnectionLabel('blink', null), 'Blink');
+  assert.equal(providerFromHost('relay.coinos.io'), 'Coinos');
+  assert.equal(providerFromHost('random.example'), null);
+});
+
+test('unique names: repeats get a number, existing names are respected', () => {
+  assert.equal(uniqueConnectionLabel([], 'Coinos NWC'), 'Coinos NWC');
+  assert.equal(uniqueConnectionLabel([{ kind: 'nwc', label: 'Coinos NWC' }], 'Coinos NWC'), 'Coinos NWC 2');
+  assert.equal(uniqueConnectionLabel([{ kind: 'nwc', label: null }, { kind: 'lnaddress', label: 'Coinos NWC' }], 'Coinos NWC'), 'Coinos NWC 2');
 });

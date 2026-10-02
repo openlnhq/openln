@@ -105,7 +105,7 @@ test('lightning address: connect is receive-only, POS invoice settles via LUD-21
   const r=await connect(a.token,LN_ADDR);
   assert.equal(r.status,200);
   const j=await r.json();
-  assert.equal(j.walletMode,'lnaddress');assert.equal(j.connected,true);assert.equal(j.receiveOnly,true);assert.equal(j.verifySupported,true);
+  assert.equal(j.connection.kind,'lnaddress');assert.equal(j.becameDefault,true);assert.equal(j.receiveOnly,true);assert.equal(j.verifySupported,true);
   let {rows:[row]}=await q('SELECT wallet_mode, lightning_address, lnurl_verify_supported FROM accounts WHERE id=$1',[a.account.id]);
   assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,LN_ADDR);assert.equal(row.lnurl_verify_supported,true);
 
@@ -139,7 +139,7 @@ test('lightning address without LUD-21 verify connects wrapped-only; direct fall
   const r=await connect(a.token,'bob@ln.test');
   assert.equal(r.status,200);
   const j=await r.json();
-  assert.equal(j.walletMode,'lnaddress');assert.equal(j.connected,true);assert.equal(j.receiveOnly,true);assert.equal(j.verifySupported,false);
+  assert.equal(j.connection.kind,'lnaddress');assert.equal(j.becameDefault,true);assert.equal(j.receiveOnly,true);assert.equal(j.verifySupported,false);
   let {rows:[row]}=await q('SELECT wallet_mode, lightning_address, lnurl_verify_supported FROM accounts WHERE id=$1',[a.account.id]);
   assert.equal(row.wallet_mode,'lnaddress');assert.equal(row.lightning_address,'bob@ln.test');assert.equal(row.lnurl_verify_supported,false);
 
@@ -173,7 +173,7 @@ test('blink: wrong key fails validation, good key connects, POS invoice settles 
   const r=await connect(a.token,BLINK_KEY);
   assert.equal(r.status,200);
   const j=await r.json();
-  assert.equal(j.walletMode,'blink');assert.equal(j.connected,true);assert.equal(j.balanceSats,21000);
+  assert.equal(j.connection.kind,'blink');assert.equal(j.becameDefault,true);assert.equal(j.balanceSats,21000);
   ({rows:[row]}=await q('SELECT wallet_mode, blink_wallet_id, blink_wallet_currency, (blink_api_key_encrypted IS NOT NULL) AS has_key FROM accounts WHERE id=$1',[a.account.id]));
   assert.equal(row.wallet_mode,'blink');assert.equal(row.blink_wallet_id,'wbtc-openln-test');
   assert.equal(row.blink_wallet_currency,'BTC');assert.equal(row.has_key,true);

@@ -11,6 +11,10 @@ export const pendingInvoicesTable = pgTable("pending_invoices", {
   amountSats: bigint("amount_sats", { mode: "number" }).notNull(),
   memo: text("memo"),
   nwcUrlEncrypted: text("nwc_url_encrypted"),
+  // Snapshot of which saved wallet connection funded (or will fund) this
+  // invoice at creation time. Settlement prefers this snapshot, so changing a
+  // feature's assigned wallet never reroutes money that is in flight.
+  connectionId: uuid("connection_id"),
   cardOrderId: uuid("card_order_id"),
   posboxDeviceId: uuid("posbox_device_id"),
   // RIC hardware MAC (uppercase, colon-separated) captured at invoice create

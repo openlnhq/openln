@@ -52,6 +52,9 @@ export const transactionsTable = pgTable("transactions", {
   memo: text("memo"),
   // Set when this transaction was initiated by a Bolt Card tap
   cardId: uuid("card_id").references(() => cardsTable.id),
+  // Snapshot: which saved wallet connection paid this send (stamped at pay
+  // time). Reconciliation looks up the snapshot wallet, never a reassigned one.
+  connectionId: uuid("connection_id"),
   // Human-readable reason stored when status is set to "failed"
   failureReason: text("failure_reason"),
   fiatCurrency: text("fiat_currency"),

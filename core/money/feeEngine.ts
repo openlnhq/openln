@@ -6,7 +6,7 @@ import { transactionsTable, pendingInvoicesTable } from "../db/index.js";
 import { and, eq, isNotNull, or, inArray } from "drizzle-orm";
 import { payInvoice, makeInvoice, getAccountNwcUrl, isAmbiguousPayError, lookupOutgoingPayment, lookupInvoice, PLATFORM_NWC_URL } from "./nwc.js";
 import { blinkPayInvoice, blinkOutgoingStatus, BlinkAmbiguousError } from "./blink.js";
-import { resolveWalletSource } from "./walletSource.js";
+import { resolveWalletSource, type WalletPurpose } from "./walletSource.js";
 import { advanceWrap, type WrapRow } from "./holdWrap.js";
 import { extractPaymentHash } from "./lnAddress.js";
 import { logger } from "./logger.js";
@@ -47,14 +47,18 @@ export function calculateFee(amountSats: number): {
  * nothing to pay from.
  */
 type PayFunding =
-  | { kind: "nwc"; nwcUrl: string }
-  | { kind: "blink"; apiKey: string; walletId: string | null };
+  | { kind: "nwc"; nwcUrl: string; connectionId?: string }
+  | { kind: "blink"; apiKey: string; walletId: string | null; connectionId?: string };
 
-async function resolvePayFunding(accountId: string, explicitNwcUrl: string | undefined): Promise<PayFunding> {
+/**
+ * Resolve which wallet pays: RIC and Cards route through their assigned
+ * saved connection; everything else pays from the account default.
+ */
+async function resolvePayFunding(accountId: string, explicitNwcUrl: string | undefined, purpose?: WalletPurpose): Promise<PayFunding> {
   if (explicitNwcUrl) return { kind: "nwc", nwcUrl: explicitNwcUrl };
-  const source = await resolveWalletSource(accountId);
-  if (source.kind === "nwc") return { kind: "nwc", nwcUrl: source.nwcUrl };
-  if (source.kind === "blink") return { kind: "blink", apiKey: source.apiKey, walletId: source.walletId };
+  const source = await resolveWalletSource(accountId, purpose ?? "default");
+  if (source.kind === "nwc") return { kind: "nwc", nwcUrl: source.nwcUrl, connectionId: source.connectionId };
+  if (source.kind === "blink") return { kind: "blink", apiKey: source.apiKey, walletId: source.walletId, connectionId: source.connectionId };
   if (source.kind === "lnaddress") {
     throw new Error("This account is receive-only - connect a wallet that can send (NWC or Blink)");
   }
@@ -80,10 +84,13 @@ export async function processExternalPayment(
   // Books: which surface is paying. card = card tap (spend), wallet = Pay screen (spend),
   // ric = RIC send (transfer to own wallet). Defaults from cardId for old callers.
   origin?: TransactionOrigin,
+  // Which saved wallet connection pays: RIC/Cards payments pass their feature
+  // so their assigned connection funds them; everything else uses the default.
+  purpose?: WalletPurpose,
 ): Promise<{ paymentHash: string; feeSats: number }> {
   const bookOrigin: TransactionOrigin = origin ?? (cardId ? "card" : "wallet");
   const fiat = await captureFiatSnapshot(accountId, amountSats, "send").catch(() => null);
-  const funding = await resolvePayFunding(accountId, nwcUrl);
+  const funding = await resolvePayFunding(accountId, nwcUrl, purpose);
 
   // Decode the payment hash up front and store it on the pending row - the
   // reconciler resolves ambiguous outcomes by hash (Veil ignores invoice-string
@@ -109,6 +116,7 @@ export async function processExternalPayment(
       status: "pending",
       memo,
       cardId: cardId ?? null,
+      connectionId: funding.connectionId ?? null,
       origin: bookOrigin,
       class: classifyMovement(bookOrigin, "out"),
       classSource: "system",
@@ -402,6 +410,7 @@ export async function resolveAmbiguousPayment(
   err: AmbiguousPaymentError,
   nwcUrl: string | undefined,
   accountId?: string,
+  purpose?: WalletPurpose,
 ): Promise<AmbiguousResolution> {
   const deadline = Date.now() + AMBIGUOUS_RESOLVE_WINDOW_MS;
   let paymentHash: string | null = null;
@@ -438,7 +447,7 @@ export async function resolveAmbiguousPayment(
       } else if (accountId && paymentHash) {
         // Blink lane: the wallet's transaction record for the hash is the
         // authoritative outcome once it exists.
-        const source = await resolveWalletSource(accountId);
+        const source = await resolveWalletSource(accountId, purpose ?? "default");
         if (source.kind === "blink") {
           const status = await blinkOutgoingStatus(source.apiKey, paymentHash);
           if (status === "SUCCESS") {

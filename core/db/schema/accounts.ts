@@ -38,6 +38,13 @@ export const accountsTable = pgTable("accounts", {
   // false => wrapped-only (Wallet of Satoshi): the direct fallback refuses.
   // null on legacy rows reads as verify-capable (they passed the old gate).
   lnurlVerifySupported: boolean("lnurl_verify_supported"),
+  // Saved wallet connections (account_connections). The default is what every
+  // surface without its own assignment uses; RIC and Cards carry their own
+  // pointers and fall back to the default when unset. ON DELETE SET NULL in
+  // the DB, so removing a connection can never leave a dangling pointer.
+  defaultConnectionId: uuid("default_connection_id"),
+  ricConnectionId: uuid("ric_connection_id"),
+  cardsConnectionId: uuid("cards_connection_id"),
   balanceSats: bigint("balance_sats", { mode: "number" }).notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

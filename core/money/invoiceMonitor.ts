@@ -3,7 +3,7 @@ import { classifyMovement } from "./bookkeeping.js";
 //
 import cron from "node-cron";
 import { db } from "../db/index.js";
-import { pendingInvoicesTable, transactionsTable, accountsTable } from "../db/index.js";
+import { pendingInvoicesTable, transactionsTable, accountsTable, accountConnectionsTable } from "../db/index.js";
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { NWCClient } from "@getalby/sdk";
 import {
@@ -17,7 +17,7 @@ import {
 } from "./nwc.js";
 import { finalizePendingSend, checkOwnSettlementProof } from "./feeEngine.js";
 import { cancelWrap, type WrapRow } from "./holdWrap.js";
-import { resolveWalletSource } from "./walletSource.js";
+import { resolveWalletSource, resolveConnectionSource } from "./walletSource.js";
 import { extractPaymentHash } from "./lnAddress.js";
 import { kickWrap } from "./wrapDriver.js";
 import { checkLnurlVerify } from "./lnAddress.js";
@@ -40,6 +40,7 @@ type PendingInvoiceRow = {
   expiresAt: Date;
   createdAt: Date;
   nwcUrlEncrypted: string | null;
+  connectionId: string | null;
   merchantBolt11: string | null;
   merchantPaymentHash: string | null;
   feeSats: number | null;
@@ -205,38 +206,59 @@ async function checkInvoiceBatch(invoices: PendingInvoiceRow[], context: string)
   }
   invoices = invoices.filter((inv) => !inv.lnurlVerifyUrl);
 
-  // Blink rows: settle via the merchant's own Blink API key (HTTPS status
-  // query - no relay involved). A Blink invoice row carries neither an NWC
-  // URL nor a verify URL; anything unsupported falls through to the NWC
-  // grouping below, which skips rows without a wallet URL.
-  const blinkCandidates = invoices.filter((inv) => !inv.nwcUrlEncrypted);
-  if (blinkCandidates.length) {
-    const accountIds = [...new Set(blinkCandidates.map((inv) => inv.accountId))];
-    const blinkAccounts = await db
-      .select({ id: accountsTable.id, key: accountsTable.blinkApiKeyEncrypted })
-      .from(accountsTable)
-      .where(and(inArray(accountsTable.id, accountIds), eq(accountsTable.walletMode, "blink")));
-    const keyByAccount = new Map(blinkAccounts.map((a) => [a.id, resolveNwcUrl(a.key)]));
-    if (keyByAccount.size) {
-      const BLINK_CHECK_CAP = 10;
-      let checked = 0;
-      for (const inv of blinkCandidates) {
-        const apiKey = keyByAccount.get(inv.accountId);
-        if (!apiKey) continue;
-        if (checked++ >= BLINK_CHECK_CAP) break;
-        try {
-          const status = await blinkInvoiceStatus(apiKey, inv.bolt11);
-          if (status.paid) {
-            await settleInvoice(inv, new Date()).catch((err) =>
-              logger.warn({ err, invoiceId: inv.id }, `${context}: blink settle error`),
-            );
-          }
-        } catch (err) {
-          logger.warn({ err, invoiceId: inv.id }, `${context}: blink status check failed - treating as pending`);
-        }
+  // Rows without an NWC URL settle through their saved wallet connection:
+  // Blink rows use the connection's own API key (HTTPS status query - no
+  // relay involved). Rows created before saved connections existed fall back
+  // to the legacy account-level Blink check. Anything else falls through to
+  // the NWC grouping below, which skips rows without a wallet URL.
+  const nonNwcRows = invoices.filter((inv) => !inv.nwcUrlEncrypted);
+  if (nonNwcRows.length) {
+    const accountIds = [...new Set(nonNwcRows.map((inv) => inv.accountId))];
+    const connIds = [...new Set(nonNwcRows.map((inv) => inv.connectionId).filter((id): id is string => !!id))];
+    const conns = connIds.length
+      ? await db
+          .select()
+          .from(accountConnectionsTable)
+          .where(and(inArray(accountConnectionsTable.id, connIds), inArray(accountConnectionsTable.accountId, accountIds)))
+      : [];
+    const connById = new Map(conns.map((c) => [c.id, c]));
+    const legacyAccountIds = [...new Set(nonNwcRows.filter((inv) => !inv.connectionId).map((inv) => inv.accountId))];
+    const legacyAccounts = legacyAccountIds.length
+      ? await db
+          .select({ id: accountsTable.id, key: accountsTable.blinkApiKeyEncrypted })
+          .from(accountsTable)
+          .where(and(inArray(accountsTable.id, legacyAccountIds), eq(accountsTable.walletMode, "blink")))
+      : [];
+    const legacyKeyByAccount = new Map(legacyAccounts.map((a) => [a.id, resolveNwcUrl(a.key)]));
+    const BLINK_CHECK_CAP = 10;
+    let checked = 0;
+    const handled = new Set<string>();
+    for (const inv of nonNwcRows) {
+      let apiKey: string | undefined;
+      if (inv.connectionId) {
+        const conn = connById.get(inv.connectionId);
+        // Other lanes (removed connections, non-Blink kinds) are left for
+        // their own settlement path.
+        if (!conn || conn.kind !== "blink") continue;
+        apiKey = resolveNwcUrl(conn.blinkApiKeyEncrypted);
+      } else {
+        apiKey = legacyKeyByAccount.get(inv.accountId);
       }
-      invoices = invoices.filter((inv) => !keyByAccount.has(inv.accountId));
+      if (!apiKey) continue;
+      if (checked++ >= BLINK_CHECK_CAP) break;
+      handled.add(inv.id);
+      try {
+        const status = await blinkInvoiceStatus(apiKey, inv.bolt11);
+        if (status.paid) {
+          await settleInvoice(inv, new Date()).catch((err) =>
+            logger.warn({ err, invoiceId: inv.id }, `${context}: blink settle error`),
+          );
+        }
+      } catch (err) {
+        logger.warn({ err, invoiceId: inv.id }, `${context}: blink status check failed - treating as pending`);
+      }
     }
+    invoices = invoices.filter((inv) => !handled.has(inv.id));
   }
 
   const byWallet = new Map<string, PendingInvoiceRow[]>();
@@ -569,6 +591,7 @@ export async function reconcilePendingSends(): Promise<void> {
       accountId: transactionsTable.accountId,
       bolt11: transactionsTable.bolt11,
       paymentHash: transactionsTable.paymentHash,
+      connectionId: transactionsTable.connectionId,
       createdAt: transactionsTable.createdAt,
     })
     .from(transactionsTable)
@@ -617,9 +640,21 @@ export async function reconcilePendingSends(): Promise<void> {
       }
     }
 
-    // Resolve the paying wallet: Blink accounts reconcile from the Blink
-    // ledger (HTTPS); NWC accounts use relay lookups.
-    const source = await resolveWalletSource(tx.accountId).catch(() => ({ kind: "none" } as const));
+    // Resolve the paying wallet: prefer the connection snapshot recorded at
+    // pay time (never a reassigned wallet); legacy rows fall back to the
+    // account's payment source. A snapshot whose connection was removed is
+    // left for a later sweep rather than guessed.
+    let source: Awaited<ReturnType<typeof resolveWalletSource>>;
+    if (tx.connectionId) {
+      const snap = await resolveConnectionSource(tx.accountId, tx.connectionId).catch(() => null);
+      if (!snap) {
+        logger.warn({ txId: tx.id, connectionId: tx.connectionId }, "Pending send snapshot connection no longer resolvable - leaving pending");
+        continue;
+      }
+      source = snap;
+    } else {
+      source = await resolveWalletSource(tx.accountId).catch(() => ({ kind: "none" } as const));
+    }
     if (source.kind === "blink") {
       if (!txHash) continue; // Blink lookups are hash-keyed
       try {

@@ -5,13 +5,14 @@ import { join } from "node:path";
 import { AuthService } from "./auth/service.js";
 import { WalletService } from "./wallet/service.js";
 import { createBuiltinRegistry } from "./plugins/builtin.js";
-import { db, entitiesTable, accountsTable, pendingInvoicesTable, transactionsTable, deviceTokensTable } from "./db/index.js";
+import { db, entitiesTable, accountsTable, accountConnectionsTable, pendingInvoicesTable, transactionsTable, deviceTokensTable } from "./db/index.js";
 import { and, eq, sql } from "drizzle-orm";
-import { makeInvoice } from "./money/nwc.js";
+import { makeInvoice, resolveNwcUrl } from "./money/nwc.js";
 import { captureFiatSnapshot } from "./money/fiatSnapshot.js";
 import { createWrappedInvoice, cancelWrap, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
-import { resolveWalletSource, merchantFundingFromSource } from "./money/walletSource.js";
+import { resolveWalletSource, merchantFundingFromSource, assignDefaultIfUnset, syncLegacyWalletMirror } from "./money/walletSource.js";
+import { connectionPublicView, nextConnectionLabel } from "./money/connections.js";
 import { detectFunding } from "./money/fundingInput.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
@@ -348,10 +349,17 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     }
     if (req.method === "POST" && u.pathname === "/api/wallet/connect") {
+      // Saves a wallet connection on the account. The account can keep
+      // several on file and choose what each feature uses in Settings; the
+      // first connection becomes the default, later ones leave it unchanged.
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const connection = String(v.connection ?? v.nwcUrl ?? "").trim();
       const detected = detectFunding(connection);
       if (!detected) return json(res, 400, { error: "Paste a Nostr Wallet Connect connection, a Lightning Address (name@provider.com), or a Blink API key" });
+      const existing = await db
+        .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind, mode: accountConnectionsTable.mode, nwcUrlEncrypted: accountConnectionsTable.nwcUrlEncrypted, blinkApiKeyEncrypted: accountConnectionsTable.blinkApiKeyEncrypted, lightningAddress: accountConnectionsTable.lightningAddress })
+        .from(accountConnectionsTable)
+        .where(eq(accountConnectionsTable.accountId, account.id));
 
       if (detected.kind === "nwc") {
         try {
@@ -360,10 +368,14 @@ const server = createServer(async (req, res) => {
           const relays=parsed.searchParams.getAll("relay");
           if(!relays.length || relays.some(relay=>{const u=new URL(relay);return !["ws:","wss:"].includes(u.protocol)}))throw Error();
         } catch { return json(res,400,{error:"Paste the complete NWC connection, including relay and secret"}); }
+        if (existing.some((row) => row.kind === "nwc" && row.mode === "custom" && resolveNwcUrl(row.nwcUrlEncrypted) === connection)) {
+          return json(res, 409, { error: "This wallet is already connected." });
+        }
         const {getBalance}=await import("./money/nwc.js");
-        try{await getBalance(connection)}catch{return json(res,422,{error:"Could not read this wallet. Check its NWC permissions and connection; your previous wallet is unchanged."});}
-        await db.update(accountsTable).set({ walletMode: "custom", customNwcUrl: encrypt(connection), blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null, lnurlVerifySupported: null }).where(eq(accountsTable.id, account.id));
-        return json(res, 200, { ok: true, walletMode: "custom", connected: true, relays: (connection.match(/relay=/g) ?? []).length });
+        try{await getBalance(connection)}catch{return json(res,422,{error:"Could not read this wallet. Check its NWC permissions and connection; nothing was changed."});}
+        const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "nwc", mode: "custom", label: nextConnectionLabel(existing, "nwc"), nwcUrlEncrypted: encrypt(connection) }).returning();
+        const becameDefault = await assignDefaultIfUnset(account.id, created.id);
+        return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, relays: (connection.match(/relay=/g) ?? []).length });
       }
 
       if (detected.kind === "lnaddress") {
@@ -379,8 +391,12 @@ const server = createServer(async (req, res) => {
         let check: { verifySupported: boolean };
         try { check = await validateLightningAddressForWallet(detected.address); }
         catch (err) { return json(res, 422, { error: err instanceof Error ? err.message : "This Lightning Address could not be validated" }); }
-        await db.update(accountsTable).set({ walletMode: "lnaddress", lightningAddress: detected.address, lnurlVerifySupported: check.verifySupported, customNwcUrl: null, blinkApiKeyEncrypted: null, blinkWalletId: null, blinkWalletCurrency: null }).where(eq(accountsTable.id, account.id));
-        return json(res, 200, { ok: true, walletMode: "lnaddress", connected: true, receiveOnly: true, verifySupported: check.verifySupported });
+        if (existing.some((row) => row.kind === "lnaddress" && (row.lightningAddress ?? "").toLowerCase() === detected.address.toLowerCase())) {
+          return json(res, 409, { error: "This wallet is already connected." });
+        }
+        const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "lnaddress", label: nextConnectionLabel(existing, "lnaddress"), lightningAddress: detected.address, lnurlVerifySupported: check.verifySupported }).returning();
+        const becameDefault = await assignDefaultIfUnset(account.id, created.id);
+        return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, receiveOnly: true, verifySupported: check.verifySupported });
       }
 
       // Blink API key (custodial accounts). Read + Receive scopes cover
@@ -390,8 +406,12 @@ const server = createServer(async (req, res) => {
       let blinkInfo: { walletId: string; walletCurrency: string; balanceSats: number };
       try { blinkInfo = await validateBlinkApiKeyForWallet(detected.apiKey); }
       catch (err) { return json(res, 422, { error: err instanceof Error ? err.message : "Could not read this Blink account" }); }
-      await db.update(accountsTable).set({ walletMode: "blink", blinkApiKeyEncrypted: encrypt(detected.apiKey), blinkWalletId: blinkInfo.walletId, blinkWalletCurrency: blinkInfo.walletCurrency, customNwcUrl: null, lnurlVerifySupported: null }).where(eq(accountsTable.id, account.id));
-      return json(res, 200, { ok: true, walletMode: "blink", connected: true, balanceSats: blinkInfo.balanceSats });
+      if (existing.some((row) => row.kind === "blink" && resolveNwcUrl(row.blinkApiKeyEncrypted) === detected.apiKey)) {
+        return json(res, 409, { error: "This wallet is already connected." });
+      }
+      const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: "blink", label: nextConnectionLabel(existing, "blink"), blinkApiKeyEncrypted: encrypt(detected.apiKey), blinkWalletId: blinkInfo.walletId, blinkWalletCurrency: blinkInfo.walletCurrency }).returning();
+      const becameDefault = await assignDefaultIfUnset(account.id, created.id);
+      return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, balanceSats: blinkInfo.balanceSats });
     }
     if (req.method === "GET" && u.pathname === "/api/events") {
       const account = await sessionAccount();
@@ -407,6 +427,89 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/wallet/status") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); const source = await resolveWalletSource(account.id); return json(res, 200, { wallet: "non-custodial", connected: source.kind === "nwc" || source.kind === "blink", receiveOnly: source.kind === "lnaddress", canSend: source.kind === "nwc" || source.kind === "blink", walletMode: source.kind === "nwc" ? source.mode : source.kind, lightningAddress: source.kind === "lnaddress" ? source.address : null, verifySupported: source.kind === "lnaddress" ? source.verifySupported : null, plugins: [] }); }
     if (req.method === "GET" && u.pathname === "/api/wallet/balance") { const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" }); await reconcileAccountInvoicesBounded(account.id); const source = await resolveWalletSource(account.id); if (source.kind === "nwc") { const { getBalance } = await import("./money/nwc.js"); const balance = await getBalance(source.nwcUrl); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } if (source.kind === "blink") { try { const { blinkGetBalance } = await import("./money/blink.js"); const balance = await blinkGetBalance(source.apiKey, source.walletId); return json(res, 200, { balanceSats: balance.balanceSats, connected: true }); } catch { return json(res, 200, { balanceSats: 0, connected: false, unavailable: true }); } } if (source.kind === "lnaddress") return json(res, 200, { balanceSats: 0, connected: false, receiveOnly: true }); return json(res, 200, { balanceSats: 0, connected: false }); }
 
+    // Saved wallet connections: list with capabilities and assignments, set
+    // default, remove, and per-feature assignment (RIC / Cards). Session-
+    // scoped to the account; responses never carry secrets.
+    if (req.method === "GET" && u.pathname === "/api/connections") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const [acc] = await db
+        .select({ defaultConnectionId: accountsTable.defaultConnectionId, ricConnectionId: accountsTable.ricConnectionId, cardsConnectionId: accountsTable.cardsConnectionId })
+        .from(accountsTable)
+        .where(eq(accountsTable.id, account.id));
+      const rows = await db
+        .select()
+        .from(accountConnectionsTable)
+        .where(eq(accountConnectionsTable.accountId, account.id))
+        .orderBy(accountConnectionsTable.createdAt, accountConnectionsTable.id);
+      const connections = rows.map((row) => {
+        const view = connectionPublicView(row);
+        const usedBy: string[] = [];
+        if (acc?.ricConnectionId === row.id) usedBy.push("ric");
+        if (acc?.cardsConnectionId === row.id) usedBy.push("cards");
+        return { ...view, isDefault: acc?.defaultConnectionId === row.id, usedBy };
+      });
+      return json(res, 200, { connections, assignments: { ric: acc?.ricConnectionId ?? null, cards: acc?.cardsConnectionId ?? null }, defaultId: acc?.defaultConnectionId ?? null });
+    }
+    if (req.method === "POST" && u.pathname === "/api/connections/assign") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      const v = await body(req);
+      const patch: { ricConnectionId?: string | null; cardsConnectionId?: string | null } = {};
+      for (const [key, field] of [["ric", "ricConnectionId"], ["cards", "cardsConnectionId"]] as const) {
+        if (!(key in v)) continue;
+        const raw = v[key];
+        if (raw === null) { patch[field] = null; continue; }
+        const id = String(raw);
+        const [conn] = await db
+          .select({ id: accountConnectionsTable.id })
+          .from(accountConnectionsTable)
+          .where(and(eq(accountConnectionsTable.id, id), eq(accountConnectionsTable.accountId, account.id)));
+        if (!conn) return json(res, 400, { error: "That wallet connection does not exist" });
+        patch[field] = id;
+      }
+      if (Object.keys(patch).length) await db.update(accountsTable).set(patch).where(eq(accountsTable.id, account.id));
+      const [acc] = await db
+        .select({ ricConnectionId: accountsTable.ricConnectionId, cardsConnectionId: accountsTable.cardsConnectionId })
+        .from(accountsTable)
+        .where(eq(accountsTable.id, account.id));
+      return json(res, 200, { ok: true, assignments: { ric: acc?.ricConnectionId ?? null, cards: acc?.cardsConnectionId ?? null } });
+    }
+    {
+      const connDefault = u.pathname.match(/^\/api\/connections\/([^/]+)\/default$/);
+      if (req.method === "POST" && connDefault) {
+        const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+        const [conn] = await db
+          .select({ id: accountConnectionsTable.id })
+          .from(accountConnectionsTable)
+          .where(and(eq(accountConnectionsTable.id, decodeURIComponent(connDefault[1])), eq(accountConnectionsTable.accountId, account.id)));
+        if (!conn) return json(res, 404, { error: "Connection not found" });
+        await db.update(accountsTable).set({ defaultConnectionId: conn.id }).where(eq(accountsTable.id, account.id));
+        await syncLegacyWalletMirror(account.id);
+        return json(res, 200, { ok: true, defaultId: conn.id });
+      }
+      const connDelete = u.pathname.match(/^\/api\/connections\/([^/]+)$/);
+      if (req.method === "DELETE" && connDelete) {
+        const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+        const id = decodeURIComponent(connDelete[1]);
+        const rows = await db
+          .select({ id: accountConnectionsTable.id })
+          .from(accountConnectionsTable)
+          .where(eq(accountConnectionsTable.accountId, account.id))
+          .orderBy(accountConnectionsTable.createdAt, accountConnectionsTable.id);
+        if (!rows.some((r) => r.id === id)) return json(res, 404, { error: "Connection not found" });
+        if (rows.length <= 1) return json(res, 409, { error: "Add another wallet before removing this one." });
+        await db.delete(accountConnectionsTable).where(and(eq(accountConnectionsTable.id, id), eq(accountConnectionsTable.accountId, account.id)));
+        const [acc] = await db
+          .select({ defaultConnectionId: accountsTable.defaultConnectionId })
+          .from(accountsTable)
+          .where(eq(accountsTable.id, account.id));
+        if (acc && acc.defaultConnectionId === id) {
+          const next = rows.find((r) => r.id !== id);
+          await db.update(accountsTable).set({ defaultConnectionId: next?.id ?? null }).where(eq(accountsTable.id, account.id));
+          await syncLegacyWalletMirror(account.id);
+        }
+        return json(res, 200, { ok: true });
+      }
+    }
     if (req.method === "POST" && u.pathname === "/api/wallet/verify") {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const bolt11 = String(v.bolt11 ?? "").trim();
@@ -474,12 +577,14 @@ const server = createServer(async (req, res) => {
       const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
       const v = await body(req); const amountSats = Number(v.amountSats);
       if (!Number.isSafeInteger(amountSats) || amountSats < 1) return json(res, 400, { error: "amountSats must be a positive integer" });
-      const source = await resolveWalletSource(account.id);
-      const funding = merchantFundingFromSource(source);
-      if (!funding) return json(res, 400, { error: "Wallet not configured" });
       const memo = typeof v.memo === "string" ? v.memo.slice(0, 140) : "POS payment";
       // Books: a POS invoice is a sale. RIC requests carry a device token / deviceId; the browser POS does not.
       const fromRic = typeof v.deviceId === "string" || (req.headers["user-agent"] ?? "").toString().startsWith("openLN-RIC");
+      // RIC sales land in the wallet assigned to the RIC in Settings; every
+      // other surface on this route (web POS, wallet top-up) uses the default.
+      const source = await resolveWalletSource(account.id, fromRic ? "ric" : "default");
+      const funding = merchantFundingFromSource(source);
+      if (!funding) return json(res, 400, { error: "Wallet not configured" });
       // The wallet's own Receive screen declares purpose "top_up" (owner funding the wallet:
       // not income). Anything else on this route is a sale: RIC, or the browser POS.
       const posOrigin = fromRic ? "ric" : v.purpose === "top_up" ? "wallet" : "web_pos";
@@ -494,7 +599,7 @@ const server = createServer(async (req, res) => {
       const fiatSnapshot = await captureFiatSnapshot(account.id, amountSats, "receive");
       const wrap = await createWrappedInvoice(amountSats, memo, funding);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, deviceMac, origin: posOrigin, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt, ...(fiatSnapshot ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, memo, nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, connectionId: source.connectionId ?? null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, deviceMac, origin: posOrigin, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), expiresAt: wrap.expiresAt, ...(fiatSnapshot ?? {}) });
         recordPaymentEvent({
           paymentId: wrap.paymentHash,
           accountId: account.id,
@@ -518,7 +623,7 @@ const server = createServer(async (req, res) => {
       // invoice, so it must retry the wrapped path rather than sell blind.
       if (funding.kind === "nwc") {
         const invoice = await makeInvoice(amountSats, memo, 3600, funding.nwcUrl);
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(funding.nwcUrl), origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, nwcUrlEncrypted: encrypt(funding.nwcUrl), connectionId: source.connectionId ?? null, origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
         return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
       }
       if (funding.kind === "lnaddress") {
@@ -533,13 +638,13 @@ const server = createServer(async (req, res) => {
         const { requestLnurlInvoice } = await import("./money/lnAddress.js");
         const invoice = await requestLnurlInvoice(funding.address, amountSats, memo);
         const expiresAt = new Date(Date.now() + 3600 * 1000);
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, lnurlVerifyUrl: invoice.verifyUrl, origin: posOrigin, expiresAt, ...(fiatSnapshot ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, lnurlVerifyUrl: invoice.verifyUrl, connectionId: source.connectionId ?? null, origin: posOrigin, expiresAt, ...(fiatSnapshot ?? {}) });
         return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt, receiveOnly: true });
       }
       {
         const { blinkMakeInvoice } = await import("./money/blink.js");
         const invoice = await blinkMakeInvoice(funding.apiKey, funding.walletId, amountSats, memo, 60);
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, connectionId: source.connectionId ?? null, origin: posOrigin, expiresAt: invoice.expiresAt, ...(fiatSnapshot ?? {}) });
         return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt: invoice.expiresAt });
       }
     }
@@ -589,12 +694,12 @@ const server = createServer(async (req, res) => {
       const lnFiat = await captureFiatSnapshot(account.id, sats, "receive");
       const wrap = await createWrappedInvoice(sats, "openLN payment", funding);
       if (wrap) {
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), origin: "ln_address", expiresAt: wrap.expiresAt, ...(lnFiat ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: funding.kind === "nwc" ? encrypt(funding.nwcUrl) : null, connectionId: source.connectionId ?? null, merchantBolt11: wrap.merchantBolt11, merchantPaymentHash: wrap.merchantPaymentHash, holdPreimage: wrap.holdPreimage, feeSats: wrap.feeSats, wrapStatus: "created", wrapUpdatedAt: new Date(), origin: "ln_address", expiresAt: wrap.expiresAt, ...(lnFiat ?? {}) });
         return json(res, 200, { pr: wrap.bolt11, routes: [] });
       }
       if (funding.kind === "nwc") {
         const invoice = await makeInvoice(sats, "openLN payment", 3600, funding.nwcUrl);
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(funding.nwcUrl), origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", nwcUrlEncrypted: encrypt(funding.nwcUrl), connectionId: source.connectionId ?? null, origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
         return json(res, 200, { pr: invoice.bolt11, routes: [] });
       }
       if (funding.kind === "lnaddress") {
@@ -606,13 +711,13 @@ const server = createServer(async (req, res) => {
         }
         const { requestLnurlInvoice } = await import("./money/lnAddress.js");
         const invoice = await requestLnurlInvoice(funding.address, sats, "openLN payment");
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", lnurlVerifyUrl: invoice.verifyUrl, origin: "ln_address", expiresAt: new Date(Date.now() + 3600 * 1000), ...(lnFiat ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", lnurlVerifyUrl: invoice.verifyUrl, connectionId: source.connectionId ?? null, origin: "ln_address", expiresAt: new Date(Date.now() + 3600 * 1000), ...(lnFiat ?? {}) });
         return json(res, 200, { pr: invoice.bolt11, routes: [] });
       }
       {
         const { blinkMakeInvoice } = await import("./money/blink.js");
         const invoice = await blinkMakeInvoice(funding.apiKey, funding.walletId, sats, "openLN payment", 60);
-        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
+        await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", connectionId: source.connectionId ?? null, origin: "ln_address", expiresAt: invoice.expiresAt, ...(lnFiat ?? {}) });
         return json(res, 200, { pr: invoice.bolt11, routes: [] });
       }
     }

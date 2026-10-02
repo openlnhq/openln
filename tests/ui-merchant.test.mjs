@@ -101,3 +101,18 @@ test('settings carry the Telegram support card that connects the account to the 
   assert.ok(source.includes('tgUnlink'),'disconnect is offered once linked');
   assert.ok(source.includes('@openLN_bot'),'the card names the support bot');
 });
+
+test('wallet connections: several wallets on file, per-feature assignment, capability gates',()=>{
+  const helpers=html.slice(html.indexOf('function connCapChips('),html.indexOf('async function loadAuthedImage('));
+  assert.ok(helpers.includes("api('/api/connections'"),'connections come from the saved-connections API');
+  assert.ok(helpers.includes('/api/connections/assign'),'feature sections save an assignment');
+  assert.ok(helpers.includes('/default'),'a connection can be made the default');
+  assert.ok(helpers.includes('receive-only'),'receive-only assignments are flagged in the picker');
+  assert.ok(helpers.includes('connCapChips')&&helpers.includes('Default'),'list shows capability chips and the default tag');
+  const wal=html.slice(html.indexOf('async function vWallet('),html.indexOf('function txDetail('));
+  assert.ok(wal.includes('loadWalletConnections')&&wal.includes('connListBlock'),'the wallet view lists every saved connection');
+  assert.ok(html.includes("loadConnectionsFor('ric',"),'the RIC section assigns its wallet');
+  assert.ok(html.includes("loadConnectionsFor('cards',"),'the Cards section assigns its wallet');
+  const modal=html.slice(html.indexOf('function walletModal('),html.indexOf('async function loadAuthedImage('));
+  assert.ok(modal.includes('r.connection'),'the connect modal reads the saved-connection response');
+});

@@ -14,7 +14,7 @@
  *   - The operator-level fallback in the invoice monitor main subscription
  */
 import { NWCClient } from "@getalby/sdk";
-import { Point as SecpPoint } from "@noble/secp256k1";
+import { assertUsableWalletKey } from "./walletKey.js";
 import { createHash } from "crypto";
 import { db } from "../db/index.js";
 import { accountsTable } from "../db/index.js";
@@ -196,22 +196,6 @@ function maybePinNip04Fallback(nwcUrl: string | undefined, err: unknown): boolea
 /** Clear a nip04 pin after it also failed, so the next attempt renegotiates. */
 function clearEncryptionPin(nwcUrl: string | undefined): void {
   if (nwcUrl) encryptionPins.delete(nwcUrl);
-}
-
-/**
- * A saved NWC URL is only usable when its wallet pubkey is a real secp256k1
- * point. A malformed or off-curve key used to detonate deep inside the SDK's
- * detached request promise (an untrappable rejection that could take the
- * process down); refuse it up front with a clean error instead.
- */
-function assertUsableWalletKey(nwcUrl: string): void {
-  let host = "";
-  try { host = new URL(nwcUrl).hostname; } catch { /* fall through to the error below */ }
-  let onCurve = false;
-  if (/^[0-9a-f]{64}$/.test(host)) {
-    try { SecpPoint.fromHex(host); onCurve = true; } catch { onCurve = false; }
-  }
-  if (!onCurve) throw new Error("This wallet connection is not usable - its public key is missing or invalid. Connect the wallet again from its app.");
 }
 
 function getClient(nwcUrl: string | undefined): NWCClient {

@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { connectionCapabilities, connectionKindLabel, connectionDisplayLabel, nextConnectionLabel, connectionPublicView, deriveConnectionLabel, uniqueConnectionLabel, providerFromHost } from '../dist/core/money/connections.js';
 import { connectionChainForPurpose } from '../dist/core/money/walletSource.js';
+import { assertUsableWalletKey, isUsableWalletKey } from '../dist/core/money/walletKey.js';
 
 test('capabilities by kind: half-capable wallets gate each direction; unknown kinds stay inert', () => {
   assert.deepEqual(connectionCapabilities('nwc'), { send: true, receive: true });
@@ -63,4 +64,27 @@ test('unique names: repeats get a number, existing names are respected', () => {
   assert.equal(uniqueConnectionLabel([], 'Coinos NWC'), 'Coinos NWC');
   assert.equal(uniqueConnectionLabel([{ kind: 'nwc', label: 'Coinos NWC' }], 'Coinos NWC'), 'Coinos NWC 2');
   assert.equal(uniqueConnectionLabel([{ kind: 'nwc', label: null }, { kind: 'lnaddress', label: 'Coinos NWC' }], 'Coinos NWC'), 'Coinos NWC 2');
+});
+
+test('NWC wallet key validation: real keys pass in every encoding, junk is refused', () => {
+  // Positive controls matter here: the first version of this check was only
+  // ever tested against junk keys, rejected real x-only keys ("bad point: not
+  // on curve" from noble 3.x on bare 64-hex), and silently broke every live
+  // NWC wallet until users saw "Wallet temporarily unavailable".
+  const G_X = '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
+  const G_Y = '483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8';
+  const url = (pk) => 'nostr+walletconnect://' + pk + '?relay=wss%3A%2F%2Frelay.example&secret=' + 'b'.repeat(64);
+  // Generator point: x-only, compressed, uncompressed - all must pass.
+  assert.equal(isUsableWalletKey(url(G_X)), true, 'x-only key (the form every real NWC URL uses)');
+  assert.equal(isUsableWalletKey(url('02' + G_X)), true, 'compressed key');
+  assert.equal(isUsableWalletKey(url('04' + G_X + G_Y)), true, 'uncompressed key');
+  assert.equal(isUsableWalletKey(G_X), true, 'raw pubkey string without a URL');
+  assert.doesNotThrow(() => assertUsableWalletKey(url(G_X)));
+  // Junk: off-curve x, non-hex, truncated, empty.
+  assert.equal(isUsableWalletKey(url('c'.repeat(64))), false, 'off-curve x is refused');
+  assert.equal(isUsableWalletKey('nostr+walletconnect://garbage?relay=x'), false);
+  assert.equal(isUsableWalletKey(url(G_X.slice(0, 62))), false, 'truncated key is refused');
+  assert.equal(isUsableWalletKey(''), false);
+  assert.throws(() => assertUsableWalletKey(url('c'.repeat(64))));
+  assert.throws(() => assertUsableWalletKey('not-a-url'), /not usable/);
 });

@@ -33,6 +33,15 @@ import { handlePartnerRoute } from "../plugins/partner.js";
 import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
 import { DOMAIN } from "./domain.js";
 
+// A corrupt stored wallet can make the @getalby/sdk reject a DETACHED promise
+// (executeNip47Request runs its work in an un-awaited async IIFE), which takes
+// the whole payments process down with an unhandled rejection. Contain any
+// such stray rejection: log it loudly and keep serving. Uncaught exceptions
+// stay fatal on purpose - systemd brings the service back clean.
+process.on("unhandledRejection", (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  console.error(JSON.stringify({ level: 50, time: Date.now(), msg: "unhandled rejection contained", err: err.message, stack: err.stack }));
+});
 
 // Wire status for a pending_invoices row, DB only. Open wraps nudge the driver.
 function wrapStatusView(invoice: typeof pendingInvoicesTable.$inferSelect): { status: string; paymentHash: string } {

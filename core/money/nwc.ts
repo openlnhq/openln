@@ -869,11 +869,28 @@ export async function cancelHoldInvoice(paymentHash: string, nwcUrl: string): Pr
 
 export { paymentHashFromPreimage };
 
-export async function getBalance(nwcUrl?: string): Promise<GetBalanceResult> {
-  return withClient(nwcUrl, async (client) => {
-    const result = await client.getBalance();
-    return { balanceSats: Math.floor(result.balance / 1000) };
+/** Race a promise against a hard deadline so an op that never settles (a
+ * corrupt wallet can make the SDK's detached request promise hang forever)
+ * still turns into an error the callers can handle. */
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
   });
+}
+
+export async function getBalance(nwcUrl?: string): Promise<GetBalanceResult> {
+  return withTimeout(
+    withClient(nwcUrl, async (client) => {
+      const result = await client.getBalance();
+      return { balanceSats: Math.floor(result.balance / 1000) };
+    }),
+    12_000,
+    "The wallet did not answer in time",
+  );
 }
 
 export interface ListTransactionsOpts {

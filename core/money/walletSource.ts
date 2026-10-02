@@ -36,7 +36,7 @@ export type WalletSource =
   | { kind: "nwc"; nwcUrl: string; mode: "veil" | "custom"; connectionId?: string }
   | { kind: "blink"; apiKey: string; walletId: string | null; currency: string | null; connectionId?: string }
   | { kind: "lnaddress"; address: string; verifySupported: boolean; connectionId?: string }
-  | { kind: "noffer"; pointer: NofferPointer; appKey: string; connectionId?: string }
+  | { kind: "noffer"; pointer: NofferPointer; appKey: string; hasWebhook: boolean; connectionId?: string }
   | { kind: "ndebit"; pointer: NdebitPointer; appKey: string; connectionId?: string }
   | { kind: "none"; connectionId?: string };
 
@@ -51,7 +51,7 @@ export type MerchantFunding =
   | { kind: "nwc"; nwcUrl: string }
   | { kind: "blink"; apiKey: string; walletId: string | null }
   | { kind: "lnaddress"; address: string }
-  | { kind: "clink_offer"; pointer: NofferPointer; appKey: string; connectionId?: string };
+  | { kind: "clink_offer"; pointer: NofferPointer; appKey: string; hasWebhook: boolean; connectionId?: string };
 
 export function merchantFundingFromSource(source: WalletSource): MerchantFunding | null {
   switch (source.kind) {
@@ -62,7 +62,7 @@ export function merchantFundingFromSource(source: WalletSource): MerchantFunding
     case "lnaddress":
       return { kind: "lnaddress", address: source.address };
     case "noffer":
-      return { kind: "clink_offer", pointer: source.pointer, appKey: source.appKey, connectionId: source.connectionId };
+      return { kind: "clink_offer", pointer: source.pointer, appKey: source.appKey, hasWebhook: source.hasWebhook, connectionId: source.connectionId };
     default:
       return null;
   }
@@ -114,7 +114,7 @@ async function walletSourceFromConnection(accountId: string, conn: ConnectionRow
     const appKey = resolveNwcUrl(conn.clinkAppKeyEncrypted);
     if (!appKey) return null;
     return parsed.kind === "noffer"
-      ? { kind: "noffer", pointer: parsed, appKey, connectionId: conn.id }
+      ? { kind: "noffer", pointer: parsed, appKey, hasWebhook: !!(conn.clinkHookId && conn.clinkHookSecretEncrypted), connectionId: conn.id }
       : { kind: "ndebit", pointer: parsed, appKey, connectionId: conn.id };
   }
   if (conn.kind === "lnaddress") {

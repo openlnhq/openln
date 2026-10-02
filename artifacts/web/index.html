@@ -1988,7 +1988,7 @@ function walletModal(){
   wmInp.addEventListener('input',()=>{if(wmAutoT){clearTimeout(wmAutoT);wmAutoT=null}const d=wmDetect(wmInp.value);if(!d||d===mode||!WM[d])return;wmAutoT=setTimeout(()=>{const v=wmInp.value;mode=d;setTab(m.querySelector('[data-wm="'+d+'"]'));paint();wmInp.value=v;wmInp.focus();try{wmInp.setSelectionRange(v.length,v.length)}catch(e){}},400)});
   paint();
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();const kind=(r.connection&&r.connection.kind)||r.walletMode;toast(kind==='lnaddress'?'Lightning Address connected · receive-only':kind==='noffer'?'CLINK offer connected · receive-only':kind==='ndebit'?'CLINK debit connected · send-only':'Wallet connected');render()}
+    try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();const kind=(r.connection&&r.connection.kind)||r.walletMode;toast(kind==='lnaddress'?'Lightning Address connected · receive-only':kind==='noffer'?'CLINK offer connected · webhook values in Saved wallets':kind==='ndebit'?'CLINK debit connected · send-only':'Wallet connected');render()}
     catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${prose(x.message)}</p>`}
   };
 }
@@ -2004,7 +2004,8 @@ async function loadWalletConnections(){
   if(!conns.length){box.innerHTML='<p class="hint" style="margin-top:10px">No wallet saved yet. Connect one to start receiving.</p>';return}
   box.innerHTML=`<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
     <div style="font-size:12px;font-weight:590;color:var(--text2)">Saved wallets</div>
-    ${conns.map(c=>`<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap">
+    ${conns.map(c=>`<div style="border-top:1px solid var(--line)">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 0;flex-wrap:wrap">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:590;display:flex;gap:6px;align-items:center;flex-wrap:wrap">${esc(c.label)} ${connUseTags(c,d)}</div>
         <div class="wchips" style="margin-top:5px">${connCapChips(c.capabilities)}${c.address?`<span class="dim" style="font-size:11px">${esc(c.address)}</span>`:''}</div>
@@ -2012,12 +2013,41 @@ async function loadWalletConnections(){
       ${c.id!==d.defaultId?`<button class="btn ghost sm" data-cdefault="${esc(c.id)}">Default</button>`:''}
       <button class="btn ghost sm" data-cedit="${esc(c.id)}">Rename</button>
       <button class="btn ghost sm dangerText" data-cremove="${esc(c.id)}">Remove</button>
+      </div>
+      ${c.kind==='noffer'?`<div data-cwh="${esc(c.id)}" style="padding-bottom:4px"></div>`:''}
     </div>`).join('')}
     <p class="hint" style="margin-top:6px">RIC and Cards use the wallet picked in their sections. Everything else uses the default wallet.</p>
   </div>`;
   box.querySelectorAll('[data-cdefault]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cdefault)+'/default',{method:'POST',body:'{}'});toast('Default wallet updated');render()}catch(x){toast(x.message||'Could not update');b.disabled=false}}));
   box.querySelectorAll('[data-cedit]').forEach(b=>b.addEventListener('click',async()=>{const c=conns.find(x=>x.id===b.dataset.cedit);if(!c)return;const name=await dlgPrompt({title:'Name this wallet',body:'Shown in the RIC and Cards wallet pickers.',label:'Wallet name',value:c.label||'',maxlength:40,confirmText:'Save name'});if(name===null)return;if(!name){toast('Wallet name cannot be empty');return}try{await api('/api/connections/'+encodeURIComponent(c.id),{method:'PATCH',body:JSON.stringify({label:name})});toast('Wallet name saved');render()}catch(x){toast(x.message||'Could not rename')}}));
   box.querySelectorAll('[data-cremove]').forEach(b=>b.addEventListener('click',async()=>{if(conns.length<2){toast('Add another wallet before removing this one');return}if(!confirm('Remove this wallet connection? You can add it again any time.'))return;b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cremove),{method:'DELETE'});toast('Wallet removed');render()}catch(x){toast(x.message||'Could not remove');b.disabled=false}}));
+  /* CLINK offers: the wallet can push a paid confirmation to openLN when the
+     merchant sets the offer's webhook. Values are fetched lazily (the secret
+     is owner-only) and rendered as copy-paste rows; every interpolated value
+     (server path/token, location.origin) is HTML-escaped via esc(). */
+  box.querySelectorAll('[data-cwh]').forEach(async el=>{
+    try{
+      const w=await api('/api/connections/'+encodeURIComponent(el.dataset.cwh)+'/webhook');
+      if(!w||!w.path||!w.token){el.remove();return}
+      const base=location.origin+w.path, tpl=location.origin+w.templatePath, tok=w.token;
+      el.innerHTML=`<details style="margin:0 0 8px">
+        <summary style="cursor:pointer;font-size:12px;color:var(--teal);min-height:24px">Instant confirmations (webhook) - recommended</summary>
+        <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:6px">
+          <p class="hint" style="margin:0 0 8px">In your wallet, edit this offer and open its webhook settings, then paste these values. The wallet then confirms each payment the moment it lands - sales settle instantly and keep working even when the wrapped path is unavailable.</p>
+          <div style="margin:7px 0"><div class="dim" style="font-size:11px">Base URL</div><div style="display:flex;gap:6px;align-items:center"><code class="mono" style="font-size:11px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(base)}</code><button class="btn ghost sm" data-cwcopy="0">Copy</button></div></div>
+          <div style="margin:7px 0"><div class="dim" style="font-size:11px">Template URL (paste in the Raw URL field)</div><div style="display:flex;gap:6px;align-items:center"><code class="mono" style="font-size:11px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(tpl)}</code><button class="btn ghost sm" data-cwcopy="1">Copy</button></div></div>
+          <div style="margin:7px 0"><div class="dim" style="font-size:11px">Bearer token</div><div style="display:flex;gap:6px;align-items:center"><code class="mono" style="font-size:11px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(tok)}</code><button class="btn ghost sm" data-cwcopy="2">Copy</button></div></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;flex-wrap:wrap">
+            <span class="hint">Keep Force SSL on in the wallet.</span>
+            <button class="btn ghost sm" data-cwrotate="${esc(el.dataset.cwh)}">New token</button>
+          </div>
+        </div></details>`;
+      const vals=[base,tpl,tok];
+      el.querySelectorAll('[data-cwcopy]').forEach(b=>{b.onclick=()=>navigator.clipboard.writeText(vals[Number(b.dataset.cwcopy)]).then(()=>toast('Copied'))});
+      const rot=el.querySelector('[data-cwrotate]');
+      if(rot)rot.onclick=async()=>{if(!confirm('Generate a new bearer token? Your wallet stops confirming payments until you paste the new token there.'))return;rot.disabled=true;try{await api('/api/connections/'+encodeURIComponent(rot.dataset.cwrotate)+'/webhook/rotate',{method:'POST',body:'{}'});toast('New token generated - update it in your wallet');render()}catch(x){toast(x.message||'Could not rotate the token');rot.disabled=false}};
+    }catch(e){el.remove()}
+  });
 }
 async function loadConnectionsFor(feature,sel,title,blurb){
   const box=document.querySelector(sel); if(!box)return;

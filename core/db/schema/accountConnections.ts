@@ -27,6 +27,13 @@ export const accountConnectionsTable = pgTable("account_connections", {
   // requests to the wallet's node service (secret, encrypted at rest).
   clinkPointer: text("clink_pointer"),
   clinkAppKeyEncrypted: text("clink_app_key_encrypted"),
+  // CLINK offer webhook (Lightning.Pub paid callback). The hook id rides in
+  // the callback URL openLN hands the merchant to paste into their wallet;
+  // the bearer secret is what authenticates a callback (encrypted at rest).
+  // Present => the offer can be observed directly, so a wrap-unavailable
+  // sale may settle through the direct fallback instead of refusing.
+  clinkHookId: text("clink_hook_id"),
+  clinkHookSecretEncrypted: text("clink_hook_secret_encrypted"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

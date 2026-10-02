@@ -21,7 +21,7 @@
  *     Callers must leave the row pending and never blind-retry (there is no
  *     lookup verb in CLINK; the wallet's own history is the authority).
  */
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { ClinkSDK } from "@shocknet/clink-sdk";
 import { extractPaymentHash } from "./lnAddress.js";
 
@@ -99,6 +99,39 @@ export function parseClinkPointer(rawInput: string): ParsedClinkPointer | null {
 
 export function generateClinkAppKey(): string {
   return randomBytes(32).toString("hex");
+}
+
+/**
+ * Offer-webhook credentials (Lightning.Pub paid callbacks). The hook id is
+ * public by design - it rides in the callback URL the merchant pastes into
+ * the offer's webhook form. The bearer secret is what authenticates the
+ * wallet's push; its prefix keeps it distinct from RIC device tokens (bare
+ * 64-hex) so it can never be mistaken for one at the server's device gate.
+ */
+export const CLINK_HOOK_ID_RX = /^[a-f0-9]{24}$/;
+export const CLINK_HOOK_SECRET_PREFIX = "clh_";
+
+export function generateClinkHookId(): string {
+  return randomBytes(12).toString("hex");
+}
+
+export function generateClinkHookSecret(): string {
+  return CLINK_HOOK_SECRET_PREFIX + randomBytes(24).toString("hex");
+}
+
+/**
+ * Constant-time check of a webhook Authorization header against the stored
+ * secret. Accepts "Bearer <secret>" (what Lightning.Pub sends) or a bare
+ * secret value, so hand-rolled senders verify too.
+ */
+export function clinkHookBearerMatches(header: string | null | undefined, secret: string): boolean {
+  if (!header || !secret) return false;
+  let value = header.trim();
+  if (/^bearer[ \t]+/i.test(value)) value = value.replace(/^bearer[ \t]+/i, "").trim();
+  const a = Buffer.from(value, "utf8");
+  const b = Buffer.from(secret, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 /** sha256(preimage) === payment hash proves the invoice we handed over was paid. */

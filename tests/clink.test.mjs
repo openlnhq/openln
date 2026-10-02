@@ -9,6 +9,7 @@ import {
   parseClinkPointer, generateClinkAppKey, clinkRequestInvoice, clinkPayInvoice,
   preimageMatchesHash, clinkLatestFrom, describeClinkError,
   ClinkError, ClinkDebitError, ClinkAmbiguousError,
+  generateClinkHookId, generateClinkHookSecret, clinkHookBearerMatches,
   __setClinkClientFactoryForTests,
 } from '../dist/core/money/clink.js';
 
@@ -108,6 +109,21 @@ test('proofs: a preimage must hash to the invoice payment hash', () => {
   assert.equal(preimageMatchesHash(pre, h), true);
   assert.equal(preimageMatchesHash(pre, 'f'.repeat(64)), false);
   assert.equal(preimageMatchesHash('not-hex', h), false);
+});
+
+test('webhook credentials: generation shape and constant-time bearer matching', () => {
+  const id = generateClinkHookId();
+  assert.match(id, /^[a-f0-9]{24}$/, 'hook ids are short public hex');
+  const secret = generateClinkHookSecret();
+  assert.match(secret, /^clh_[a-f0-9]{48}$/, 'secrets carry a prefix so they can never read as a device token');
+  assert.notEqual(generateClinkHookSecret(), secret, 'every secret is fresh');
+  assert.equal(clinkHookBearerMatches('Bearer ' + secret, secret), true);
+  assert.equal(clinkHookBearerMatches('bearer ' + secret, secret), true, 'scheme matching is case-insensitive');
+  assert.equal(clinkHookBearerMatches(secret, secret), true, 'a bare token still verifies');
+  assert.equal(clinkHookBearerMatches('Bearer ' + 'clh_' + 'f'.repeat(48), secret), false, 'same length, wrong value is refused');
+  assert.equal(clinkHookBearerMatches('Bearer ' + secret + 'x', secret), false);
+  assert.equal(clinkHookBearerMatches(null, secret), false);
+  assert.equal(clinkHookBearerMatches('Bearer ', secret), false);
 });
 
 test('a wallet reporting a moved offer surfaces its replacement pointer', () => {

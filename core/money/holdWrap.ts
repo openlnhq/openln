@@ -144,6 +144,30 @@ async function platformBalanceSats(): Promise<number> {
 }
 
 /**
+ * Ask a CLINK offer (noffer) wallet for a fresh invoice. Shared by the
+ * wrapped mint and the direct fallback; adopts the wallet's replacement
+ * pointer once when it reports the offer moved (code 3 with `latest`).
+ */
+export async function mintNofferInvoice(
+  funding: Extract<MerchantFunding, { kind: "clink_offer" }>,
+  amountSats: number,
+  memo: string,
+): Promise<{ bolt11: string; paymentHash: string }> {
+  const attempt = (pointer: ParsedClinkPointer) =>
+    clinkRequestInvoice({ pointer, appKey: funding.appKey, amountSats, description: memo });
+  try {
+    return await attempt(funding.pointer);
+  } catch (err) {
+    const latest = clinkLatestFrom(err);
+    const fresh = latest ? parseClinkPointer(latest) : null;
+    if (!fresh || fresh.kind !== "noffer") throw err;
+    if (funding.connectionId) await updateConnectionClinkPointer(funding.connectionId, fresh.raw).catch(() => {});
+    logger.info({ connectionId: funding.connectionId ?? null }, "CLINK offer moved - adopted the wallet's latest pointer");
+    return await attempt(fresh);
+  }
+}
+
+/**
  * Mint the merchant's real invoice for the post-fee amount. The merchant's
  * funding source decides how:
  *   - nwc       : make_invoice over NWC
@@ -151,7 +175,8 @@ async function platformBalanceSats(): Promise<number> {
  *                 provider-controlled and always outlives the wrap window)
  *   - blink     : lnInvoiceCreate on the Blink account (expiresIn = the wrap's
  *                 merchant window)
- * All three yield a normal payable bolt11 with its own hash. The wrap never
+ *   - clink     : a noffer wallet invoice (mintNofferInvoice above)
+ * All yield a normal payable bolt11 with its own hash. The wrap never
  * touches the merchant's wallet again: the forward is paid from the platform
  * wallet, so the merchant side can even be receive-only.
  */
@@ -165,23 +190,10 @@ async function mintMerchantInvoice(
       const inv = await makeInvoice(amountSats, memo, MERCHANT_EXPIRY_SECONDS, funding.nwcUrl);
       return { bolt11: inv.bolt11, paymentHash: inv.paymentHash };
     }
-    case "clink_offer": {
+    case "clink_offer":
       // CLINK offer: request the invoice from the wallet's node service over
-      // Nostr. If the wallet reports the offer moved (code 3 with a `latest`
-      // replacement), adopt the new pointer once and retry.
-      const attempt = (pointer: ParsedClinkPointer) =>
-        clinkRequestInvoice({ pointer, appKey: funding.appKey, amountSats, description: memo });
-      try {
-        return await attempt(funding.pointer);
-      } catch (err) {
-        const latest = clinkLatestFrom(err);
-        const fresh = latest ? parseClinkPointer(latest) : null;
-        if (!fresh || fresh.kind !== "noffer") throw err;
-        if (funding.connectionId) await updateConnectionClinkPointer(funding.connectionId, fresh.raw).catch(() => {});
-        logger.info({ connectionId: funding.connectionId ?? null }, "CLINK offer moved - adopted the wallet's latest pointer");
-        return await attempt(fresh);
-      }
-    }
+      // Nostr (shared helper - same moved-offer adoption as the direct path).
+      return await mintNofferInvoice(funding, amountSats, memo);
     case "lnaddress": {
       const inv = await requestLnurlInvoice(funding.address, amountSats, memo);
       return { bolt11: inv.bolt11, paymentHash: inv.paymentHash };

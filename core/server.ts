@@ -9,11 +9,12 @@ import { db, entitiesTable, accountsTable, accountConnectionsTable, pendingInvoi
 import { and, eq, sql } from "drizzle-orm";
 import { makeInvoice, resolveNwcUrl } from "./money/nwc.js";
 import { captureFiatSnapshot } from "./money/fiatSnapshot.js";
-import { createWrappedInvoice, cancelWrap, type WrapRow } from "./money/holdWrap.js";
+import { createWrappedInvoice, cancelWrap, mintNofferInvoice, type WrapRow } from "./money/holdWrap.js";
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource, merchantFundingFromSource, assignDefaultIfUnset, syncLegacyWalletMirror } from "./money/walletSource.js";
 import { connectionPublicView, connectionKindLabel, deriveConnectionLabel, uniqueConnectionLabel, connectionCapabilities } from "./money/connections.js";
 import { parseClinkPointer, clinkRequestInvoice, generateClinkAppKey, describeClinkError } from "./money/clink.js";
+import { processClinkWebhook, ensureClinkHook, rotateClinkHook, clinkHookPaths } from "./money/clinkWebhook.js";
 import { detectFunding } from "./money/fundingInput.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
 import { AmbiguousPaymentError } from "./money/feeEngine.js";
@@ -94,6 +95,15 @@ const server = createServer(async (req, res) => {
       const deviceAllowed = (req.method === "GET" && (/^\/api\/pos\/(config|invoice\/[^/]+\/status|withdraw\/[^/]+\/status|next-provision|wipe-keys\/[^/]+)$/.test(u.pathname) || u.pathname === "/api/price" || /^\/api\/firmware\//.test(u.pathname))) ||
         (req.method === "POST" && (/^\/api\/pos\/(invoice|invoice\/[^/]+\/cancel|withdraw|send-to-card|mark-written\/[^/]+|mark-wiped\/[^/]+)$/.test(u.pathname) || ["/api/ric/hello","/api/ric/status"].includes(u.pathname)));
       if(!deviceAllowed)return json(res,403,{error:"Device credential cannot access account settings or browser wallet operations"});
+    }
+    // CLINK offer webhook - Lightning.Pub's paid callback. Authenticated by
+    // the per-connection bearer secret, not a browser session; must stay in
+    // front of the session-scoped routes. Contract + money-safety rules live
+    // in core/money/clinkWebhook.ts.
+    const clinkHookMatch = u.pathname.match(/^\/api\/clink\/hook\/([a-f0-9]{24})$/);
+    if (req.method === "GET" && clinkHookMatch) {
+      const outcome = await processClinkWebhook({ hookId: clinkHookMatch[1], searchParams: u.searchParams, authorization: req.headers.authorization ?? null });
+      return json(res, outcome.status, outcome.body);
     }
     if(await handleCardsPreview(req,res,u))return;
     // RIC/CYD device boot handshake — GET /pos/config (device fetches merchant currency + rate modifiers) and GET /price (BTC/fiat rate). Ported verbatim from bitPOS routes/pos.ts + routes/price.ts.
@@ -433,7 +443,12 @@ const server = createServer(async (req, res) => {
         }
         const [created] = await db.insert(accountConnectionsTable).values({ accountId: account.id, kind: pointer.kind, label: uniqueConnectionLabel(existing, deriveConnectionLabel(pointer.kind, pointer.raw)), clinkPointer: pointer.raw, clinkAppKeyEncrypted: encrypt(appKey) }).returning();
         const becameDefault = await assignDefaultIfUnset(account.id, created.id);
-        return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, receiveOnly: pointer.kind === "noffer", sendOnly: pointer.kind === "ndebit" });
+        // Offers get their paid-callback pair (public hook id + bearer secret)
+        // immediately, so Settings can show the wallet-paste values without a
+        // second write. Debits don't have webhooks - Lightning.Pub notifies
+        // send outcomes over Nostr instead.
+        const hook = pointer.kind === "noffer" ? await ensureClinkHook(created.id) : null;
+        return json(res, 200, { ok: true, connection: connectionPublicView(created), becameDefault, receiveOnly: pointer.kind === "noffer", sendOnly: pointer.kind === "ndebit", ...(hook ? { webhook: { ...clinkHookPaths(hook.hookId), token: hook.token } } : {}) });
       }
 
       // Blink API key (custodial accounts). Read + Receive scopes cover
@@ -538,6 +553,37 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, assignments: { ric_receive: acc?.ricReceiveConnectionId ?? null, ric_send: acc?.ricSendConnectionId ?? null, cards_receive: acc?.cardsReceiveConnectionId ?? null, cards_send: acc?.cardsSendConnectionId ?? null } });
     }
     {
+      // CLINK offer webhook values for the Settings copy-paste block. The
+      // bearer secret is shown only here (owner-authenticated), never in the
+      // connections list. Rotate keeps the URL, swaps the token.
+      const connWebhook = u.pathname.match(/^\/api\/connections\/([^/]+)\/webhook$/);
+      if (req.method === "GET" && connWebhook) {
+        const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+        const id = decodeURIComponent(connWebhook[1]);
+        const [conn] = await db
+          .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind })
+          .from(accountConnectionsTable)
+          .where(and(eq(accountConnectionsTable.id, id), eq(accountConnectionsTable.accountId, account.id)));
+        if (!conn) return json(res, 404, { error: "Connection not found" });
+        if (conn.kind !== "noffer") return json(res, 400, { error: "Webhook callbacks apply to CLINK offers - this wallet is not a receive offer" });
+        const hook = await ensureClinkHook(id);
+        if (!hook) return json(res, 500, { error: "Could not prepare this webhook" });
+        return json(res, 200, { ok: true, ...clinkHookPaths(hook.hookId), token: hook.token });
+      }
+      const connWebhookRotate = u.pathname.match(/^\/api\/connections\/([^/]+)\/webhook\/rotate$/);
+      if (req.method === "POST" && connWebhookRotate) {
+        const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+        const id = decodeURIComponent(connWebhookRotate[1]);
+        const [conn] = await db
+          .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind })
+          .from(accountConnectionsTable)
+          .where(and(eq(accountConnectionsTable.id, id), eq(accountConnectionsTable.accountId, account.id)));
+        if (!conn) return json(res, 404, { error: "Connection not found" });
+        if (conn.kind !== "noffer") return json(res, 400, { error: "Webhook callbacks apply to CLINK offers - this wallet is not a receive offer" });
+        const hook = await rotateClinkHook(id);
+        if (!hook) return json(res, 500, { error: "Could not rotate this webhook" });
+        return json(res, 200, { ok: true, ...clinkHookPaths(hook.hookId), token: hook.token });
+      }
       const connDefault = u.pathname.match(/^\/api\/connections\/([^/]+)\/default$/);
       if (req.method === "POST" && connDefault) {
         const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
@@ -695,11 +741,23 @@ const server = createServer(async (req, res) => {
         return json(res, 201, { bolt11: wrap.bolt11, paymentHash: wrap.paymentHash, amountSats, feeSats:wrap.feeSats, merchantAmountSats:amountSats-wrap.feeSats, expiresAt: wrap.expiresAt });
       }
       if (funding.kind === "clink_offer") {
-        // A CLINK offer can mint an invoice, but nothing on our side could
-        // observe a directly paid one (no LUD-21 verify, no lookup verb).
-        // Like a verify-less Lightning Address: settled only through the
-        // wrapped path; refuse the direct fallback so we never sell blind.
-        recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "pos", message: `Direct fallback refused (wrapped path unavailable, CLINK offer has no payment observer); ${amountSats} sat sale was not started`, amountSats });
+        // A CLINK offer settles directly only when the offer carries a
+        // webhook: that push is our payment observer (Lightning.Pub calls our
+        // callback when the invoice is paid). Without it nothing on our side
+        // could observe a direct payment - like a verify-less Lightning
+        // Address, refuse (policy A) so we never sell blind.
+        if (funding.hasWebhook) {
+          try {
+            const invoice = await mintNofferInvoice(funding, amountSats, memo);
+            const expiresAt = new Date(Date.now() + 3600 * 1000);
+            await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, memo, connectionId: source.connectionId ?? null, posboxDeviceId: typeof v.deviceId === "string" ? v.deviceId : undefined, deviceMac, origin: posOrigin, expiresAt, ...(fiatSnapshot ?? {}) });
+            return json(res, 201, { bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats, expiresAt });
+          } catch (err) {
+            recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "receive", event: "clink.direct_failed", status: "fail", method: "pos", message: describeClinkError(err), amountSats });
+            return json(res, 503, { error: "Payments to this wallet are temporarily unavailable. Please retry in a moment." });
+          }
+        }
+        recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "pos", message: `Direct fallback refused (wrapped path unavailable, CLINK offer has no payment webhook); ${amountSats} sat sale was not started`, amountSats });
         return json(res, 503, { error: "Payments to this wallet are temporarily unavailable. Please retry in a moment." });
       }
       // Direct (unwrapped) invoice - the fallback when wrapping is not
@@ -785,10 +843,22 @@ const server = createServer(async (req, res) => {
         return json(res, 200, { pr: wrap.bolt11, routes: [] });
       }
       if (funding.kind === "clink_offer") {
-        // Same policy as the POS route: an offer invoice can be minted, but
-        // nothing on our side could observe a direct payment to it. The
-        // wrapped path is the only safe settlement for a CLINK offer.
-        recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "lnurlp", message: `Direct fallback refused (wrapped path unavailable, CLINK offer has no payment observer); ${sats} sat payment was not started`, amountSats: sats });
+        // Same policy as the POS route: a direct offer invoice is observable
+        // only through the offer's webhook (Lightning.Pub pushes the paid
+        // callback). With one configured, mint directly; without it, the
+        // wrapped path is the only safe settlement.
+        if (funding.hasWebhook) {
+          try {
+            const invoice = await mintNofferInvoice(funding, sats, "openLN payment");
+            const expiresAt = new Date(Date.now() + 3600 * 1000);
+            await db.insert(pendingInvoicesTable).values({ accountId: account.id, bolt11: invoice.bolt11, paymentHash: invoice.paymentHash, amountSats: sats, memo: "openLN payment", connectionId: source.connectionId ?? null, origin: "ln_address", expiresAt, ...(lnFiat ?? {}) });
+            return json(res, 200, { pr: invoice.bolt11, routes: [] });
+          } catch (err) {
+            recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "receive", event: "clink.direct_failed", status: "fail", method: "lnurlp", message: describeClinkError(err), amountSats: sats });
+            return json(res, 503, { status: "ERROR", reason: "This merchant cannot receive right now. Please retry in a moment." });
+          }
+        }
+        recordPaymentEvent({ paymentId: "fallback", accountId: account.id, kind: "wrap", event: "wrap.fallback_refused", status: "info", method: "lnurlp", message: `Direct fallback refused (wrapped path unavailable, CLINK offer has no payment webhook); ${sats} sat payment was not started`, amountSats: sats });
         return json(res, 503, { status: "ERROR", reason: "This merchant cannot receive right now. Please retry in a moment." });
       }
       if (funding.kind === "nwc") {

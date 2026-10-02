@@ -75,3 +75,16 @@ test('wallets adopt their provider name once; renames stick and survive refresh'
   const empty=await fetch(base+'/api/connections/'+ins.rows[0].id,{method:'PATCH',headers:h,body:JSON.stringify({label:'   '})});
   assert.equal(empty.status,400,'an empty name is refused');
 });
+test('a poisoned wallet string cannot take the balance route down',async()=>{
+  const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'qa_conn3_'+randomBytes(5).toString('hex'),password:randomBytes(20).toString('hex')})});
+  const b=await r.json();const h={'Content-Type':'application/json',Authorization:'Bearer '+b.token};
+  const bad='nostr+walletconnect://'+'c'.repeat(64)+'?relay=wss%3A%2F%2Frelay.coinos.io&secret='+'d'.repeat(64);
+  const ins=await pool.query("INSERT INTO account_connections (account_id,kind,mode,label,nwc_url_encrypted) VALUES ($1,'nwc','custom','Bad key',$2) RETURNING id",[b.account.id,encrypt(bad)]);
+  await pool.query('UPDATE accounts SET default_connection_id=$2 WHERE id=$1',[b.account.id,ins.rows[0].id]);
+  const bal=await fetch(base+'/api/wallet/balance',{headers:h});
+  assert.equal(bal.status,200,'the balance route answers even for an unreadable wallet');
+  const body=await bal.json();
+  assert.equal(body.unavailable,true);
+  const still=await (await fetch(base+'/api/connections',{headers:h})).json();
+  assert.equal(still.connections.length,1,'the app is still alive and serving');
+});

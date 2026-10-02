@@ -86,7 +86,13 @@ async function register(){
 const auth=(token)=>({Authorization:'Bearer '+token});
 const connect=(token,connection)=>fetch(base+'/api/wallet/connect',{method:'POST',headers:{'Content-Type':'application/json',...auth(token)},body:JSON.stringify({connection})});
 
-before(async()=>{if(!server.listening)await once(server,'listening');base='http://127.0.0.1:'+server.address().port;});
+before(async()=>{if(!server.listening)await once(server,'listening');base='http://127.0.0.1:'+server.address().port;
+  // The send reconciler processes only the 10 OLDEST pending sends per sweep.
+  // Leftover pending rows from earlier (often killed) runs silently starve a
+  // fresh test row out of that batch, and the append-only trigger forbids
+  // deleting rows - so flip stale ones terminal here (scratch DB only, see guard above).
+  await pool.query("UPDATE transactions SET status='failed', failure_reason='qa cleanup: stale pending send from an earlier run' WHERE direction='out' AND status='pending' AND created_at < now() - interval '5 minutes'");
+});
 after(async()=>{globalThis.fetch=realFetch;dnsMod.default.lookup=realLookup;server.closeAllConnections();await new Promise(r=>server.close(r));await pool.end()});
 
 test('unclassifiable input is rejected and leaves the wallet untouched',async()=>{

@@ -343,6 +343,8 @@ h1.page{font-size:27px;font-weight:590;letter-spacing:-.68px;line-height:1.1;mar
 .wlanename{font-size:13px;font-weight:590}
 .wlanetop .wchips{margin-top:0}
 .wlanework{font-size:11.5px;color:var(--text3);margin-top:4px;line-height:1.55}
+.wlanework a{color:var(--teal)}
+.wlanework a:hover{text-decoration:underline}
 .wmlist{font-size:11.5px;line-height:1.6;color:var(--text3);margin:0 0 12px}
 .formgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.formgrid{grid-template-columns:1fr}}.issued-card-list{display:grid;gap:6px}.issued-card-row{display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);text-align:left;color:var(--text);cursor:pointer}.issued-card-row:hover{border-color:var(--teal-line)}.card-mini{width:29px;height:19px;border-radius:4px;background:linear-gradient(135deg,#123f3c,#0b1f1e);display:grid;place-items:center;flex-shrink:0}.card-mini-mark{color:var(--teal);font-size:15px;line-height:1}.issued-card-meta{flex:1;min-width:0}.issued-card-meta b{display:block;font-size:12px;font-weight:590}.issued-card-meta small{display:block;color:var(--text3);font-size:10.5px;margin-top:2px}
 .manage-actions{display:flex;flex-wrap:wrap;gap:7px}.manage-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.manage-section .label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}.manage-line{display:flex;justify-content:space-between;padding:5px 0;font-size:12px}.dangerText{color:var(--err)!important}
@@ -2789,15 +2791,15 @@ async function vSettings(version=renderVersion){
         <div class="wlanehead">Wallet connection options</div>
         <div class="wlane">
           <div class="wlanetop"><span class="wlanename">Nostr Wallet Connect</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip on">Send</span></div></div>
-          <div class="wlanework">Alby Hub, LNbits, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum, and any NIP-47 wallet.</div>
+          <div class="wlanework"><a href="https://albyhub.com/" target="_blank" rel="noopener">Alby Hub</a>, <a href="https://lnbits.com/" target="_blank" rel="noopener">LNbits</a>, <a href="https://zeusln.com/" target="_blank" rel="noopener">Zeus</a>, <a href="https://coinos.io/" target="_blank" rel="noopener">Coinos</a>, <a href="https://primal.net/" target="_blank" rel="noopener">Primal</a>, <a href="https://www.minibits.cash/" target="_blank" rel="noopener">Minibits</a>, <a href="https://blitzwalletapp.com/" target="_blank" rel="noopener">Blitz</a>, <a href="https://paywithflash.com/" target="_blank" rel="noopener">Flash</a>, <a href="https://electrum.org/" target="_blank" rel="noopener">Electrum</a>, and any NIP-47 wallet.</div>
         </div>
         <div class="wlane">
           <div class="wlanetop"><span class="wlanename">Blink API key</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip on">Send</span></div></div>
-          <div class="wlanework">Custodial Blink accounts, with a key from dashboard.blink.sv. Non-custodial Blink accounts connect with a Lightning Address.</div>
+          <div class="wlanework">Custodial Blink accounts, with a key from <a href="https://dashboard.blink.sv" target="_blank" rel="noopener">dashboard.blink.sv</a>. Non-custodial Blink accounts connect with a Lightning Address.</div>
         </div>
         <div class="wlane">
           <div class="wlanetop"><span class="wlanename">Lightning Address</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip off">Send</span></div></div>
-          <div class="wlanework">Blink, Coinos, Alby, Wallet of Satoshi, and any Lightning Address.</div>
+          <div class="wlanework"><a href="https://blink.sv/" target="_blank" rel="noopener">Blink</a>, <a href="https://coinos.io/" target="_blank" rel="noopener">Coinos</a>, <a href="https://getalby.com/" target="_blank" rel="noopener">Alby</a>, <a href="https://www.walletofsatoshi.com/" target="_blank" rel="noopener">Wallet of Satoshi</a>, and any Lightning Address.</div>
         </div>
       </div>
 

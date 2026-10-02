@@ -85,6 +85,10 @@ const FORWARD_ABANDON_MS = 30 * 60 * 1000;
 // rows drop their entry (see the "not_found" branch of forwarding recovery).
 const FORWARD_RETRY_THROTTLE_MS = 2 * 60 * 1000;
 const forwardRetryAt = new Map<string, number>(); // invoiceId → last retry attempt
+// Once the customer hold is past expiry the platform node can no longer
+// settle it; keep trying briefly (clock skew, an in-flight settle) then flag
+// for a human instead of hammering the relay forever.
+const SETTLE_EXPIRY_GRACE_MS = 60 * 1000;
 
 /** 2% incoming fee: max(1 sat, ceil(2%)), clamped so the merchant always gets >= 1 sat. */
 export function incomingFeeSats(amountSats: number): number {
@@ -808,10 +812,15 @@ async function doAdvance(row: WrapRow): Promise<string> {
       await settleHoldInvoice(settlePreimage, PLATFORM_NWC_URL);
     } catch (err) {
       if (!isAlreadySettledError(err)) {
-        logger.warn(
-          { invoiceId: row.id, err: err instanceof Error ? err.message : String(err) },
-          "Hold settle failed - will retry on next poll",
-        );
+        const msg = err instanceof Error ? err.message : String(err);
+        // Past hold expiry a settle can never succeed (the node drops the
+        // hold): stop retrying and surface it instead of silently looping.
+        if (row.expiresAt.getTime() < Date.now() - SETTLE_EXPIRY_GRACE_MS) {
+          await setWrapStatus(row.id, ["forwarded"], "needs_reconciliation");
+          logger.error({ invoiceId: row.id, err: msg }, "Hold expired before settle - wrap needs manual reconciliation");
+          return "needs_reconciliation";
+        }
+        logger.warn({ invoiceId: row.id, err: msg }, "Hold settle failed - will retry on next poll");
         return "forwarded";
       }
     }

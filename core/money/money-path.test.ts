@@ -46,6 +46,11 @@ test("relay cooldown is scoped to the relay that failed", () => {
   assert.equal(noteRelayOverload(new Error("Failed to connect to wss://relay-a.qa.test"), walletA), true);
   assert.equal(relayInCooldown(walletA), true, "failing relay cools down");
   assert.equal(relayInCooldown(walletB), false, "other relays stay warm");
+  // Comma-joined relay URLs (a wallet can announce several) split cleanly.
+  const walletC = "nostr+walletconnect://pubkey?relay=wss%3A%2F%2Frelay-c.qa.test&secret=00";
+  assert.equal(noteRelayOverload(new Error("Failed to connect to wss://relay-c.qa.test,wss://relay-d.qa.test"), walletC), true);
+  assert.equal(relayInCooldown(walletC), true);
+  assert.equal(relayInCooldown(walletB), false);
   // An overload with no identifiable relay still gates everything (safety net).
   assert.equal(noteRelayOverload(new Error("failed to publish"), undefined), true);
   assert.equal(relayInCooldown(walletB), true, "unattributable overload is a global safety net");

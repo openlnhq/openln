@@ -390,7 +390,11 @@ function relayKeysFor(err: unknown, nwcUrl?: string | null): string[] {
   const msg = err instanceof Error ? err.message : String(err);
   const keys = new Set<string>();
   for (const m of msg.matchAll(/wss?:\/\/[^\s"'`)\]]+/gi)) {
-    try { keys.add(new URL(m[0]).host); } catch { /* ignore */ }
+    // Relays/wallets can join several URLs with commas (seen live:
+    // "Failed to connect to wss://relay.getalby.com,wss://relay2.getalby.com").
+    for (const part of m[0].split(",")) {
+      try { keys.add(new URL(part).host); } catch { /* ignore */ }
+    }
   }
   if (keys.size === 0) {
     const k = relayKeyFromUrl(nwcUrl);

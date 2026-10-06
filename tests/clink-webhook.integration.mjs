@@ -64,6 +64,13 @@ test('a wallet push settles a direct sale exactly once; the device sees it paid'
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM transactions WHERE payment_hash=$1',[ib.paymentHash])).rows[0].n,1,'still exactly one transaction');
 });
 
+// payment_events are written fire-and-forget (a write must never break a request
+// path), so a count immediately after the response can miss the row under load —
+// this raced on unmodified main too. Poll briefly instead of asserting on read #1.
+async function waitForCount(sql,params,n,ms=5000){const t0=Date.now();let got=0;
+  while(Date.now()-t0<ms){got=(await pool.query(sql,params)).rows[0].n;if(got>=n)return got;await new Promise(r=>setTimeout(r,50));}
+  return got;}
+
 test('a mismatched amount never settles; unknown invoices are acknowledged quietly',async()=>{
   const h=mkHash();const bolt=mkBolt11(h);
   await pool.query("INSERT INTO pending_invoices (account_id,bolt11,payment_hash,amount_sats,origin,expires_at,connection_id) VALUES ($1,$2,$3,100,'web_pos',now()+interval '1 hour',$4)",[a.account.id,bolt,h,connId]);
@@ -71,7 +78,7 @@ test('a mismatched amount never settles; unknown invoices are acknowledged quiet
   assert.equal(mm.status,200);const mb=await mm.json();
   assert.equal(mb.settled,false);assert.equal(mb.reason,'amount');
   assert.equal((await pool.query('SELECT paid_at FROM pending_invoices WHERE payment_hash=$1',[h])).rows[0].paid_at,null,'a mismatched amount blocks settlement');
-  assert.ok((await pool.query("SELECT count(*)::int AS n FROM payment_events WHERE event='clink.hook_amount_mismatch' AND payment_hash=$1",[h])).rows[0].n>=1,'the refusal is recorded');
+  assert.ok((await waitForCount("SELECT count(*)::int AS n FROM payment_events WHERE event='clink.hook_amount_mismatch' AND payment_hash=$1",[h],1))>=1,'the refusal is recorded');
   const un=await callHook(hookPath,{invoice:'lnbc1definitely-not-ours'},'Bearer '+hookToken);
   assert.equal(un.status,200);assert.equal((await un.json()).tracked,false,'an invoice we do not track is acknowledged, not an error');
 });
@@ -85,7 +92,7 @@ test('a wrapped sale gets corroboration only - the wrap state machine still owns
   const row=(await pool.query('SELECT paid_at,wrap_status FROM pending_invoices WHERE payment_hash=$1',[H])).rows[0];
   assert.equal(row.paid_at,null,'a wrapped row is never settled from the webhook');
   assert.equal(row.wrap_status,'forwarding','the wrap state machine keeps ownership');
-  assert.equal((await pool.query("SELECT count(*)::int AS n FROM payment_events WHERE payment_hash=$1 AND event='clink.hook_paid'",[H])).rows[0].n,1,'the independent confirmation is recorded');
+  assert.equal(await waitForCount("SELECT count(*)::int AS n FROM payment_events WHERE payment_hash=$1 AND event='clink.hook_paid'",[H],1),1,'the independent confirmation is recorded');
 });
 
 test('without a webhook the direct fallback keeps refusing; issuing one flips the gate',async()=>{
@@ -98,7 +105,7 @@ test('without a webhook the direct fallback keeps refusing; issuing one flips th
   await pool.query('UPDATE accounts SET default_connection_id=$2 WHERE id=$1',[b.account.id,ins.rows[0].id]);
   const ref=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...bh},body:JSON.stringify({amountSats:321})});
   assert.equal(ref.status,503,'no observer -> refuse (policy A)');
-  assert.equal((await pool.query("SELECT count(*)::int AS n FROM payment_events WHERE account_id=$1 AND event='wrap.fallback_refused'",[b.account.id])).rows[0].n,1,'the refusal is recorded');
+  assert.equal(await waitForCount("SELECT count(*)::int AS n FROM payment_events WHERE account_id=$1 AND event='wrap.fallback_refused'",[b.account.id],1),1,'the refusal is recorded');
   const wv=await (await fetch(base+'/api/connections/'+ins.rows[0].id+'/webhook',{headers:bh})).json();
   assert.ok(wv.token.startsWith('clh_'),'Settings issuance works lazily for pre-existing offers');
   const inv=await fetch(base+'/api/pos/invoice',{method:'POST',headers:{'Content-Type':'application/json',...bh},body:JSON.stringify({amountSats:321})});

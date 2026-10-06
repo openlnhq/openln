@@ -556,11 +556,29 @@ html.light{--text3:#586f69;--teal:#006b6b;--gold:#916f00}
 .setrow label{font-size:14px}.setrow label small{font-size:12px;color:var(--text2)}
 .setrow select,.setrow input{max-width:55%;width:260px;min-height:46px;min-width:0;font-size:14px;background:var(--bg2)}
 .setrow option{background:var(--bg2);color:var(--text)}.set-actions .btn{min-height:46px}
-.rate-preview{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;font-size:12px;color:var(--text2)}
-.rate-preview>div{padding:12px;border:1px solid var(--line);border-radius:8px}.rate-preview span{display:block;margin-bottom:5px}.rate-preview b{display:block;font-size:12px;font-weight:500;color:var(--text)}
+/* RIC rate rows: +/- stepper, live rate chip, explainer tooltip */
+.setrow .rlabel{flex:1;font-size:14px;color:var(--text2)}
+.setrow .rlabel small{display:block;font-size:12px;color:var(--text2);margin-top:2px}
+.raterow{position:relative;flex-wrap:wrap}
+.rinfo{width:17px;height:17px;flex:none;display:inline-grid;place-items:center;border-radius:50%;font-size:10.5px;font-weight:600;color:var(--text3);box-shadow:inset 0 0 0 1px var(--line2);margin-left:7px;vertical-align:1.5px;transition:.15s}
+.rinfo:hover,.rinfo[aria-expanded="true"]{color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal-line)}
+.rinfo-pop{position:absolute;z-index:35;left:0;top:calc(100% - 8px);width:min(340px,calc(100vw - 58px));background:var(--bg2);border:1px solid var(--line2);border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.6;color:var(--text2);box-shadow:0 18px 44px rgba(0,0,0,.55)}
+html.light .rinfo-pop{box-shadow:0 18px 44px rgba(6,40,38,.2)}
+.rinfo-pop b{color:var(--text);font-weight:590}
+.rinfo-pop p+p{margin-top:6px}
+.ractl{display:flex;align-items:center;gap:8px;flex:none}
+.ratebtn{width:42px;height:42px;border-radius:9px;display:grid;place-items:center;background:var(--surface2);box-shadow:inset 0 0 0 1px var(--line2);font-size:18px;font-weight:510;line-height:1;color:var(--text);transition:.13s;user-select:none;-webkit-user-select:none}
+.ratebtn:hover{background:var(--surface3);box-shadow:inset 0 0 0 1px var(--teal-line)}
+.ratebtn:active{transform:scale(.93)}
+.ratebtn:disabled{opacity:.35;cursor:default;transform:none}
+.ratebtn:disabled:hover{background:var(--surface2);box-shadow:inset 0 0 0 1px var(--line2)}
+.rateval{min-width:104px;text-align:center;font-size:13.5px;font-weight:590;color:var(--text);font-variant-numeric:tabular-nums}
+.rateval.market{color:var(--text3);font-weight:510}
+.rateval.adj{color:var(--teal)}
+.ratechip{flex:none;min-width:150px;text-align:center;font-size:11.5px;color:var(--text2);background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:8px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ricgrid{max-width:760px;grid-template-columns:1fr 1fr}.rictile{min-height:142px}.rictile-sub{font-size:12px;color:var(--text2);line-height:1.6}.ricrow{max-width:760px}
 .ricrates{max-width:760px;margin-top:24px;padding:18px;border:1px solid var(--line);border-radius:12px;font-size:13px;color:var(--text2)}
-@media(max-width:600px){.shell{padding:0 18px 16px}header.top{margin:0 -18px;padding:0 18px}.topin{height:62px}.wos-hero{padding:48px 6px 24px}.wos-latest{margin-inline:0}.wos-actions{padding-bottom:calc(14px + env(safe-area-inset-bottom))}.setcard{padding:20px 16px}.setrow{flex-direction:column;align-items:stretch;gap:8px;padding:14px 0}.setrow select,.setrow input{max-width:100%;width:100%}.setrow label small{display:inline;margin-left:6px}.rate-preview{grid-template-columns:1fr}.set-actions{align-items:flex-start;flex-direction:column}.cardface{max-width:340px}.modalbox{width:100%;padding:22px 18px}.ricgrid{gap:10px}.rictile{padding:16px}.cardsgrid{grid-template-columns:1fr 1fr;gap:12px}.cardtile{padding:12px}.cardtile.new{min-height:180px}.cardtile-meta{font-size:11px}.cardtile-name{font-size:13px}}
+@media(max-width:600px){.shell{padding:0 18px 16px}header.top{margin:0 -18px;padding:0 18px}.topin{height:62px}.wos-hero{padding:48px 6px 24px}.wos-latest{margin-inline:0}.wos-actions{padding-bottom:calc(14px + env(safe-area-inset-bottom))}.setcard{padding:20px 16px}.setrow{flex-direction:column;align-items:stretch;gap:8px;padding:14px 0}.setrow select,.setrow input{max-width:100%;width:100%}.setrow label small{display:inline;margin-left:6px}.setrow .rlabel small{display:inline;margin-left:6px}.raterow{gap:10px}.ractl{width:100%;justify-content:space-between}.rateval{flex:1;min-width:0}.ratechip{width:100%;min-width:0;white-space:normal}.set-actions{align-items:flex-start;flex-direction:column}.cardface{max-width:340px}.modalbox{width:100%;padding:22px 18px}.ricgrid{gap:10px}.rictile{padding:16px}.cardsgrid{grid-template-columns:1fr 1fr;gap:12px}.cardtile{padding:12px}.cardtile.new{min-height:180px}.cardtile-meta{font-size:11px}.cardtile-name{font-size:13px}}
 @media(max-width:350px){.cardsgrid,.ricgrid{grid-template-columns:1fr}}
 
 </style>
@@ -2480,7 +2498,7 @@ async function vRic(){
   // Proactive: a RIC cannot send (QR or card tap) until the account has a
   // 6-digit send PIN. Ask for it here, before the first device error does.
   api('/api/account/send-pin').then(p=>{const g=$('#ricPinGate');if(!g||p.set)return;g.innerHTML=`<div class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Set your 6-digit send PIN</b><p class="dim" style="font-size:12.5px;margin-top:6px">Receiving works without it. Sending sats from the RIC (Send mode QR or tapping a card) is refused until this PIN exists. Set it once now so the device is ready.</p><button class="btn teal sm" id="ricSetPinNow" style="margin-top:10px">Set send PIN</button></div>`;$('#ricSetPinNow').onclick=()=>{settingsFocus='pin';navigate('settings')};}).catch(()=>{});
-  api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(s.rateModifier||'Market rate')}</b><br>Sell / Send: <b>${esc(s.sendRateModifier||'Market rate')}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><p class="hint">Sending sats from the RIC (QR or card tap) requires your 6-digit send PIN. Set it under Security in Settings.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>{settingsFocus='rates';navigate('settings')}}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
+  api('/api/pos/config').then(s=>{const box=$('#ricRateSummary');if(!box)return;box.innerHTML=`<b>${esc(s.currency.toUpperCase())}</b> · ${esc(s.rateSource||'coingecko')}<br>Buy / Receive: <b>${esc(rateModifierLabel(s.rateModifier))}</b><br>Sell / Send: <b>${esc(rateModifierLabel(s.sendRateModifier))}</b><p class="hint" style="margin-top:9px">These come from your account settings. Restart your RIC after saving changes.</p><p class="hint">Sending sats from the RIC (QR or card tap) requires your 6-digit send PIN. Set it under Security in Settings.</p><button class="btn ghost sm" id="ricSettingsBtn" style="margin-top:10px">Edit rates</button>`;$('#ricSettingsBtn').onclick=()=>{settingsFocus='rates';navigate('settings')}}).catch(()=>{const box=$('#ricRateSummary');if(box)box.textContent='Could not read device settings. Open Settings to retry.'});
   await renderRicDevices();
 }
 async function renderRicDevices(){
@@ -2737,6 +2755,33 @@ function ricReleaseModal(device){
 /* ---- SETTINGS ---- */
 const CURRENCIES = ["zar","usd","eur","thb","gbp","jpy","btc","sats"];
 const CURRENCY_NAMES={zar:'South African rand',usd:'US dollar',eur:'Euro',thb:'Thai baht',gbp:'British pound',jpy:'Japanese yen',btc:'Bitcoin',sats:'Satoshis'};
+/* ---- RATE MODIFIER HELPERS ---- */
+// Stored form is "<CUR>*<multiplier>" (for example THB*1.02). The steppers work
+// in percent of the resulting sats-per-unit rate: +2% <=> multiplier 1/1.02.
+function rateModifierPct(mod){
+  if(!mod) return null;
+  const m=String(mod).replace(/\s/g,'').match(/^[a-z]{3,5}\*(\d+(?:\.\d+)?)$/i);
+  if(!m) return NaN;
+  const mult=parseFloat(m[1]);
+  return mult>0?(1/mult-1)*100:NaN;
+}
+function ratePctModifier(pct,currency){
+  if(!pct) return '';
+  const cur=String(currency||'').toLowerCase();
+  const code=(/^[a-z]{3,5}$/.test(cur)?cur:'usd').toUpperCase();
+  return code+'*'+String(Number((1/(1+pct/100)).toFixed(6)));
+}
+function ratePctLabel(pct){
+  const p=Math.round(pct*10)/10;
+  return (p>0?'+':p<0?'\u2212':'')+Math.abs(p).toFixed(1)+'%';
+}
+function rateModifierLabel(mod){
+  const pct=rateModifierPct(mod);
+  if(pct===null) return 'Market rate';
+  if(Number.isNaN(pct)) return String(mod);
+  return ratePctLabel(pct);
+}
+/* ---- END RATE MODIFIER HELPERS ---- */
 const RATE_SOURCES = ["coingecko","binance"];
 async function vSettings(version=renderVersion){
   const [settings, status, sendPin, walletBal, tg] = await Promise.all([
@@ -2776,7 +2821,7 @@ async function vSettings(version=renderVersion){
     <p class="muted" style="margin:8px 0 22px;max-width:560px">Currency, exchange rate, wallet and security, all stored on your openLN account.</p>
     <div class="setgrid">
 
-      <div class="setcard">
+      <div class="setcard" id="setRateCard">
         <h3>Currency &amp; RIC rates</h3>
         <div class="sub">Your RIC reads these settings. Restart it after saving to fetch the latest values.</div>
         <div class="setrow">
@@ -2787,15 +2832,36 @@ async function vSettings(version=renderVersion){
           <label>Price source<small>Exchange rate provider</small></label>
           <select id="setRateSource">${RATE_SOURCES.map(s=>`<option value="${s}" ${settings.rateSource===s?'selected':''}>${s}</option>`).join('')}</select>
         </div>
-        <div class="setrow">
-          <label for="setRateModifier">Buy · Receive<small>You receive sats</small></label>
-          <input class="mono" id="setRateModifier" placeholder="Market rate, or e.g. USD*1.02" value="${esc(settings.rateModifier||'')}">
+        <div class="setrow raterow">
+          <div class="rlabel"><span>Buy · Receive</span><button type="button" class="rinfo" id="buyRateInfo" aria-expanded="false" aria-label="How the buy rate works with your RIC">?</button><small>Customers pay · you receive sats</small></div>
+          <div class="ractl" role="group" aria-label="Buy receive rate adjustment">
+            <button type="button" class="ratebtn" id="buyRateMinus" aria-label="Lower the buy rate">−</button>
+            <div class="rateval market" id="buyRateVal">Market rate</div>
+            <button type="button" class="ratebtn" id="buyRatePlus" aria-label="Raise the buy rate">+</button>
+          </div>
+          <div class="ratechip mono" id="buyRateChip" aria-live="polite">Fetching market rate…</div>
+          <div class="rinfo-pop" id="buyRatePop" hidden>
+            <p><b>This is the rate your RIC uses when a customer pays you.</b></p>
+            <p>Buy · Receive converts your prices from <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> into the sats a customer pays, and the rate on the right shows what your RIC will use. At Market rate it follows the live Bitcoin price.</p>
+            <p>Press + to ask for more sats per <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span>, - to ask for fewer. Example: +2% on a 100 <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> sale asks for about 2% more sats.</p>
+            <p>Your RIC downloads saved rates when it starts: restart it after saving a change. These are exchange-rate settings, separate from routing fees.</p>
+          </div>
         </div>
-        <div class="setrow">
-          <label for="setSendRateModifier">Sell · Send<small>You send sats</small></label>
-          <input class="mono" id="setSendRateModifier" placeholder="Market rate, or e.g. USD*1.02" value="${esc(settings.sendRateModifier||'')}">
+        <div class="setrow raterow">
+          <div class="rlabel"><span>Sell · Send</span><button type="button" class="rinfo" id="sellRateInfo" aria-expanded="false" aria-label="How the sell rate works with your RIC">?</button><small>You send sats from the RIC</small></div>
+          <div class="ractl" role="group" aria-label="Sell send rate adjustment">
+            <button type="button" class="ratebtn" id="sellRateMinus" aria-label="Lower the sell rate">−</button>
+            <div class="rateval market" id="sellRateVal">Market rate</div>
+            <button type="button" class="ratebtn" id="sellRatePlus" aria-label="Raise the sell rate">+</button>
+          </div>
+          <div class="ratechip mono" id="sellRateChip" aria-live="polite">Fetching market rate…</div>
+          <div class="rinfo-pop" id="sellRatePop" hidden>
+            <p><b>This is the rate your RIC uses when it sends sats out.</b></p>
+            <p>Sell · Send converts amounts into the sats your RIC sends (Send mode QR or tapping a card), and the rate on the right shows what your RIC will use. At Market rate it follows the live Bitcoin price.</p>
+            <p>Press + to send more sats per <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span>, - to send fewer. Example: -2% on a 1,000 <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> send sends about 2% fewer sats.</p>
+            <p>Your RIC downloads saved rates when it starts: restart it after saving a change. These are exchange-rate settings, separate from routing fees.</p>
+          </div>
         </div>
-        <p class="hint">Leave blank for the market rate. To adjust, use a multiplier such as ZAR*1.02 or ZAR*0.98. These are exchange-rate settings, separate from the routing fee.</p><div id="ratePreview" class="rate-preview" aria-live="polite"></div>
         <div class="set-actions">
           <button class="btn teal" id="savePrefs">Save preferences</button>
           <span class="dim" style="font-size:12px;align-self:center" id="prefsStatus"></span>
@@ -2893,37 +2959,108 @@ async function vSettings(version=renderVersion){
     </div>
   </div>`;
 
-  let ratePreviewVersion=0;
-  const updateRatePreview=async()=>{
-    const n=++ratePreviewVersion,box=$('#ratePreview');if(!box)return;
-    const currency=$('#setCurrency').value,source=$('#setRateSource').value;
-    box.textContent='Fetching current rates…';
-    try{
-      const base='/api/price?vs_currency='+encodeURIComponent(currency)+'&source='+source;
-      const [buy,sell]=await Promise.all([api(base+'&modifier='+encodeURIComponent($('#setRateModifier').value)),api(base+'&modifier='+encodeURIComponent($('#setSendRateModifier').value))]);
-      if(n!==ratePreviewVersion || !box.isConnected)return;
-      if(!(buy.price>0&&sell.price>0))throw Error('Rate temporarily unavailable');
-      const units=p=>currency==='sats'?'1 sat':(100000000/p).toLocaleString(undefined,{maximumFractionDigits:2})+' sats / '+currency.toUpperCase();
-      box.innerHTML=`<div><span>Buy · Receive</span><b class="mono">${esc(units(buy.price))}</b></div><div><span>Sell · Send</span><b class="mono">${esc(units(sell.price))}</b></div>`;
-    }catch(e){if(n===ratePreviewVersion && box.isConnected)box.textContent='Rate preview unavailable. No estimated rate is substituted.'}
+  // RIC rate rows: 0.5% steppers mapped onto the stored "<CUR>*<multiplier>"
+  // modifier. Chips compute locally from one market fetch so clicks are instant.
+  const RATE_STEP=0.5, RATE_MAX=50;
+  const rateParsed=[rateModifierPct(settings.rateModifier),rateModifierPct(settings.sendRateModifier)];
+  const rateRows={
+    buy:{pct:Number.isFinite(rateParsed[0])?rateParsed[0]:0,custom:Number.isNaN(rateParsed[0]),touched:false,orig:settings.rateModifier||'',chip:null,rcv:0},
+    sell:{pct:Number.isFinite(rateParsed[1])?rateParsed[1]:0,custom:Number.isNaN(rateParsed[1]),touched:false,orig:settings.sendRateModifier||'',chip:null,rcv:0},
   };
+  const rState={base:null,failed:false,rv:0};
+  const curCode=()=>String($('#setCurrency').value||'usd').toUpperCase();
+  const syncPopCur=()=>{const c=curCode();document.querySelectorAll('.popcur').forEach(el=>{el.textContent=c})};
+  const rateChipText=st=>{
+    if($('#setCurrency').value==='sats')return '1 sat';
+    if(st.custom&&!st.touched)return st.chip||'Fetching market rate…';
+    if(rState.failed)return 'Rate preview unavailable. No estimated rate is substituted.';
+    if(!(rState.base>0))return 'Fetching market rate…';
+    return (100000000/rState.base*(1+st.pct/100)).toLocaleString(undefined,{maximumFractionDigits:2})+' sats / '+curCode();
+  };
+  const paintRates=()=>{
+    for(const dir of ['buy','sell']){
+      const st=rateRows[dir],val=$('#'+dir+'RateVal'),chip=$('#'+dir+'RateChip'),minus=$('#'+dir+'RateMinus'),plus=$('#'+dir+'RatePlus');
+      if(!val||!chip||!minus||!plus)continue;
+      if(st.custom&&!st.touched){val.className='rateval';val.textContent=st.orig;val.title='Saved expression: '+st.orig}
+      else{val.className='rateval'+(st.pct?' adj':' market');val.textContent=st.pct?ratePctLabel(st.pct):'Market rate';val.removeAttribute('title')}
+      minus.disabled=st.pct<=-RATE_MAX;plus.disabled=st.pct>=RATE_MAX;
+      chip.textContent=rateChipText(st);
+    }
+  };
+  const fetchCustomChip=async dir=>{
+    const st=rateRows[dir],n=++st.rcv;
+    try{
+      const qs=new URLSearchParams({vs_currency:$('#setCurrency').value,source:$('#setRateSource').value,modifier:st.orig});
+      const r=await api('/api/price?'+qs.toString());
+      if(n!==st.rcv||!(st.custom&&!st.touched))return;
+      st.chip=(r&&r.price>0)?(100000000/r.price).toLocaleString(undefined,{maximumFractionDigits:2})+' sats / '+curCode():'Rate preview unavailable. No estimated rate is substituted.';
+    }catch(e){st.chip='Rate preview unavailable. No estimated rate is substituted.'}
+    if(n===st.rcv)paintRates();
+  };
+  const fetchMarket=async()=>{
+    const n=++rState.rv;
+    rState.base=null;rState.failed=false;
+    for(const dir of ['buy','sell']){const st=rateRows[dir];if(st.custom&&!st.touched)st.chip=null}
+    syncPopCur();paintRates();
+    try{
+      const qs=new URLSearchParams({vs_currency:$('#setCurrency').value,source:$('#setRateSource').value});
+      const r=await api('/api/price?'+qs.toString());
+      if(n!==rState.rv)return;
+      const p=Number(r&&r.price);if(!(p>0))throw Error('no price');
+      rState.base=p;
+    }catch(e){if(n!==rState.rv)return;rState.failed=true}
+    if(n!==rState.rv)return;
+    paintRates();
+    for(const dir of ['buy','sell']){const st=rateRows[dir];if(st.custom&&!st.touched)fetchCustomChip(dir)}
+  };
+  const stepRate=(dir,delta)=>{
+    const st=rateRows[dir];
+    let p=Math.round((st.pct+delta)*10)/10;
+    p=Math.max(-RATE_MAX,Math.min(RATE_MAX,p));
+    if(p===st.pct&&!st.custom)return;
+    st.pct=p;st.touched=true;st.custom=false;st.chip=null;
+    markDirty();paintRates();
+  };
+  const rateValue=dir=>{
+    const st=rateRows[dir];
+    return st.touched?ratePctModifier(st.pct,$('#setCurrency').value):st.orig;
+  };
+  $('#buyRateMinus').onclick=()=>stepRate('buy',-RATE_STEP);
+  $('#buyRatePlus').onclick=()=>stepRate('buy',RATE_STEP);
+  $('#sellRateMinus').onclick=()=>stepRate('sell',-RATE_STEP);
+  $('#sellRatePlus').onclick=()=>stepRate('sell',RATE_STEP);
+  const closeRatePops=()=>{
+    for(const id of ['buyRatePop','sellRatePop']){const el=$('#'+id);if(el)el.hidden=true}
+    document.querySelectorAll('.rinfo').forEach(b=>b.setAttribute('aria-expanded','false'));
+  };
+  window.__closeRatePops=closeRatePops;
+  if(!window.__ratePopGuard){window.__ratePopGuard=1;
+    document.addEventListener('click',()=>{if(window.__closeRatePops)window.__closeRatePops()});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&window.__closeRatePops)window.__closeRatePops()});
+  }
+  const wireRatePop=(btnId,popId)=>{
+    const b=$('#'+btnId),p=$('#'+popId);if(!b||!p)return;
+    b.addEventListener('click',e=>{e.stopPropagation();const wasOpen=!p.hidden;closeRatePops();if(!wasOpen){p.hidden=false;b.setAttribute('aria-expanded','true')}});
+    p.addEventListener('click',e=>e.stopPropagation());
+  };
+  wireRatePop('buyRateInfo','buyRatePop');wireRatePop('sellRateInfo','sellRatePop');
   window.__prefsDirty=false;
   if(!window.__prefsGuard){window.__prefsGuard=1;window.addEventListener('beforeunload',e=>{if(window.__prefsDirty){e.preventDefault();e.returnValue=''}})}
   const markDirty=()=>{window.__prefsDirty=true;const b=$('#savePrefs'),st=$('#prefsStatus');if(b)b.className='btn gold';if(st&&st.textContent!=='Saving…')st.textContent='Unsaved changes'};
-  for(const id of ['setCurrency','setRateSource','setRateModifier','setSendRateModifier']){const el=$('#'+id);el.addEventListener('change',()=>{markDirty();updateRatePreview()});el.addEventListener('input',()=>{if(id==='setRateModifier'||id==='setSendRateModifier')markDirty()});}
-  updateRatePreview();
+  for(const id of ['setCurrency','setRateSource']){const el=$('#'+id);el.addEventListener('change',()=>{markDirty();fetchMarket()})}
+  fetchMarket();
   // save preferences
   $('#savePrefs').onclick=async()=>{
     const b=$('#savePrefs'), st=$('#prefsStatus');
     b.disabled=true; b.textContent='Saving…'; st.textContent='';
     try{
-      await api('/api/account/settings',{method:'PUT',body:JSON.stringify({
-        currency:$('#setCurrency').value,
-        rateSource:$('#setRateSource').value,
-        rateModifier:$('#setRateModifier').value.trim(),
-        sendRateModifier:$('#setSendRateModifier').value.trim(),
-      })});
-      const saved=await api('/api/account/settings');if(saved.currency!==$('#setCurrency').value||saved.rateSource!==$('#setRateSource').value)throw Error('Settings did not persist');window.__prefsDirty=false;b.className='btn teal';st.textContent='Saved · restart your RIC to refresh';updateRatePreview();
+      const sent={currency:$('#setCurrency').value,rateSource:$('#setRateSource').value,rateModifier:rateValue('buy'),sendRateModifier:rateValue('sell')};
+      await api('/api/account/settings',{method:'PUT',body:JSON.stringify(sent)});
+      const saved=await api('/api/account/settings');
+      if(saved.currency!==sent.currency||saved.rateSource!==sent.rateSource||String(saved.rateModifier||'')!==sent.rateModifier||String(saved.sendRateModifier||'')!==sent.sendRateModifier)throw Error('Settings did not persist');
+      window.__prefsDirty=false;b.className='btn teal';st.textContent='Saved · restart your RIC to refresh';
+      for(const dir of ['buy','sell']){const st2=rateRows[dir];st2.orig=dir==='buy'?String(saved.rateModifier||''):String(saved.sendRateModifier||'');st2.touched=false;st2.chip=null;const p2=rateModifierPct(st2.orig);st2.custom=Number.isNaN(p2);if(Number.isFinite(p2))st2.pct=p2}
+      fetchMarket();
     }catch(e){ st.textContent=displayText(e.message); }
     b.disabled=false; b.textContent='Save preferences';
   };
@@ -2962,7 +3099,7 @@ async function vSettings(version=renderVersion){
   // wallet connect/replace
   $('#setWalletBtn').onclick=walletModal;
   loadWalletConnections();
-  if(settingsFocus){const tgt=settingsFocus==='pin'?$('#setPinNew'):$('#setCurrency');const sCard=tgt?tgt.closest('.setcard'):null;if(sCard){sCard.scrollIntoView({block:'start'});sCard.style.outline='2px solid var(--accent)';sCard.style.outlineOffset='2px';setTimeout(()=>{sCard.style.outline=''},2400)}if(settingsFocus==='pin'&&tgt){try{tgt.focus()}catch(e){}}settingsFocus=''}
+  if(settingsFocus){const tgt=settingsFocus==='pin'?$('#setPinNew'):(settingsFocus==='rates'?$('#setRateCard'):$('#setCurrency'));const sCard=tgt?tgt.closest('.setcard'):null;if(sCard){sCard.scrollIntoView({block:'start'});sCard.style.outline='2px solid var(--accent)';sCard.style.outlineOffset='2px';setTimeout(()=>{sCard.style.outline=''},2400)}if(settingsFocus==='pin'&&tgt){try{tgt.focus()}catch(e){}}settingsFocus=''}
 
   // telegram account link
   const tgConnectBtn=$('#tgConnect');

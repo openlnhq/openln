@@ -130,3 +130,25 @@ test('treasury offers the analytics consoles with signed-in entry',()=>{
   assert.ok(src.includes("fetch('/at/mint'"),'the buttons mint a signed-in session first');
   assert.ok(src.includes("https://openln.com/traffic/")&&src.includes("https://openln.com/insights/"),'manual fallback keeps working on dev and other hosts');
 });
+test('rate rows step in percent with inline live rates and a RIC explainer',()=>{
+  const source=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));
+  assert.ok(source.includes('buyRateMinus')&&source.includes('buyRatePlus')&&source.includes('sellRateMinus')&&source.includes('sellRatePlus'),'each rate row gets - and + steppers');
+  assert.ok(source.includes('buyRateChip')&&source.includes('sellRateChip'),'each row shows its resulting sats rate inline');
+  assert.ok(source.includes('buyRatePop')&&source.includes('sellRatePop'),'each rate row carries an explainer tooltip');
+  assert.ok(source.includes('restart it after saving'),'the tooltip explains how a change reaches the RIC');
+  assert.ok(!source.includes('id="setRateModifier"'),'the raw modifier-syntax input is gone');
+  assert.ok(source.includes('stepRate(')&&source.includes('rateValue('),'steppers drive the stored rate value');
+});
+test('percent adjustments convert to and from the stored multiplier form',()=>{
+  const block=html.slice(html.indexOf('/* ---- RATE MODIFIER HELPERS ---- */'),html.indexOf('/* ---- END RATE MODIFIER HELPERS ---- */'));
+  assert.ok(block.includes('ratePctModifier'),'helpers block present');
+  const context=vm.createContext({});
+  vm.runInContext(block+';this.rateModifierPct=rateModifierPct;this.ratePctModifier=ratePctModifier;this.ratePctLabel=ratePctLabel;this.rateModifierLabel=rateModifierLabel;',context);
+  assert.equal(context.ratePctModifier(2,'thb'),'THB*0.980392','+2% stores as the equivalent multiplier');
+  assert.equal(context.ratePctModifier(-2,'thb'),'THB*1.020408','-2% stores as the equivalent multiplier');
+  assert.equal(context.ratePctModifier(0,'thb'),'','market rate stores blank');
+  assert.equal(context.ratePctLabel(context.rateModifierPct('THB*0.980392')),'+2.0%','percent round-trips through the stored multiplier');
+  assert.equal(context.rateModifierLabel('THB*0.8'),'+25.0%','existing stored multipliers read as friendly percentages');
+  assert.equal(context.rateModifierLabel('ZAR*1.02'),'\u22122.0%','negative adjustments use a minus sign');
+  assert.equal(context.rateModifierLabel(''),'Market rate','blank reads as market rate');
+});

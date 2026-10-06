@@ -33,6 +33,8 @@ import { handleTelegramLinkRoute } from "../plugins/telegram-link.js";
 import { handleShopRoute } from "../plugins/shop.js";
 import { handlePartnerRoute } from "../plugins/partner.js";
 import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
+import { handleAdminUserbaseRoute } from "./admin/adminUserbase.js";
+import { touchAccountActivity, recordActivityTimezone } from "./activity.js";
 import { DOMAIN } from "./domain.js";
 
 // A corrupt stored wallet can make the @getalby/sdk reject a DETACHED promise
@@ -248,7 +250,7 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "GET" && u.pathname === "/api/plugins") return json(res, 200, registry.list());
     if (req.method === "POST" && u.pathname === "/api/auth/register") { const v = await body(req); try { return json(res, 201, await auth.register(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
-    if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { return json(res, 200, await auth.login(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
+    if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { const out = await auth.login(String(v.handle ?? ""), String(v.password ?? "")); if (out?.account?.id) void touchAccountActivity(out.account.id, req); return json(res, 200, out); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/access-state") { const v = await body(req); try { return json(res, 200, await auth.accessState(String(v.handle ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/migrate-password") { const v = await body(req); try { return json(res, 200, await auth.migratePassword(String(v.handle ?? ""), String(v.pin ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }
     const sessionAccount = async () => { const h = req.headers.authorization ?? ""; const token = h.startsWith("Bearer ") ? h.slice(7) : (u.searchParams.get("token") ?? String(req.headers.cookie ?? "").match(/openln_session=([^;]+)/)?.[1]); return token ? auth.authenticate(token) : undefined; };
@@ -284,6 +286,22 @@ const server = createServer(async (req, res) => {
     if (u.pathname.startsWith("/api/admin/payments")) {
       const account = await sessionAccount();
       if (await handleAdminPaymentsRoute(req, res, u, account)) return;
+    }
+    // Admin userbase console (customer situational awareness: accounts, RIC
+    // fleet telemetry, wallets, payments, support links, presence).
+    if (u.pathname.startsWith("/api/admin/userbase")) {
+      const account = await sessionAccount();
+      if (await handleAdminUserbaseRoute(req, res, u, account)) return;
+    }
+    // ---- Presence telemetry (admin Userbase): app boot posts the browser
+    // timezone; the server stamps IP + user agent. Throttled, best-effort. ----
+    if (req.method === "POST" && u.pathname === "/api/activity") {
+      const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+      let tz: string | null = null;
+      try { const v = await body(req); tz = typeof v?.timezone === "string" ? String(v.timezone) : null; } catch { /* body optional */ }
+      await recordActivityTimezone(account.id, tz);
+      await touchAccountActivity(account.id, req);
+      return json(res, 200, { ok: true });
     }
     // ---- Account settings (currency, rate, wallet prefs) ----
     if (req.method === "GET" && u.pathname === "/api/me") {
@@ -468,6 +486,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && u.pathname === "/api/events") {
       const account = await sessionAccount();
       if (!account) return json(res, 401, { error: "Authentication required" });
+      void touchAccountActivity(account.id, req);
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
       res.write(`event: ready\ndata: {}\n\n`);
       const send = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);

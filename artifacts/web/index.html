@@ -528,6 +528,35 @@ table.tb tr:last-child td{border-bottom:0}
 .admkv{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:12px}
 .admkv .k{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
 .admkv .v{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text);margin-top:2px;overflow-wrap:anywhere}
+/* Userbase console (admin): customer rows + RIC health panel. */
+.ubrow{display:grid;grid-template-columns:14px minmax(150px,1.5fr) minmax(110px,.9fr) 96px 128px 128px 108px 104px 12px;gap:10px;align-items:center;padding:11px 12px;border-top:1px solid var(--line);cursor:pointer;transition:background .12s;text-align:left;width:100%;background:none;color:inherit;font:inherit}
+.ubrow:first-of-type{border-top:0}
+.ubrow:hover{background:var(--surface)}
+.ubrow.ubhead{cursor:default;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
+.ubrow.ubhead:hover{background:none}
+.ubrow .ubttl{font-weight:590;font-size:13px;letter-spacing:-.1px}
+.ubmuted{font-size:11px;color:var(--text3)}
+.ubmono{font-family:'JetBrains Mono',monospace}
+.ubdot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--text3);flex:none}
+.ubdot.g{background:var(--ok);box-shadow:0 0 6px rgba(52,211,153,.6)}
+.ubdot.a{background:var(--gold)}
+.ubdot.r{background:var(--err)}
+.ubdot.x{background:var(--text3)}
+.ubchips{display:flex;gap:4px;flex-wrap:wrap}
+.ubchip{font-size:10px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--text2);white-space:nowrap}
+.ubchip.on{border-color:var(--teal-line);color:var(--teal);background:var(--teal-dim)}
+.ubcard{border:1px solid var(--line);border-radius:var(--r-md);padding:14px 15px;background:var(--surface);margin-top:12px}
+.ubcard>h3{margin:0;font-size:13px;font-weight:590;letter-spacing:-.1px}
+.ubdev{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.ubdev:first-of-type{border-top:0;padding-top:2px}
+.ubkv2{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.ubkv2 .k{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)}
+.ubkv2 .v{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text);margin-top:2px;overflow-wrap:anywhere}
+.ubkv2 .v.dim{color:var(--text3)}
+.ubent{display:flex;gap:9px;align-items:center;padding:9px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.ubent:first-of-type{border-top:0}
+.ubbars{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;color:var(--ok)}
+@media(max-width:920px){.ubrow{grid-template-columns:14px 1fr 104px 12px}.ubhide{display:none}}
 /* Merchant-facing layout: same wallet hierarchy, legible controls. */
 :root{--text3:#82938f;--teal:#0E8388;--teal-dim:rgba(14,131,136,.13);--teal-line:rgba(37,175,176,.34)}
 html.light{--text3:#586f69;--teal:#006b6b;--gold:#916f00}
@@ -616,6 +645,20 @@ async function probeAdmin(){
   try{ await api('/api/admin/payments/treasury'); IS_ADMIN=true; }
   catch(e){ IS_ADMIN=false; }
 }
+// Presence sync: stamps this session's IP, user agent and browser timezone for
+// the admin Userbase console. Throttled server-side; silent on any failure.
+let actTimer=null, actVisHooked=false;
+function reportActivity(){
+  try{
+    if(!tok()) return;
+    const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||'';
+    api('/api/activity',{method:'POST',body:JSON.stringify({timezone})}).catch(()=>{});
+  }catch(e){}
+}
+function startActivitySync(){
+  if(!actTimer) actTimer=setInterval(()=>{ if(document.visibilityState==='visible') reportActivity(); },600000);
+  if(!actVisHooked){ actVisHooked=true; document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') reportActivity(); }); }
+}
 const NAV_ICONS={wallet:'<rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 8h18m-5 5h5m-5 0v3h5"/>',ric:'<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M9 6h6M9 10h6m-6 5h1m4 0h1m-6 3h1m4 0h1"/>',cards:'<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20m-16 5h4"/>',books:'<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 0-3 3V4z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6m-6 4h4"/>',pos:'<rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 7h6M9 11h2m3 0h1M9 15h2m3 0h1"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>'};
 const navIcon=name=>`<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[name]||NAV_ICONS.wallet}</svg>`;
 let activeDrawer=null;
@@ -681,6 +724,7 @@ async function boot(){
   if(!tok())return login();
   try{await api('/api/wallet/status')}catch(e){localStorage.removeItem('openln_token');return login()}
   await probeAdmin();
+  reportActivity(); startActivitySync();
   render();
 }
 function login(){
@@ -3322,7 +3366,8 @@ async function renderPartner(d,pid){
 let ADM_ID=null; // selected payment id, null = list view
 let ADM_Q='', ADM_KIND='all', ADM_STATUS='all';
 let ADM_POLL_TIMER=null, ADM_LIVE=true;
-function admStopPoll(){ if(ADM_POLL_TIMER){clearInterval(ADM_POLL_TIMER);ADM_POLL_TIMER=null} }
+let ADM_PAGE='payments', ADM_UB_ID=null, ADM_UB_Q='', ADM_UB_ROWS=[], ADM_UB_BAL={}, ADM_UB_CBAL={}, ADM_UB_TIMER=null;
+function admStopPoll(){ if(ADM_POLL_TIMER){clearInterval(ADM_POLL_TIMER);ADM_POLL_TIMER=null} if(ADM_UB_TIMER){clearInterval(ADM_UB_TIMER);ADM_UB_TIMER=null} }
 const ADM_STATUS_META={
   created:{label:'Hold open',color:'slate'}, accepted:{label:'Customer paid',color:'blue'},
   forwarding:{label:'Paying merchant',color:'amber'}, forwarded:{label:'Merchant paid',color:'violet'},
@@ -3350,6 +3395,11 @@ async function anaOpen(kind){
   }
 }
 async function vAdminPayments(){
+  if(ADM_PAGE==='userbase'){
+    admStopPoll();
+    if(ADM_UB_ID) return vAdminUserDetail(ADM_UB_ID);
+    return vAdminUserbase();
+  }
   if(ADM_ID) return vAdminDetail(ADM_ID);
   return vAdminList();
 }
@@ -3359,7 +3409,10 @@ async function vAdminList(){
       <div><div class="overline">Treasury</div>
       <h1 class="page">Payments ops console</h1>
       <p class="muted" style="margin:8px 0 0;max-width:640px">Hold-wrap pipeline, float balance, and payment/transaction ledger. Admin-only.</p></div>
-      <button class="btn ghost sm" id="admLiveToggle" style="white-space:nowrap"><span class="pulse ${ADM_LIVE?'':'ok'}" style="margin-right:6px"></span>${ADM_LIVE?'Live':'Paused'}</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" id="admUserbase" style="white-space:nowrap">Userbase</button>
+        <button class="btn ghost sm" id="admLiveToggle" style="white-space:nowrap"><span class="pulse ${ADM_LIVE?'':'ok'}" style="margin-right:6px"></span>${ADM_LIVE?'Live':'Paused'}</button>
+      </div>
     </div>
     <div class="card" id="admAnalytics" style="margin-top:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -3375,13 +3428,14 @@ async function vAdminList(){
     <div id="admBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
   </div>`;
   $('#admLiveToggle').onclick=()=>{ADM_LIVE=!ADM_LIVE;if(ADM_LIVE)admStartListPoll();else admStopPoll();vAdminList()};
+  $('#admUserbase').onclick=()=>{ADM_PAGE='userbase';ADM_UB_ID=null;vAdminPayments()};
   $('#admAnalytics').querySelectorAll('[data-ana]').forEach(b=>b.onclick=()=>anaOpen(b.dataset.ana));
   await admRenderList();
   if(ADM_LIVE)admStartListPoll();
 }
 function admStartListPoll(){
   admStopPoll();
-  ADM_POLL_TIMER=setInterval(()=>{ if(ADM_ID===null && VIEW==='adminpayments') admRenderList(true) },3000);
+  ADM_POLL_TIMER=setInterval(()=>{ if(ADM_ID===null && VIEW==='adminpayments' && ADM_PAGE==='payments') admRenderList(true) },3000);
 }
 async function admRenderList(silent){
   const body=$('#admBody'); if(!body) return;
@@ -3479,7 +3533,7 @@ async function vAdminDetail(id){
 }
 function admStartDetailPoll(id){
   admStopPoll();
-  ADM_POLL_TIMER=setInterval(()=>{ if(ADM_ID===id && VIEW==='adminpayments') admRenderDetail(id,true) },2000);
+  ADM_POLL_TIMER=setInterval(()=>{ if(ADM_ID===id && VIEW==='adminpayments' && ADM_PAGE==='payments') admRenderDetail(id,true) },2000);
 }
 async function admRenderDetail(id,silent){
   const body=$('#admDetailBody'); if(!body) return;
@@ -3601,6 +3655,337 @@ function admTimelineItem(ev,isLast){
       ${ev.errorMessage?`<div class="admtl-err">${ev.errorClass?'['+esc(ev.errorClass)+'] ':''}${prose(ev.errorMessage)}</div>`:''}
     </div>
   </div>`;
+}
+/* ---- ADMIN USERBASE (customer situational awareness) ---- */
+// One screen per customer: wallets, RIC fleet health (signal, restart cause,
+// drop/boot counters from firmware 1.0.15+), cards, payments and support.
+// Restart-cause wording is shared with the RIC page (RIC_RESET_LABELS/_WARN).
+function ubAgo(ts){ if(!ts) return 'never';
+  const s=Math.max(0,(Date.now()-new Date(ts).getTime())/1000);
+  if(s<45) return 'just now';
+  if(s<3600) return Math.max(1,Math.round(s/60))+'m ago';
+  const h=s/3600; if(h<24) return Math.round(h)+'h ago';
+  const d=h/24; if(d<31) return Math.round(d)+'d ago';
+  const mo=d/30.44; if(mo<12) return Math.round(mo)+'mo ago';
+  return (d/365.25).toFixed(1)+'y ago';
+}
+function ubDate(ts){ if(!ts) return '-'; return new Date(ts).toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}); }
+function ubDur(ms){ if(ms==null||ms<0) return '-';
+  const s=ms/1000; if(s<90) return Math.round(s)+'s';
+  const m=s/60; if(m<90) return Math.round(m)+'m';
+  const h=m/60; if(h<36) return (h<10?h.toFixed(1):String(Math.round(h)))+'h';
+  const d=h/24; return (d<10?d.toFixed(1):String(Math.round(d)))+'d';
+}
+function ubRssiBars(rssi){
+  const lvl=rssi>=-60?4:rssi>=-70?3:rssi>=-80?2:1;
+  const q=['','very weak','weak','fair','good'][lvl];
+  const color=lvl>=3?'var(--ok)':lvl===2?'var(--gold)':'var(--err)';
+  return `<span class="ubbars" style="color:${color}" title="WiFi signal ${rssi} dBm">${'▂▄▆█'.slice(0,lvl)}</span> <span class="ubmuted">${rssi} dBm · ${q}</span>`;
+}
+function ubResetLine(reason){
+  const label=esc(RIC_RESET_LABELS[reason]||reason);
+  const warn=RIC_RESET_WARN.has(reason);
+  return `<span${warn?' style="color:var(--err)"':''} title="Why the device last restarted (reported on its last check-in)">last start: ${label}</span>`;
+}
+function ubDevHealth(x){
+  const parts=[];
+  if(typeof x.rssi==='number'&&x.rssi<0) parts.push(ubRssiBars(x.rssi));
+  if(x.resetReason) parts.push(ubResetLine(x.resetReason));
+  if(typeof x.wifiDropsTotal==='number'){
+    let s='WiFi drops <b>'+x.wifiDropsTotal+'</b> total';
+    if(typeof x.wifiDrops==='number') s+=x.wifiDrops===0?' · none since restart':' · '+x.wifiDrops+' since restart';
+    parts.push(s);
+  }
+  if(typeof x.bootCount==='number'&&x.bootCount>0) parts.push('boots '+x.bootCount);
+  return parts.join(' <span class="ubmuted">·</span> ');
+}
+function ubDevState(x){
+  if(x.revokedAt) return {cls:'x',label:'Revoked'};
+  if(x.online) return {cls:'g',label:'Online'};
+  if(x.lastActivityAt){ const h=(Date.now()-new Date(x.lastActivityAt).getTime())/3600000;
+    if(h<24) return {cls:'a',label:'Idle '+(h<1?'<1':String(Math.round(h)))+'h'};
+    return {cls:'r',label:'Offline'}; }
+  return {cls:'x',label:'Never seen'};
+}
+function ubAccountDevState(r){
+  if(r.ric.active&&r.ric.online) return {cls:'g',label:'RIC online'};
+  const last=r.ric.lastActivityAt?new Date(r.ric.lastActivityAt).getTime():0;
+  const seen=r.activity.lastSeenAt?new Date(r.activity.lastSeenAt).getTime():0;
+  const newest=Math.max(last,seen);
+  if(!newest) return {cls:'x',label:r.ric.total?'Devices never reported':'No devices yet'};
+  const h=(Date.now()-newest)/3600000;
+  if(h<24) return {cls:'a',label:'Seen '+ubAgo(new Date(newest).toISOString())};
+  return {cls:'r',label:'Quiet '+ubAgo(new Date(newest).toISOString())};
+}
+function ubKv(k,v){
+  if(v===null||v===undefined||v==='') return `<div><div class="k">${esc(k)}</div><div class="v dim">-</div></div>`;
+  return `<div><div class="k">${esc(k)}</div><div class="v">${v}</div></div>`;
+}
+function admUbBalHtml(id){
+  const bal=ADM_UB_BAL[id];
+  if(!bal) return '<span class="ubmuted">-</span>';
+  if(bal.state==='loading') return '<span class="spin" style="width:11px;height:11px"></span>';
+  if(bal.state==='ok') return `<b class="ubmono" style="font-size:12.5px">${fmt(bal.sats)}</b><div class="ubmuted">${esc(bal.kind||'')}${bal.label?' · '+esc(bal.label):''}</div>`;
+  return `<span class="ubmuted" title="${esc(bal.error||'Unavailable')}">n/a</span>`;
+}
+function admUbRowHtml(r){
+  const dev=ubAccountDevState(r);
+  const w=r.wallets.kinds, chips=[];
+  if(w.nwc) chips.push('<span class="ubchip on">NWC'+(w.nwc>1?' '+w.nwc:'')+'</span>');
+  if(w.blink) chips.push('<span class="ubchip on">Blink'+(w.blink>1?' '+w.blink:'')+'</span>');
+  if(w.lnaddress) chips.push('<span class="ubchip">LN addr'+(w.lnaddress>1?' '+w.lnaddress:'')+'</span>');
+  if(w.clink) chips.push('<span class="ubchip">CLINK'+(w.clink>1?' '+w.clink:'')+'</span>');
+  if(!chips.length) chips.push('<span class="ubchip">none</span>');
+  const pays=(r.payments.inCount||0)+(r.payments.wrapsSettled||0);
+  const vol=(r.payments.inVolumeSats||0)+(r.payments.wrapsSettledSats||0);
+  const a=r.payments.lastTxAt, b=r.payments.lastWrapAt;
+  const lastPay=a&&b?(new Date(a)>new Date(b)?a:b):(a||b);
+  const sup=r.support.linked
+    ? `<span class="ubmono" style="font-size:11px">@${esc(r.support.username||'linked')}</span><div class="ubmuted">${r.support.messages!=null?r.support.messages+' msgs':'linked'}${r.support.blocked?' · blocked':''}</div>`
+    : '<span class="ubmuted">-</span>';
+  return `<button class="ubrow" data-ub-id="${esc(r.id)}">
+    <span class="ubdot ${dev.cls}" title="${esc(dev.label)}"></span>
+    <span><span class="ubttl">${esc(r.handle)}</span>${r.businessName?` <span class="ubmuted">· ${esc(r.businessName)}</span>`:''}
+      <div class="ubmuted">${esc(r.type||'merchant')} · ${esc(r.currency||'')} · joined ${ubDate(r.createdAt)}</div></span>
+    <span class="ubchips ubhide">${chips.join('')}</span>
+    <span class="ubhide"><b class="ubmono">${r.cards.active}</b><span class="ubmuted">/${r.cards.total} active</span></span>
+    <span class="ubhide"><b class="ubmono">${fmt(vol)}</b><div class="ubmuted">${pays} payments${lastPay?' · '+ubAgo(lastPay):''}</div></span>
+    <span class="ubhide">${sup}</span>
+    <span class="ubhide"><div>${ubAgo(r.activity.lastSeenAt)}</div><div class="ubmuted">${esc(r.activity.lastTimezone||'tz unknown')}</div></span>
+    <span data-ubb="${esc(r.id)}">${admUbBalHtml(r.id)}</span>
+    <span class="dim">›</span>
+  </button>`;
+}
+async function vAdminUserbase(){
+  admStopPoll();
+  $('#view').innerHTML=`<div style="margin-top:30px" id="admRoot">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div><div class="overline">Treasury</div>
+      <h1 class="page">Userbase</h1>
+      <p class="muted" style="margin:8px 0 0;max-width:700px">Every customer with balances, wallets, RIC fleet, cards and support at a glance. RIC health comes from device telemetry: signal strength, restart cause, WiFi drops and boot counters. Admin-only.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" id="admUbBack">‹ Payments</button>
+        <button class="btn ghost sm" id="admUbRefresh">Refresh</button>
+        <button class="btn teal sm" id="admUbSweep">Fetch balances</button>
+      </div>
+    </div>
+    <div class="admfilters">
+      <input class="input mono" id="admUbSearch" placeholder="handle · business · email · phone" value="${esc(ADM_UB_Q)}">
+      <button class="btn teal sm" id="admUbSearchBtn">Search</button>
+    </div>
+    <div id="admUbBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
+  </div>`;
+  $('#admUbBack').onclick=()=>{ADM_PAGE='payments';ADM_UB_ID=null;vAdminPayments()};
+  $('#admUbRefresh').onclick=()=>{admRenderUbList()};
+  $('#admUbSearchBtn').onclick=()=>{ADM_UB_Q=$('#admUbSearch').value.trim();admRenderUbList()};
+  $('#admUbSearch').onkeydown=e=>{if(e.key==='Enter')$('#admUbSearchBtn').click()};
+  $('#admUbSweep').onclick=()=>admSweepBalances();
+  await admRenderUbList();
+  ADM_UB_TIMER=setInterval(()=>{ if(VIEW==='adminpayments'&&ADM_PAGE==='userbase'&&!ADM_UB_ID) admRenderUbList(true) },30000);
+}
+async function admRenderUbList(silent){
+  const body=$('#admUbBody'); if(!body) return;
+  try{
+    const params=new URLSearchParams(); if(ADM_UB_Q) params.set('q',ADM_UB_Q); params.set('limit','200');
+    const data=await api(`/api/admin/userbase?${params}`);
+    const rows=data.accounts||[]; ADM_UB_ROWS=rows;
+    const ricOnline=rows.reduce((n,r)=>n+(r.ric.online||0),0), ricTotal=rows.reduce((n,r)=>n+(r.ric.active||0),0);
+    const wallets=rows.reduce((n,r)=>n+(r.wallets.count||0),0);
+    const cards=rows.reduce((n,r)=>n+(r.cards.active||0),0);
+    const vol=rows.reduce((n,r)=>n+(r.payments.inVolumeSats||0)+(r.payments.wrapsSettledSats||0),0);
+    const pays=rows.reduce((n,r)=>n+(r.payments.inCount||0)+(r.payments.wrapsSettled||0),0);
+    const support=rows.filter(r=>r.support.linked).length;
+    const freshWeek=rows.filter(r=>Date.now()-new Date(r.createdAt).getTime()<7*864e5).length;
+    const sum=`<div class="admgrid">
+      <div class="admstat"><div class="lbl">Accounts</div><div class="val">${rows.length}</div><div class="sub">${freshWeek} new in 7 days</div></div>
+      <div class="admstat"><div class="lbl">RIC online</div><div class="val ${ricOnline?'g':''}">${ricOnline}/${ricTotal}</div><div class="sub">devices reporting in</div></div>
+      <div class="admstat"><div class="lbl">Wallets</div><div class="val">${wallets}</div><div class="sub">connected across all lanes</div></div>
+      <div class="admstat"><div class="lbl">Cards active</div><div class="val">${cards}</div><div class="sub">tap-to-pay</div></div>
+      <div class="admstat"><div class="lbl">Received</div><div class="val">${fmt(vol)}</div><div class="sub">${pays} payments · sats</div></div>
+      <div class="admstat"><div class="lbl">Support chats</div><div class="val">${support}</div><div class="sub">linked on Telegram</div></div>
+    </div>`;
+    body.innerHTML=`${sum}
+      <div class="card" style="margin-top:12px;padding:0;overflow:hidden">
+        <div class="ubrow ubhead"><span></span><span>Account</span><span class="ubhide">Wallets</span><span class="ubhide">Cards</span><span class="ubhide">Received</span><span class="ubhide">Support</span><span class="ubhide">Last seen</span><span>Balance</span><span></span></div>
+        <div id="admUbRows">${rows.length?rows.map(admUbRowHtml).join(''):'<div style="padding:28px;text-align:center" class="dim">No accounts match.</div>'}</div>
+      </div>
+      <p class="dim" style="font-size:11px;margin-top:8px;max-width:760px">Balance fills from Fetch balances (default wallet, or the first NWC/Blink lane; read on demand so a dead wallet cannot stall the list). RIC state uses a 7 minute freshness window. Presence (last seen, IP, timezone) comes from app check-ins.</p>`;
+    body.querySelectorAll('[data-ub-id]').forEach(b=>b.onclick=()=>{ADM_UB_ID=b.dataset.ubId;vAdminPayments()});
+  }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
+}
+async function admSweepBalances(){
+  const btn=$('#admUbSweep'); if(!btn||btn.disabled) return;
+  const ids=ADM_UB_ROWS.map(r=>r.id);
+  if(!ids.length) return;
+  btn.disabled=true;
+  const batches=[]; for(let i=0;i<ids.length;i+=12) batches.push(ids.slice(i,i+12));
+  let done=0;
+  for(const batch of batches){
+    for(const id of batch){ ADM_UB_BAL[id]={state:'loading'}; const c=document.querySelector('[data-ubb="'+id+'"]'); if(c) c.innerHTML=admUbBalHtml(id); }
+    try{
+      const out=await api(`/api/admin/userbase/balances?ids=${batch.join(',')}`);
+      for(const res of (out.results||[])){
+        ADM_UB_BAL[res.accountId]=res.ok?{state:'ok',sats:res.balanceSats,kind:res.kind,label:res.isDefault?res.label||'default':res.label}:{state:'err',error:res.error};
+        const c=document.querySelector('[data-ubb="'+res.accountId+'"]'); if(c) c.innerHTML=admUbBalHtml(res.accountId);
+      }
+    }catch(e){ for(const id of batch){ ADM_UB_BAL[id]={state:'err',error:e.message}; const c=document.querySelector('[data-ubb="'+id+'"]'); if(c) c.innerHTML=admUbBalHtml(id); } }
+    done+=batch.length; btn.textContent='Fetching '+done+'/'+ids.length+'…';
+  }
+  btn.disabled=false; btn.textContent='Fetch balances ✓';
+  setTimeout(()=>{ if(btn.isConnected) btn.textContent='Fetch balances'; },2500);
+}
+async function vAdminUserDetail(id){
+  admStopPoll(); ADM_UB_CBAL={};
+  $('#view').innerHTML=`<div style="margin-top:30px" id="admRoot">
+    <button class="btn ghost sm" id="admUbDBack">‹ Userbase</button>
+    <div id="admUbDBody" style="margin-top:12px"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
+  </div>`;
+  $('#admUbDBack').onclick=()=>{ADM_UB_ID=null;vAdminPayments()};
+  await admRenderUbDetail(id);
+}
+function admUbConnRow(c){
+  const kind=c.kind==='nwc'?'NWC':c.kind==='blink'?'Blink':c.kind==='lnaddress'?'LN address':'CLINK';
+  const roles=(c.roles||[]).map(r=>`<span class="ubchip on">${esc(r)}</span>`).join('');
+  const addr=c.lightningAddress?`<span class="ubmuted ubmono">${esc(c.lightningAddress)}</span>`:c.clinkPointer?`<span class="ubmuted ubmono">${esc(c.clinkPointer)}</span>`:'';
+  return `<div class="ubent">
+    <span class="ubchip on">${kind}</span>
+    <b style="font-size:12.5px">${esc(c.label||kind)}</b>${roles}${addr}
+    <span class="ubmuted">added ${ubDate(c.createdAt)}</span>
+    <span style="margin-left:auto" data-ubcb="${esc(c.id)}"><span class="ubmuted">-</span></span>
+  </div>`;
+}
+function admUbCbBalHtml(id){
+  const b=ADM_UB_CBAL[id];
+  if(!b) return '<span class="ubmuted">-</span>';
+  if(b.state==='loading') return '<span class="spin" style="width:11px;height:11px"></span>';
+  if(b.state==='ok') return `<b class="ubmono">${fmt(b.sats)}</b> <span class="ubmuted">sats</span>`;
+  return `<span class="ubmuted" title="${esc(b.error||'Unavailable')}">n/a</span>`;
+}
+async function admRenderUbDetail(id){
+  const body=$('#admUbDBody'); if(!body) return;
+  try{
+    const d=await api('/api/admin/userbase/'+id);
+    const a=d.account, s=d.security;
+    const dev=ubAccountDevState(a);
+    const devHtml=d.devices.length?d.devices.map(x=>{
+      const st=ubDevState(x);
+      const health=ubDevHealth(x);
+      const recv=x.revokedAt?'<span class="admpill rose">revoked</span>':'';
+      const ota=x.ota?`<span class="admpill ${x.ota.state==='error'?'red':'amber'}">update: ${esc(x.ota.state)}${x.ota.targetVersion?' → '+esc(x.ota.targetVersion):''}</span>`:'';
+      return `<div class="ubdev">
+        <span class="ubdot ${st.cls}" style="margin-top:4px" title="${esc(st.label)}"></span>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(x.label||'RIC')}</b><span class="ubmuted">${esc(st.label)}</span>${recv}${ota}</div>
+          <div class="ubmuted" style="margin-top:2px">${x.firmwareVersion?'v'+esc(x.firmwareVersion):'version not reported'}${x.board?' · '+esc(x.board):''}${x.runningPartition?' · '+esc(x.runningPartition):''}${x.mac?' · '+esc(x.mac):''}</div>
+          <div style="margin-top:3px;font-size:11.5px">${health||'<span class="ubmuted">no health telemetry yet (Wi-Fi, restarts, drops arrive from firmware 1.0.15+)</span>'}</div>
+          <div class="ubmuted" style="margin-top:3px">${x.online&&x.uptimeMs!=null?'up '+ubDur(x.uptimeMs)+(x.bootedAtApprox?' (since '+ubDate(x.bootedAtApprox)+')':''):'last seen '+ubAgo(x.lastActivityAt)}${x.bootId?' · boot '+esc(x.bootId.slice(0,8)):''}</div>
+        </div>
+      </div>`;
+    }).join(''):'<p class="ubmuted" style="margin-top:8px">No RIC linked to this account.</p>';
+    const txHtml=d.transactions.length?d.transactions.map(t=>{
+      const dir=t.direction==='in'?'<span style="color:var(--ok)">IN</span>':'<span style="color:var(--gold)">OUT</span>';
+      return `<div class="ubtxn" style="grid-template-columns:44px 1fr 96px 118px 104px">
+        <span class="ubmono">${dir}</span>
+        <span><b class="ubmono">${fmt(t.amountSats)}</b> <span class="ubmuted">${t.direction==='in'?'received':'sent'}</span>${t.memo?' <span class="ubmuted">· '+esc(t.memo)+'</span>':''}</span>
+        <span class="ubmuted">${esc(t.type||'')}</span>
+        <span><span class="ubchip">${esc(t.origin||'')}</span></span>
+        <span><span class="ubmuted">${ubAgo(t.createdAt)}</span> <span class="ubhide">${admTxPill(t.status)}</span>${t.status==='failed'?'':''}</span>
+      </div>`;
+    }).join(''):'<p class="ubmuted" style="margin-top:6px">No transactions yet.</p>';
+    const wrapHtml=d.wraps.length?d.wraps.map(w=>`<div class="ubent">
+      <span style="width:96px">${admPill(w.wrapStatus)}</span>
+      <b class="ubmono">${fmt(w.amountSats)}</b><span class="ubmuted">sats</span>
+      <span class="ubchip">${esc(w.origin||'')}</span>
+      <span class="ubmuted">${ubAgo(w.createdAt)}${w.paidAt?' · paid '+ubAgo(w.paidAt):''}</span>
+    </div>`).join(''):'<p class="ubmuted" style="margin-top:6px">No wrapped invoices.</p>';
+    const cardHtml=d.cards.length?d.cards.map(c=>`<div class="ubent">
+      <span class="admpill ${c.status==='active'?'green':c.status==='frozen'?'amber':'slate'}">${esc(c.status)}</span>
+      <b style="font-size:12.5px">${esc(c.name||'Card')}</b>
+      <span class="ubmuted ubmono">${esc(c.uid||'')}</span>
+      <span class="ubmuted">${c.lastUsedAt?'last used '+ubAgo(c.lastUsedAt):'never used'}</span>
+      <span class="ubmuted" style="margin-left:auto">tap ${fmt(c.perTapLimitSats)} · day ${fmt(c.dailyLimitSats)}${c.pinLockedAt?' · <span style=\"color:var(--err)\">PIN locked</span>':''}</span>
+    </div>`).join(''):'<p class="ubmuted" style="margin-top:6px">No cards issued.</p>';
+    const supHtml=a.support.linked?`
+      <div class="ubkv2">
+        ${ubKv('Telegram',a.support.username?'@'+esc(a.support.username):esc(a.support.firstName||'linked'))}
+        ${ubKv('Linked',ubDate(a.support.linkedAt))}
+        ${ubKv('Support messages',a.support.messages!=null?String(a.support.messages):null)}
+        ${ubKv('Last bot activity',a.support.lastAt?ubDate(a.support.lastAt)+' ('+ubAgo(a.support.lastAt)+')':null)}
+      </div>
+      ${a.support.blocked?'<p style="color:var(--err);font-size:12px;margin-top:6px">Blocked on Telegram: the bot cannot DM this account.</p>':''}`
+      :'<p class="ubmuted" style="margin-top:6px">No Telegram link. This account cannot reach support from Telegram.</p>';
+    const secBits=[];
+    secBits.push(s.totpEnabled?'TOTP on':(s.hasTotpSecret?'TOTP pending':'no TOTP'));
+    secBits.push(s.pinUpgraded?'modern PIN':'legacy PIN');
+    if(s.loginFailCount) secBits.push(s.loginFailCount+' failed logins');
+    if(s.loginLockedUntil&&new Date(s.loginLockedUntil)>new Date()) secBits.push('<span style="color:var(--err)">locked until '+ubDate(s.loginLockedUntil)+'</span>');
+    if(s.hasRecoveryEmail) secBits.push('recovery email set');
+    body.innerHTML=`
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="display:flex;align-items:center;gap:9px"><span class="ubdot ${dev.cls}" title="${esc(dev.label)}"></span><span style="font-size:18px;font-weight:590;letter-spacing:-.3px">${esc(a.handle)}</span></div>
+            <p class="muted" style="margin:6px 0 0">${a.businessName?esc(a.businessName)+' · ':''}${esc(a.type||'merchant')} · ${esc(a.currency||'')} · customer since ${ubDate(a.createdAt)}</p>
+            <p class="ubmuted ubmono" style="margin-top:4px">${esc(a.id)}</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn ghost sm" id="admUbDPay">Payments console</button>
+            <button class="btn ghost sm" id="admUbDRefresh">Refresh</button>
+          </div>
+        </div>
+      </div>
+      <div class="ubcard">
+        <h3>Status &amp; activity</h3>
+        <div class="ubkv2">
+          ${ubKv('Last seen',a.activity.lastSeenAt?ubAgo(a.activity.lastSeenAt)+' <span class="ubmuted">('+ubDate(a.activity.lastSeenAt)+')</span>':'never')}
+          ${ubKv('First seen',a.activity.firstSeenAt?ubDate(a.activity.firstSeenAt):null)}
+          ${ubKv('Timezone',a.activity.lastTimezone?esc(a.activity.lastTimezone):null)}
+          ${ubKv('IP address',a.activity.lastIp?esc(a.activity.lastIp):null)}
+          ${ubKv('Email',a.email?esc(a.email):null)}
+          ${ubKv('Phone',a.phone?esc(a.phone)+(s.phoneVerified?' (verified)':'') :null)}
+        </div>
+        <p class="ubmuted" style="margin-top:8px">Security: ${secBits.join(' · ')}</p>
+        ${a.activity.userAgent?`<p class="ubmuted ubmono" style="margin-top:4px;font-size:10.5px">${esc(a.activity.userAgent)}</p>`:''}
+      </div>
+      <div class="ubcard">
+        <h3>RIC fleet <span class="ubmuted">${a.ric.online}/${a.ric.active} online · ${a.ric.total} linked</span></h3>
+        ${devHtml}
+        <p class="ubmuted" style="margin-top:8px">Signal, restart cause, drop and boot counters are reported by firmware 1.0.15+ on each check-in, so a crash reads differently from a brownout or a power cycle. Older firmware shows status only.</p>
+      </div>
+      <div class="ubcard">
+        <h3>Wallet connections <span class="ubmuted">${d.connections.length}</span></h3>
+        ${d.connections.length?d.connections.map(admUbConnRow).join(''):'<p class="ubmuted" style="margin-top:6px">No wallet connected.</p>'}
+        ${d.connections.length?'<div style="margin-top:10px"><button class="btn ghost sm" id="admUbDBal">Check balances</button></div>':''}
+      </div>
+      <div class="ubcard">
+        <h3>Cards <span class="ubmuted">${a.cards.active} active · ${a.cards.total} total</span></h3>
+        ${cardHtml}
+      </div>
+      <div class="ubcard">
+        <h3>Payments <span class="ubmuted">received ${fmt(a.payments.inVolumeSats+a.payments.wrapsSettledSats)} sats · ${a.payments.inCount+a.payments.wrapsSettled} payments · sent ${fmt(a.payments.outVolumeSats)} · ${a.payments.failedCount} failed · ${a.payments.wrapsOpen} wraps open${a.payments.wrapsStuck?' · <span style=\"color:var(--err)\">'+a.payments.wrapsStuck+' stuck</span>':''}</span></h3>
+        <div style="margin-top:8px">${txHtml}</div>
+        ${d.wraps.length?`<div style="margin-top:10px"><div class="overline">Wrapped invoices</div>${wrapHtml}</div>`:''}
+      </div>
+      <div class="ubcard">
+        <h3>Support</h3>
+        ${supHtml}
+      </div>`;
+    $('#admUbDRefresh').onclick=()=>admRenderUbDetail(id);
+    $('#admUbDPay').onclick=()=>{ADM_PAGE='payments';ADM_UB_ID=null;ADM_Q=a.handle;ADM_KIND='all';ADM_STATUS='all';vAdminPayments()};
+    const balBtn=$('#admUbDBal');
+    if(balBtn) balBtn.onclick=async()=>{
+      balBtn.disabled=true; balBtn.textContent='Reading…';
+      for(const c of d.connections){ ADM_UB_CBAL[c.id]={state:'loading'}; const cell=document.querySelector('[data-ubcb="'+c.id+'"]'); if(cell) cell.innerHTML=admUbCbBalHtml(c.id); }
+      try{
+        const out=await api('/api/admin/userbase/'+id+'/balances');
+        for(const res of (out.results||[])){
+          ADM_UB_CBAL[res.connectionId]=res.ok?{state:'ok',sats:res.balanceSats}:{state:'err',error:res.error};
+          const cell=document.querySelector('[data-ubcb="'+res.connectionId+'"]'); if(cell) cell.innerHTML=admUbCbBalHtml(res.connectionId);
+        }
+      }catch(e){ toast(e.message); }
+      balBtn.disabled=false; balBtn.textContent='Check balances';
+    };
+  }catch(e){ body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
 }
 (function(){
   var root=document.documentElement;

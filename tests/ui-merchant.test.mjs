@@ -163,3 +163,19 @@ test('linked RIC rows surface WiFi signal and restart diagnostics once reported'
   assert.ok(health.includes('WiFi drops'),'the link-loss counter is labelled in plain words');
   assert.ok(health.includes('RIC_RESET_WARN'),'crash-class restart reasons get the warning treatment');
 });
+test('treasury gains a Userbase console with health, balances and support views',()=>{
+  const sec=html.slice(html.indexOf('/* ---- ADMIN USERBASE'),html.indexOf('var root=document.documentElement;'));
+  assert.ok(html.includes('id="admUserbase"'),'the treasury header offers the Userbase button');
+  assert.ok(sec.includes('/api/admin/userbase?'),'the list reads the admin userbase API');
+  assert.ok(sec.includes('/api/admin/userbase/balances?ids='),'balances are fetched on demand in bounded batches');
+  assert.ok(sec.includes('ubAccountDevState')&&sec.includes('ubdot'),'each account row carries a state LED');
+  assert.ok(sec.includes('Fetch balances')&&sec.includes('admSweepBalances'),'the sweep button drives the balance column');
+  assert.ok(sec.includes('ubDevHealth')&&sec.includes('ubResetLine'),'device rows render health telemetry');
+  assert.ok(sec.includes('RIC_RESET_LABELS'),'restart causes reuse the RIC page wording');
+  assert.ok(sec.includes('Check balances')&&sec.includes('data-ubcb'),'per-connection balance check exists');
+  assert.ok(sec.includes('Payments console'),'deep link into the payments console for a handle');
+  assert.ok(sec.includes('Support'),'support section present');
+  assert.ok(sec.includes('Status &amp; activity'),'presence block present');
+  assert.ok(html.includes("ADM_PAGE==='userbase'"),'page state routes between payments and userbase');
+  assert.ok(html.includes('reportActivity(); startActivitySync();'),'boot reports presence for the admin console');
+});

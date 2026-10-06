@@ -6,8 +6,9 @@
  * Router to openLN's inline http.createServer handler-function style.
  *
  * Auth: X-Admin-Secret header matching ADMIN_SECRET, OR a resolved session
- * account whose entity handle is in the ADMIN_HANDLES allowlist (set via the ADMIN_HANDLES env var; none by default). See isAdmin() below — same security semantics as bitPOS's
- * requireAdmin (adminSecretOk() checked first, then session+handle).
+ * account whose entity handle is in the ADMIN_HANDLES allowlist. The gate is
+ * shared with the userbase console: see ./adminAuth.js (adminSecretOk() checked
+ * first, then session+handle - same security semantics as bitPOS's requireAdmin).
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { humanizeFailure } from "../money/failureText.js";
@@ -31,6 +32,7 @@ import {
 import { finalizePendingSend, checkOwnSettlementProof } from "../money/feeEngine.js";
 import { extractPaymentHash } from "../money/lnAddress.js";
 import { recordPaymentEventSync } from "../money/paymentLog.js";
+import { isAdmin } from "./adminAuth.js";
 
 type SessionAccount = { id: string; handle: string; createdAt: string } | undefined;
 
@@ -50,37 +52,8 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   return JSON.parse(raw);
 }
 
-const ADMIN_HANDLES = new Set(
-  (process.env.ADMIN_HANDLES ?? "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean),
-);
-
 const MAX_OPEN_WRAPS = 25;
 const FLOAT_MARGIN_SATS = 10;
-
-function adminSecretOk(req: IncomingMessage): boolean {
-  const secret = process.env.ADMIN_SECRET;
-  if (!secret) return false;
-  const provided = req.headers["x-admin-secret"];
-  const val = Array.isArray(provided) ? provided[0] : provided;
-  return !!val && val === secret;
-}
-
-/**
- * Ported verbatim (security semantics) from bitPOS's requireAdmin: check the
- * admin secret header first, then fall back to a resolved session account
- * whose handle is allowlisted. openLN's AuthService.authenticate() already
- * resolves the account with its entity handle attached, so no extra join is
- * needed here (bitPOS had to join accounts->entities for this; openLN's
- * session account object already carries `handle`).
- */
-async function isAdmin(req: IncomingMessage, sessionAccount: SessionAccount): Promise<boolean> {
-  if (adminSecretOk(req)) return true;
-  if (!sessionAccount) return false;
-  return ADMIN_HANDLES.has(sessionAccount.handle.toLowerCase());
-}
 
 const WRAP_STATUS_META: Record<
   string,
@@ -441,6 +414,10 @@ export async function handleAdminPaymentsRoute(
             ilike(pendingInvoicesTable.merchantPaymentHash, like),
             ilike(pendingInvoicesTable.bolt11, like),
             ilike(pendingInvoicesTable.memo, like),
+            // Merchant identity: searching a handle or business name lists that
+            // account's payments (the query already joins both for display).
+            ilike(entitiesTable.handle, like),
+            ilike(accountsTable.businessName, like),
             sql`${pendingInvoicesTable.id}::text ILIKE ${like}`,
             sql`${pendingInvoicesTable.accountId}::text ILIKE ${like}`,
           )!,
@@ -495,6 +472,10 @@ export async function handleAdminPaymentsRoute(
             ilike(transactionsTable.memo, like),
             ilike(transactionsTable.counterpartHandle, like),
             ilike(transactionsTable.counterpartLnAddress, like),
+            // Merchant identity: searching a handle or business name lists that
+            // account's transactions (the query already joins both for display).
+            ilike(entitiesTable.handle, like),
+            ilike(accountsTable.businessName, like),
             sql`${transactionsTable.id}::text ILIKE ${like}`,
             sql`${transactionsTable.accountId}::text ILIKE ${like}`,
           )!,

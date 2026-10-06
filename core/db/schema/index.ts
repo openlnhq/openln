@@ -1,5 +1,6 @@
 export * from './entities.js';
 export * from './accounts.js';
+export * from './accountActivity.js';
 export * from './accountConnections.js';
 export * from './transactions.js';
 export * from './businessProfiles.js';

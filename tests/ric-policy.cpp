@@ -29,8 +29,14 @@ int main(){
  assert(!sameOriginImage("https://openln.com/api","http://openln.com/api/firmware/x.bin"));
  assert(!sameOriginImage("https://openln.com/api","https://openln.com/api/firmware/../foo.bin"));
  assert(!sameOriginImage("https://openln.com/api","https://openln.com/api/firmware/x.bin?x"));
+ assert(wifiStrength(0)==4);assert(wifiStrength(-60)==4);assert(wifiStrength(-61)==3);
+ assert(wifiStrength(-70)==3);assert(wifiStrength(-71)==2);assert(wifiStrength(-80)==2);
+ assert(wifiStrength(-81)==1);assert(wifiStrength(-90)==1);assert(wifiStrength(-91)==0);
+ assert(wifiStrength(-120)==0);
  auto receive=headerLayout(24,52,false);auto send=headerLayout(24,52,true);
  assert(receive.dotX-3>24+52);assert(receive.clearStart>receive.dotX+3);
+ assert(receive.barsX>receive.dotX+3);assert(receive.clearStart>receive.barsX+18);
  assert(send.badgeX>24+52);assert(send.dotX-3>send.badgeX+38);assert(send.clearStart>send.dotX+3);
- std::cout<<"PASS auth retry/rejection, strict version ordering, image bounds, origin restrictions, header spacing\n";
+ assert(send.barsX>send.dotX+3);assert(send.clearStart>send.barsX+18);
+ std::cout<<"PASS auth retry/rejection, strict version ordering, image bounds, origin restrictions, header spacing, wifi bars\n";
 }

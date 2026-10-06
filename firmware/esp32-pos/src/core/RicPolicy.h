@@ -43,9 +43,19 @@ inline bool sameOriginImage(const char* base,const char* url){
  for(const char* p=url+n+10;*p;p++)if(!((*p>='a'&&*p<='z')||(*p>='0'&&*p<='9')||*p=='/'||*p=='-'||*p=='.'))return false;
  return !std::strstr(url+n,"..");
 }
-struct HeaderLayout {int badgeX;int dotX;int clearStart;};
+struct HeaderLayout {int badgeX;int dotX;int barsX;int clearStart;};
 inline HeaderLayout headerLayout(int wordX,int wordWidth,bool send){
  int badgeX=wordX+wordWidth+8;int dotX=send?badgeX+38+9:wordX+wordWidth+10;
- return {badgeX,dotX,dotX+10};
+ int barsX=dotX+7;                          // wifi bars sit just right of the health dot
+ return {badgeX,dotX,barsX,barsX+26};       // 4×3 px bars + gaps = 18, then an 8 px breather
+}
+// WiFi bars: 4 = best … 0 = unusable or not connected. Bins line up with the
+// dashboard's signal words (good / fair / weak / very weak).
+inline int wifiStrength(int32_t rssi){
+ if(rssi>=-60)return 4;
+ if(rssi>=-70)return 3;
+ if(rssi>=-80)return 2;
+ if(rssi>=-90)return 1;
+ return 0;
 }
 }

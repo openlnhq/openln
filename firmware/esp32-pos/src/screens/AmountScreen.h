@@ -48,6 +48,8 @@ private:
     static bool     _stale;
     static uint16_t _lastDotColor;
     static String   _lastRateStr;
+    static int      _wifiStrength;    // bars last painted (0-4); -1 forces a repaint
+    static uint32_t _wifiSampleMs;    // last radio poll
 
     // Entry mode: false = type fiat (default), true = type sats directly
     static bool     _satsMode;
@@ -59,9 +61,10 @@ private:
     static int      _payHoldTx;
     static int      _payHoldTy;
     static const uint32_t PAY_HOLD_MS = 5000;
+    static const uint32_t WIFI_POLL_MS = 2000;  // radio sample cadence for the bars
 
     // Layout: landscape 320×240
-    //   Header:     y=0-20   (single line — gear + wordmark + rate + currency badge)
+    //   Header:     y=0-20   (single line — gear + wordmark + health dot + wifi bars + rate + currency badge)
     //   Numpad:     y=20-200 (4 rows × 45px = 180px — fat finger friendly)
     //   Pay btn:    y=200-240 (40px — shows amount as you type)
     static const int HEADER_H   = 20;
@@ -71,6 +74,7 @@ private:
     static const int PAY_BTN_H  = 40;
 
     static void   drawHeader(TFT_eSPI& tft);
+    static void   updateWifiBars(TFT_eSPI& tft);
     static void   drawAmountDisplay(TFT_eSPI& tft);
     static void   drawPayButton(TFT_eSPI& tft, bool enabled);
     static String groupDigits(long v);

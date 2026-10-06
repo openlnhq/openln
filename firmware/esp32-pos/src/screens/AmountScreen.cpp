@@ -3,6 +3,7 @@
 #include "../core/RicPolicy.h"
 #include "../ui/Theme.h"
 #include "../ui/Icons.h"
+#include <WiFi.h>
 
 long   AmountScreen::_whole       = 0;
 long   AmountScreen::_frac        = 0;
@@ -18,6 +19,8 @@ bool     AmountScreen::_online       = true;
 bool     AmountScreen::_stale        = false;
 uint16_t AmountScreen::_lastDotColor = 0xFFFF;
 String   AmountScreen::_lastRateStr  = "";
+int      AmountScreen::_wifiStrength = -1;   // bars last painted; -1 = must repaint
+uint32_t AmountScreen::_wifiSampleMs = 0;    // last radio poll
 
 bool     AmountScreen::_sendMode      = false;
 bool     AmountScreen::_satsMode      = false;
@@ -186,6 +189,8 @@ void AmountScreen::drawHeader(TFT_eSPI& tft) {
 
     _lastDotColor = 0xFFFF;
     _lastRateStr  = "";
+    _wifiStrength = -1;    // fresh header: sample the radio and repaint bars now
+    _wifiSampleMs = 0;
     updateHeader(tft);
 }
 
@@ -214,6 +219,27 @@ void AmountScreen::updateHeader(TFT_eSPI& tft) {
         tft.fillCircle(dotX, 10, 3, dc);
         _lastDotColor = dc;
     }
+
+    updateWifiBars(tft);
+}
+
+// WiFi bars — poll the radio on a short cadence so the cashier sees the
+// signal now, not the signal at boot. Rides the same 2 s idle tick as the
+// health dot; repaints only when the bar level actually changes, so the
+// header stays calm and the panel is not redrawn for nothing.
+void AmountScreen::updateWifiBars(TFT_eSPI& tft) {
+    uint32_t now = millis();
+    if (now - _wifiSampleMs < WIFI_POLL_MS) return;
+    _wifiSampleMs = now;
+
+    int s = (WiFi.status() == WL_CONNECTED) ? RicPolicy::wifiStrength(WiFi.RSSI()) : 0;
+    if (s == _wifiStrength) return;
+    _wifiStrength = s;
+
+    const auto header = RicPolicy::headerLayout(24, tft.textWidth("openLN", FONT_SMALL), _sendMode);
+    tft.fillRect(header.barsX, 3, 20, 14, COL_BG2);   // just the bars slot
+    uint16_t color = (s >= 3) ? COL_SUCCESS : (s == 2) ? COL_ACCENT : COL_ERROR;
+    Icons::signalBars(tft, header.barsX, 4, s, color);
 }
 
 void AmountScreen::drawAmountDisplay(TFT_eSPI& tft) { (void)tft; }

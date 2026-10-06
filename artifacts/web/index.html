@@ -3040,7 +3040,7 @@ async function vSettings(version=renderVersion){
     inp.className='rateinput';inp.id=dir+'RateInput';inp.type='text';inp.inputMode='decimal';
     inp.autocomplete='off';inp.spellcheck=false;inp.placeholder='0';
     inp.setAttribute('aria-label',(dir==='buy'?'Buy receive':'Sell send')+' rate, percent');
-    inp.value=(st.custom&&!st.touched)?'':(st.pct?String(st.pct):'');
+    inp.value=(st.custom&&!st.touched)?'':String(st.pct||0);
     val.textContent='';val.appendChild(inp);
     const finish=commit=>{
       if(!st.editing)return;

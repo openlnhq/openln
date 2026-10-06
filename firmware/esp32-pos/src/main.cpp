@@ -25,6 +25,7 @@
 #include "ui/Theme.h"
 #include "api/OTAManager.h"
 #include "core/InvoiceTtl.h"
+#include "core/DeviceStats.h"
 #include "motion/Motion.h"
 #include "motion/MotionUi.h"
 #include <time.h>
@@ -1464,6 +1465,11 @@ void setup() {
     // Load config from NVS
     Config::load();
 
+    // Device health counters (boot count, WiFi-drop history) — NVS-backed and
+    // reported in every hello/status post so the dashboard can show signal
+    // strength and distinguish crash vs brownout vs power-cycle.
+    DeviceStats::begin();
+
     if (Config::isProvisioned()) {
         // Already provisioned — connect to WiFi directly
         enterConnectingWifi();
@@ -1533,6 +1539,7 @@ void loop() {
         if (WiFi.status() != WL_CONNECTED) {
             if (wifiLostAt == 0) {
                 wifiLostAt = millis();
+                DeviceStats::wifiDropped();   // telemetry: counted once per loss episode
                 Serial.printf("RIC wifi: lost state=%d rssi=%d\n", (int)state, WiFi.RSSI());
                 if (state == STATE_WAITING_PAYMENT || state == STATE_CREATING_INVOICE) {
                     // Stop the RF beep if a card read was interrupted; tell the cashier.

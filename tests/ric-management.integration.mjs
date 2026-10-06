@@ -91,19 +91,24 @@ test('verified release has a content-addressed URL, explicit wire length and pub
 });
 
 test('device hello and status persist token-scoped metadata; owner listing excludes secrets and other accounts', async () => {
-  const hello = {firmwareVersion: '1.0.2', board: 'esp32-2432s028r', mac: 'A0:B1:C2:D3:E4:F5', partitionLayout: 'ric-ab-v1', bootId: 'boot-fixture-1', uptimeMs: 8000, runningPartition: 'app0', ota: {state: 'checking', targetVersion: '1.0.3'}};
+  const hello = {firmwareVersion: '1.0.2', board: 'esp32-2432s028r', mac: 'A0:B1:C2:D3:E4:F5', partitionLayout: 'ric-ab-v1', bootId: 'boot-fixture-1', uptimeMs: 8000, rssi: -67, resetReason: 'brownout', bootCount: 12, wifiDrops: 3, wifiDropsTotal: 41, runningPartition: 'app0', ota: {state: 'checking', targetVersion: '1.0.3'}};
   const r = await call('/api/ric/hello', {method: 'POST', bearer: tokens[0].raw, body: hello});
   assert.equal(r.status, 200, 'device boot handshake must exist');
   assert.deepEqual(await r.json(), {status: 'ok', deviceId: tokens[0].id, accountId: accounts[0].id});
   const first = (await sql.query('SELECT * FROM ric_device_telemetry WHERE device_token_id=$1', [tokens[0].id])).rows[0];
   assert.equal(first.firmware_version, '1.0.2'); assert.equal(first.boot_id, hello.bootId);
   assert.equal(Number(first.uptime_ms), 8000); assert.equal(first.ota_state, 'checking');
+  assert.equal(first.rssi, -67); assert.equal(first.reset_reason, 'brownout');
+  assert.equal(Number(first.boot_count), 12); assert.equal(Number(first.wifi_drops), 3); assert.equal(Number(first.wifi_drops_total), 41);
   const s = await call('/api/ric/status', {method: 'POST', bearer: tokens[0].raw, body: {uptimeMs: 10000, ota: {state: 'failed', code: -32512, targetVersion: '1.0.3'}}});
   assert.equal(s.status, 200);
   const again = await call('/api/ric/status', {method: 'POST', bearer: tokens[0].raw, body: {uptimeMs: 12000}}); assert.equal(again.status, 200);
   const row = (await sql.query('SELECT * FROM ric_device_telemetry WHERE device_token_id=$1', [tokens[0].id])).rows[0];
   assert.equal(row.firmware_version, '1.0.2'); assert.equal(row.ota_state, 'failed'); assert.equal(row.ota_code, '-32512'); assert.equal(row.ota_target_version, '1.0.3');
   assert.equal(Number(row.uptime_ms), 12000); assert.ok(row.last_seen_at); assert.ok(row.last_hello_at);
+  assert.equal(row.rssi, -67, 'status posts without health fields must not clear them');
+  assert.equal(row.reset_reason, 'brownout', 'restart cause survives a status-only update');
+  assert.equal(Number(row.wifi_drops_total), 41, 'lifetime counters survive a status-only update');
   const lastUsed = (await sql.query('SELECT last_used_at FROM device_tokens WHERE id=$1', [tokens[0].id])).rows[0]; assert.ok(lastUsed.last_used_at);
   const macRow = (await sql.query('SELECT mac FROM device_tokens WHERE id=$1', [tokens[0].id])).rows[0];
   assert.equal(macRow.mac, 'A0:B1:C2:D3:E4:F5', 'hello persists the hardware MAC (partner attribution join key)');
@@ -118,6 +123,9 @@ test('device hello and status persist token-scoped metadata; owner listing exclu
   const text = await list.text(); const {devices} = JSON.parse(text);
   assert.equal(devices.length, 1); assert.equal(devices[0].deviceId, tokens[0].id);
   assert.equal(devices[0].firmwareVersion, '1.0.2'); assert.equal(devices[0].ota.state, 'failed'); assert.equal(devices[0].ota.code, '-32512');
+  assert.equal(devices[0].rssi, -67, 'owner listing carries signal strength');
+  assert.equal(devices[0].resetReason, 'brownout'); assert.equal(devices[0].bootCount, 12);
+  assert.equal(devices[0].wifiDrops, 3); assert.equal(devices[0].wifiDropsTotal, 41);
   assert.ok(!text.includes(tokens[0].raw) && !text.includes(raw) && !text.includes(d.id), 'owner projection must not leak raw tokens or another tenant');
   assert.equal((await call('/api/ric/devices', {bearer: tokens[0].raw})).status, 403, 'device token cannot read owner inventory');
   assert.equal((await call('/api/ric/hello', {method: 'POST', bearer: 'fixture-session', body: hello})).status, 401, 'browser session is not device evidence');
@@ -128,7 +136,7 @@ test('device hello and status persist token-scoped metadata; owner listing exclu
 
 test('invalid input and untrusted identities cannot change telemetry or expose credentials', async () => {
   const snapshot = (await sql.query('SELECT * FROM ric_device_telemetry WHERE device_token_id=$1', [tokens[0].id])).rows[0];
-  for (const body of [{uptimeMs: -1}, {uptimeMs: 1.5}, {board: 'esp32-s3'}, {partitionLayout: 'single-app'}, {bootId: 'x'.repeat(65)}, {token: tokens[0].raw}, {accountId: accounts[1].id}, {ota: {state: 'failed', message: tokens[0].raw}}, {firmwareVersion: 'garbage'}, {runningPartition: 'app2'}]) {
+  for (const body of [{uptimeMs: -1}, {uptimeMs: 1.5}, {board: 'esp32-s3'}, {partitionLayout: 'single-app'}, {bootId: 'x'.repeat(65)}, {token: tokens[0].raw}, {accountId: accounts[1].id}, {ota: {state: 'failed', message: tokens[0].raw}}, {firmwareVersion: 'garbage'}, {runningPartition: 'app2'}, {rssi: 1}, {rssi: -200}, {rssi: -66.5}, {resetReason: ''}, {resetReason: 'power on'}, {bootCount: -1}, {wifiDropsTotal: 'lots'}]) {
     const r = await call('/api/ric/status', {method: 'POST', bearer: tokens[0].raw, body});
     assert.equal(r.status, 400); assert.deepEqual(await r.json(), {error: 'Invalid device telemetry'});
   }

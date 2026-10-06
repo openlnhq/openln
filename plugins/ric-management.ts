@@ -128,6 +128,13 @@ const telemetryFields = {
   partitionLayout: z.literal(LAYOUT),
   bootId: z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/),
   uptimeMs: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  // Device health diagnostics (firmware 1.0.15+). Optional so older firmware
+  // still validates; a status post that omits them must not clear them.
+  rssi: z.number().int().min(-127).max(0).optional(),
+  resetReason: z.string().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/).optional(),
+  bootCount: z.number().int().min(0).max(4294967295).optional(),
+  wifiDrops: z.number().int().min(0).max(4294967295).optional(),
+  wifiDropsTotal: z.number().int().min(0).max(4294967295).optional(),
   runningPartition: z.string().max(16).regex(/^(?:app[01]|ota_[01]|factory)$/).optional(),
   ota: z.object({
     state: z.string().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/),
@@ -171,6 +178,9 @@ export async function handleRicManagementRoute(req: IncomingMessage, res: Server
       mac: ricDeviceTelemetryTable.mac, partitionLayout: ricDeviceTelemetryTable.partitionLayout,
       bootId: ricDeviceTelemetryTable.bootId, uptimeMs: ricDeviceTelemetryTable.uptimeMs,
       runningPartition: ricDeviceTelemetryTable.runningPartition,
+      rssi: ricDeviceTelemetryTable.rssi, resetReason: ricDeviceTelemetryTable.resetReason,
+      bootCount: ricDeviceTelemetryTable.bootCount, wifiDrops: ricDeviceTelemetryTable.wifiDrops,
+      wifiDropsTotal: ricDeviceTelemetryTable.wifiDropsTotal,
       lastSeenAt: ricDeviceTelemetryTable.lastSeenAt, lastHelloAt: ricDeviceTelemetryTable.lastHelloAt,
       otaState: ricDeviceTelemetryTable.otaState, otaCode: ricDeviceTelemetryTable.otaCode,
       otaTargetVersion: ricDeviceTelemetryTable.otaTargetVersion,
@@ -192,6 +202,10 @@ export async function handleRicManagementRoute(req: IncomingMessage, res: Server
     firmwareVersion: parsed.firmwareVersion, board: parsed.board, mac: parsed.mac,
     partitionLayout: parsed.partitionLayout, bootId: parsed.bootId, uptimeMs: parsed.uptimeMs,
     runningPartition: parsed.runningPartition,
+    // Health fields follow the same contract as runningPartition: present means
+    // update, omitted (undefined) means preserve the last reported value.
+    rssi: parsed.rssi, resetReason: parsed.resetReason,
+    bootCount: parsed.bootCount, wifiDrops: parsed.wifiDrops, wifiDropsTotal: parsed.wifiDropsTotal,
     // No ota field means preserve the latest reported state. A new state clears a stale code.
     ...(parsed.ota ? {otaState: parsed.ota.state, otaCode: parsed.ota.code === undefined ? null : String(parsed.ota.code),
       otaTargetVersion: parsed.ota.targetVersion ?? null} : {}),

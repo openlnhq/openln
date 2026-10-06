@@ -1,4 +1,4 @@
-import {pgTable, uuid, varchar, bigint, timestamp} from "drizzle-orm/pg-core";
+import {pgTable, uuid, varchar, integer, bigint, timestamp} from "drizzle-orm/pg-core";
 import {deviceTokensTable} from "./deviceTokens.js";
 
 // One latest observation per issued device credential. MAC is telemetry, not identity.
@@ -11,6 +11,14 @@ export const ricDeviceTelemetryTable = pgTable("ric_device_telemetry", {
   bootId: varchar("boot_id", {length: 64}),
   uptimeMs: bigint("uptime_ms", {mode: "number"}),
   runningPartition: varchar("running_partition", {length: 16}),
+  // Device health diagnostics (firmware 1.0.15+): WiFi strength and
+  // power/reboot forensics, so a crash reads differently from a brownout
+  // or a power cycle without serial access to the device.
+  rssi: integer("rssi"),
+  resetReason: varchar("reset_reason", {length: 32}),
+  bootCount: bigint("boot_count", {mode: "number"}),
+  wifiDrops: bigint("wifi_drops", {mode: "number"}),
+  wifiDropsTotal: bigint("wifi_drops_total", {mode: "number"}),
   otaState: varchar("ota_state", {length: 32}),
   otaCode: varchar("ota_code", {length: 64}),
   otaTargetVersion: varchar("ota_target_version", {length: 32}),

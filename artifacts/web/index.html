@@ -2481,6 +2481,25 @@ const RIC_CHAR_STATUS_UUID  = "6e400007-b5a3-f393-e0a9-e50e24dcca9e";
 function ricEncode(s){ return new TextEncoder().encode(s); }
 function ricFmtDate(s){ if(!s) return 'Never used'; return new Date(s).toLocaleDateString('en-GB'); }
 function ricIsOnline(lastUsedAt){ if(!lastUsedAt) return false; return Date.now()-new Date(lastUsedAt).getTime() < 10*60*1000; }
+// Device health line for a linked RIC: WiFi strength, restart cause, drop and
+// boot counters. Rendered only from fields the device actually reported
+// (firmware 1.0.15+), so older firmware shows nothing extra.
+const RIC_RESET_LABELS={poweron:'power cycle',ext:'reset pin',brownout:'brownout (power dip)',sw:'software restart',panic:'crash',intwdt:'watchdog',taskwdt:'watchdog',wdt:'watchdog',deepsleep:'deep sleep',sdio:'sdio',unknown:'reason unknown'};
+const RIC_RESET_WARN=new Set(['panic','intwdt','taskwdt','wdt','brownout']);
+function ricHealthLine(o){
+  const parts=[];
+  if(typeof o.rssi==='number'&&o.rssi<0) parts.push('WiFi '+o.rssi+' dBm ('+(o.rssi>=-60?'good':o.rssi>=-70?'fair':o.rssi>=-80?'weak':'very weak')+')');
+  if(o.resetReason) parts.push('last start: '+esc(RIC_RESET_LABELS[o.resetReason]||o.resetReason));
+  if(typeof o.wifiDropsTotal==='number'){
+    let s='WiFi drops '+o.wifiDropsTotal+' total';
+    if(typeof o.wifiDrops==='number') s+=o.wifiDrops===0?' · none since restart':' · '+o.wifiDrops+' since restart';
+    parts.push(s);
+  }
+  if(typeof o.bootCount==='number'&&o.bootCount>0) parts.push('boots '+o.bootCount);
+  if(!parts.length) return '';
+  const warn=RIC_RESET_WARN.has(o.resetReason);
+  return '<div class="'+(warn?'':'dim')+'" title="Reported by the device on its last check-in. Signal, restart cause and counters reset when it is re-flashed or factory reset." style="font-size:11.5px;margin-top:3px'+(warn?';color:var(--err)':'')+'">'+parts.join(' · ')+'</div>';
+}
 let RIC_ACCOUNT_ID=null;
 
 async function vRic(){
@@ -2515,16 +2534,19 @@ async function renderRicDevices(){
     const observations=new Map(inventory.devices.map(d=>[d.deviceId,d]));
     if(!box.isConnected)return;
     if(!devices.length){ box.innerHTML=`<div class="card" style="text-align:center;padding:32px 20px"><div style="font-size:24px;margin-bottom:8px">▣</div><p class="dim" style="font-size:13px">No devices linked yet</p><p class="dim" style="font-size:11.5px;margin-top:4px">Flash and link your first RIC to get started</p></div>`; return; }
-    box.innerHTML=devices.map(d=>`
+    box.innerHTML=devices.map(d=>{
+      const o=observations.get(d.id)||{};
+      return `
       <div class="card ricrow" data-token-id="${esc(d.id)}">
         <div class="ricrow-meta">
           <div class="ricrow-top"><b>${esc(d.label||'RIC')}</b>${ricIsOnline(d.lastUsedAt)?'<span class="ricdot on"></span><span class="ricstatus on">online</span>':'<span class="ricdot"></span><span class="ricstatus">offline</span>'}</div>
           <div class="dim" style="font-size:11.5px;margin-top:3px">Linked ${ricFmtDate(d.createdAt)} · Last used ${ricFmtDate(d.lastUsedAt)}</div>
-          <div style="font-size:12px;margin-top:8px">${observations.get(d.id)?.firmwareVersion?'Installed v'+esc(observations.get(d.id).firmwareVersion):'Installed version not reported'}</div>
-          <div class="dim" style="font-size:11.5px;margin-top:3px;overflow-wrap:anywhere">${observations.get(d.id)?.ota?'Update: '+esc(observations.get(d.id).ota.state)+(observations.get(d.id).ota.code?' · '+esc(observations.get(d.id).ota.code):''):'No update report yet'}</div>
+          <div style="font-size:12px;margin-top:8px">${o.firmwareVersion?'Installed v'+esc(o.firmwareVersion):'Installed version not reported'}</div>
+          ${ricHealthLine(o)}
+          <div class="dim" style="font-size:11.5px;margin-top:3px;overflow-wrap:anywhere">${o.ota?'Update: '+esc(o.ota.state)+(o.ota.code?' · '+esc(o.ota.code):''):'No update report yet'}</div>
         </div>
         <button class="btn ghost sm dangerText" data-release="${esc(d.id)}">Release</button>
-      </div>`).join('');
+      </div>`;}).join('');
     box.querySelectorAll('[data-release]').forEach(b=>b.onclick=()=>ricReleaseModal(devices.find(d=>d.id===b.dataset.release)));
   }catch(e){ box.innerHTML=`<p style="color:var(--err);font-size:13px">${prose(e.message)}</p>`; }
 }

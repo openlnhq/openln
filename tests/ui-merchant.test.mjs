@@ -153,3 +153,13 @@ test('percent adjustments convert to and from the stored multiplier form',()=>{
   assert.equal(context.rateModifierLabel('ZAR*1.02'),'\u22122.0%','negative adjustments use a minus sign');
   assert.equal(context.rateModifierLabel(''),'Market rate','blank reads as market rate');
 });
+test('linked RIC rows surface WiFi signal and restart diagnostics once reported',()=>{
+  const rows=html.slice(html.indexOf('function renderRicDevices('),html.indexOf('function ricStepRow('));
+  assert.ok(rows.includes('ricHealthLine'),'device rows render the telemetry health line');
+  const health=html.slice(html.indexOf('const RIC_RESET_LABELS'),html.indexOf('let RIC_ACCOUNT_ID'));
+  assert.ok(health.includes('rssi')&&health.includes('dBm'),'signal strength is shown in dBm');
+  assert.ok(health.includes('resetReason')&&health.includes("brownout"),'restart causes are named (brownout reads as a power dip)');
+  assert.ok(health.includes('wifiDropsTotal')&&health.includes('bootCount'),'drop totals and boot counts are shown');
+  assert.ok(health.includes('WiFi drops'),'the link-loss counter is labelled in plain words');
+  assert.ok(health.includes('RIC_RESET_WARN'),'crash-class restart reasons get the warning treatment');
+});

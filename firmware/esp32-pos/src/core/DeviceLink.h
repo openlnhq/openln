@@ -8,6 +8,7 @@
 #include <esp_ota_ops.h>
 #include <time.h>
 #include "RicPolicy.h"
+#include "DeviceStats.h"
 #include "Version.h"
 #include "ServerTrust.h"
 #include "../config/Config.h"
@@ -40,6 +41,15 @@ public:
   doc["firmwareVersion"]=FIRMWARE_VERSION;doc["board"]=RIC_BOARD;
   doc["partitionLayout"]=RIC_PARTITION_LAYOUT;doc["mac"]=WiFi.macAddress();
   doc["bootId"]=bootId();doc["uptimeMs"]=millis();
+  // Health diagnostics — why the dashboard can tell a crash from a power dip
+  // without serial access. Counters flush first so the persisted history is
+  // as fresh as this report.
+  DeviceStats::flushIfDirty();
+  doc["rssi"]=WiFi.RSSI();
+  doc["resetReason"]=DeviceStats::resetReasonName((int)esp_reset_reason());
+  doc["bootCount"]=DeviceStats::bootCount();
+  doc["wifiDrops"]=DeviceStats::wifiDrops();
+  doc["wifiDropsTotal"]=DeviceStats::wifiDropsTotal();
   const auto part=esp_ota_get_running_partition();
   if(part)doc["runningPartition"]=part->label;
  }

@@ -123,3 +123,10 @@ test('wallet connections: several wallets on file, per-feature assignment, capab
   assert.ok(modal.includes('r.connection'),'the connect modal reads the saved-connection response');
   assert.ok(html.includes('noffer1'),'CLINK codes are accepted by the connect modal');
 });
+test('treasury offers the analytics consoles with signed-in entry',()=>{
+  const src=html.slice(html.indexOf('/* ---- ADMIN PAYMENTS'),html.indexOf('async function vAdminDetail('));
+  assert.ok(src.includes('id="admAnalytics"'),'analytics card lives in the treasury view');
+  assert.ok(src.includes("cockpit:'/traffic/'")&&src.includes("live:'/traffic/live/'")&&src.includes("insights:'/at/insights'"),'all three dashboards are linked');
+  assert.ok(src.includes("fetch('/at/mint'"),'the buttons mint a signed-in session first');
+  assert.ok(src.includes("https://openln.com/traffic/")&&src.includes("https://openln.com/insights/"),'manual fallback keeps working on dev and other hosts');
+});

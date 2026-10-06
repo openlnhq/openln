@@ -3132,6 +3132,17 @@ function admTxPill(status){
   return `<span class="admpill ${color}">${esc(status)}</span>`;
 }
 function admShort(h,n){ n=n||10; if(!h)return '-'; return h.length>n+3?h.slice(0,n)+'…':h; }
+async function anaOpen(kind){
+  const targets={cockpit:'/traffic/',live:'/traffic/live/',insights:'/at/insights'};
+  const manual={cockpit:'https://openln.com/traffic/',live:'https://openln.com/traffic/live/',insights:'https://openln.com/insights/'};
+  try{
+    const r=await fetch('/at/mint',{method:'POST',headers:{...(tok()?{Authorization:'Bearer '+tok()}:{})}});
+    if(!r.ok)throw new Error('sso unavailable');
+    location.href=targets[kind]||targets.cockpit;
+  }catch(e){
+    location.href=manual[kind]||manual.cockpit;
+  }
+}
 async function vAdminPayments(){
   if(ADM_ID) return vAdminDetail(ADM_ID);
   return vAdminList();
@@ -3144,9 +3155,21 @@ async function vAdminList(){
       <p class="muted" style="margin:8px 0 0;max-width:640px">Hold-wrap pipeline, float balance, and payment/transaction ledger. Admin-only.</p></div>
       <button class="btn ghost sm" id="admLiveToggle" style="white-space:nowrap"><span class="pulse ${ADM_LIVE?'':'ok'}" style="margin-right:6px"></span>${ADM_LIVE?'Live':'Paused'}</button>
     </div>
+    <div class="card" id="admAnalytics" style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div><div class="overline">Analytics</div>
+        <p class="muted" style="margin:6px 0 0;max-width:640px">Live traffic, visitors and errors for the site and the app. Opens signed in with your admin session.</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn teal sm" data-ana="cockpit">Traffic cockpit</button>
+          <button class="btn ghost sm" data-ana="live">Realtime report</button>
+          <button class="btn ghost sm" data-ana="insights">Visitor insights</button>
+        </div>
+      </div>
+    </div>
     <div id="admBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
   </div>`;
   $('#admLiveToggle').onclick=()=>{ADM_LIVE=!ADM_LIVE;if(ADM_LIVE)admStartListPoll();else admStopPoll();vAdminList()};
+  $('#admAnalytics').querySelectorAll('[data-ana]').forEach(b=>b.onclick=()=>anaOpen(b.dataset.ana));
   await admRenderList();
   if(ADM_LIVE)admStartListPoll();
 }

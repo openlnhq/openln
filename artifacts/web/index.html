@@ -578,8 +578,9 @@ html.light .rinfo-pop{box-shadow:0 18px 44px rgba(6,40,38,.2)}
 .rateval.editing,.rateval.editing:hover{background:transparent;box-shadow:none;padding:0}
 .rateval.market{color:var(--text3);font-weight:510}
 .rateval.adj{color:var(--teal)}
-.rateinput{width:100%;height:42px;text-align:center;font-size:13.5px;font-weight:590;color:var(--text);background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:0 8px;font-variant-numeric:tabular-nums}
-.rateinput:focus{outline:none;border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-dim)}
+/* .ractl scope out-specifies .setrow input rules (max-width:55%, min-height:46px, font-size:14px) */
+.ractl .rateinput{width:100%;max-width:none;min-width:0;min-height:0;height:42px;text-align:center;font-size:13.5px;font-weight:590;color:var(--text);background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:0 8px;font-variant-numeric:tabular-nums}
+.ractl .rateinput:focus{outline:none;border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-dim)}
 .ratechip{flex:none;min-width:150px;text-align:center;font-size:11.5px;color:var(--text2);background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:8px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ricgrid{max-width:760px;grid-template-columns:1fr 1fr}.rictile{min-height:142px}.rictile-sub{font-size:12px;color:var(--text2);line-height:1.6}.ricrow{max-width:760px}
 .ricrates{max-width:760px;margin-top:24px;padding:18px;border:1px solid var(--line);border-radius:12px;font-size:13px;color:var(--text2)}
@@ -3033,6 +3034,8 @@ async function vSettings(version=renderVersion){
     const st=rateRows[dir],val=$('#'+dir+'RateVal');
     if(!val||st.editing)return;
     st.editing=true;val.classList.add('editing');
+    const w0=val.getBoundingClientRect().width;
+    if(w0>0)val.style.width=w0+'px';
     const inp=document.createElement('input');
     inp.className='rateinput';inp.id=dir+'RateInput';inp.type='text';inp.inputMode='decimal';
     inp.autocomplete='off';inp.spellcheck=false;inp.placeholder='0';
@@ -3041,7 +3044,7 @@ async function vSettings(version=renderVersion){
     val.textContent='';val.appendChild(inp);
     const finish=commit=>{
       if(!st.editing)return;
-      st.editing=false;val.classList.remove('editing');
+      st.editing=false;val.classList.remove('editing');val.style.width='';
       if(commit){
         const raw=inp.value.replace(/\u2212/g,'-').replace(/%/g,'').replace(/\s/g,'').replace(',','.');
         const n=raw===''?0:parseFloat(raw);

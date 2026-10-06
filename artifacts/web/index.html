@@ -572,9 +572,14 @@ html.light .rinfo-pop{box-shadow:0 18px 44px rgba(6,40,38,.2)}
 .ratebtn:active{transform:scale(.93)}
 .ratebtn:disabled{opacity:.35;cursor:default;transform:none}
 .ratebtn:disabled:hover{background:var(--surface2);box-shadow:inset 0 0 0 1px var(--line2)}
-.rateval{min-width:104px;text-align:center;font-size:13.5px;font-weight:590;color:var(--text);font-variant-numeric:tabular-nums}
+.rateval{min-width:104px;text-align:center;font-size:13.5px;font-weight:590;color:var(--text);font-variant-numeric:tabular-nums;padding:9px 8px;border-radius:8px;cursor:text;transition:background .13s,box-shadow .13s}
+.rateval:hover{background:var(--surface2);box-shadow:inset 0 0 0 1px var(--line2)}
+.rateval:focus-visible{outline:none;background:var(--surface2);box-shadow:inset 0 0 0 1px var(--teal-line)}
+.rateval.editing,.rateval.editing:hover{background:transparent;box-shadow:none;padding:0}
 .rateval.market{color:var(--text3);font-weight:510}
 .rateval.adj{color:var(--teal)}
+.rateinput{width:100%;height:42px;text-align:center;font-size:13.5px;font-weight:590;color:var(--text);background:var(--bg2);border:1px solid var(--line2);border-radius:8px;padding:0 8px;font-variant-numeric:tabular-nums}
+.rateinput:focus{outline:none;border-color:var(--teal-line);box-shadow:0 0 0 3px var(--teal-dim)}
 .ratechip{flex:none;min-width:150px;text-align:center;font-size:11.5px;color:var(--text2);background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:8px 12px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ricgrid{max-width:760px;grid-template-columns:1fr 1fr}.rictile{min-height:142px}.rictile-sub{font-size:12px;color:var(--text2);line-height:1.6}.ricrow{max-width:760px}
 .ricrates{max-width:760px;margin-top:24px;padding:18px;border:1px solid var(--line);border-radius:12px;font-size:13px;color:var(--text2)}
@@ -2843,7 +2848,7 @@ async function vSettings(version=renderVersion){
           <div class="rinfo-pop" id="buyRatePop" hidden>
             <p><b>This is the rate your RIC uses when a customer pays you.</b></p>
             <p>Buy · Receive converts your prices from <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> into the sats a customer pays, and the rate on the right shows what your RIC will use. At Market rate it follows the live Bitcoin price.</p>
-            <p>Press + to ask for more sats per <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span>, - to ask for fewer. Example: +2% on a 100 <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> sale asks for about 2% more sats.</p>
+            <p>Press + to ask for more sats per <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span>, - to ask for fewer. Example: +2% on a 100 <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> sale asks for about 2% more sats. Click the percent value to type a rate directly.</p>
             <p>Your RIC downloads saved rates when it starts: restart it after saving a change. These are exchange-rate settings, separate from routing fees.</p>
           </div>
         </div>
@@ -2858,7 +2863,7 @@ async function vSettings(version=renderVersion){
           <div class="rinfo-pop" id="sellRatePop" hidden>
             <p><b>This is the rate your RIC uses when it sends sats out.</b></p>
             <p>Sell · Send converts amounts into the sats your RIC sends (Send mode QR or tapping a card), and the rate on the right shows what your RIC will use. At Market rate it follows the live Bitcoin price.</p>
-            <p>Press + to send more sats per <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span>, - to send fewer. Example: -2% on a 1,000 <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> send sends about 2% fewer sats.</p>
+            <p>Press + to send more sats per <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span>, - to send fewer. Example: -2% on a 1,000 <span class="popcur">${esc((settings.currency||'usd').toUpperCase())}</span> send sends about 2% fewer sats. Click the percent value to type a rate directly.</p>
             <p>Your RIC downloads saved rates when it starts: restart it after saving a change. These are exchange-rate settings, separate from routing fees.</p>
           </div>
         </div>
@@ -2964,8 +2969,8 @@ async function vSettings(version=renderVersion){
   const RATE_STEP=0.5, RATE_MAX=50;
   const rateParsed=[rateModifierPct(settings.rateModifier),rateModifierPct(settings.sendRateModifier)];
   const rateRows={
-    buy:{pct:Number.isFinite(rateParsed[0])?rateParsed[0]:0,custom:Number.isNaN(rateParsed[0]),touched:false,orig:settings.rateModifier||'',chip:null,rcv:0},
-    sell:{pct:Number.isFinite(rateParsed[1])?rateParsed[1]:0,custom:Number.isNaN(rateParsed[1]),touched:false,orig:settings.sendRateModifier||'',chip:null,rcv:0},
+    buy:{pct:Number.isFinite(rateParsed[0])?rateParsed[0]:0,custom:Number.isNaN(rateParsed[0]),touched:false,orig:settings.rateModifier||'',chip:null,rcv:0,editing:false},
+    sell:{pct:Number.isFinite(rateParsed[1])?rateParsed[1]:0,custom:Number.isNaN(rateParsed[1]),touched:false,orig:settings.sendRateModifier||'',chip:null,rcv:0,editing:false},
   };
   const rState={base:null,failed:false,rv:0};
   const curCode=()=>String($('#setCurrency').value||'usd').toUpperCase();
@@ -2981,8 +2986,10 @@ async function vSettings(version=renderVersion){
     for(const dir of ['buy','sell']){
       const st=rateRows[dir],val=$('#'+dir+'RateVal'),chip=$('#'+dir+'RateChip'),minus=$('#'+dir+'RateMinus'),plus=$('#'+dir+'RatePlus');
       if(!val||!chip||!minus||!plus)continue;
-      if(st.custom&&!st.touched){val.className='rateval';val.textContent=st.orig;val.title='Saved expression: '+st.orig}
-      else{val.className='rateval'+(st.pct?' adj':' market');val.textContent=st.pct?ratePctLabel(st.pct):'Market rate';val.removeAttribute('title')}
+      if(!st.editing){
+        if(st.custom&&!st.touched){val.classList.remove('adj','market');val.textContent=st.orig;val.title='Saved expression: '+st.orig}
+        else{val.classList.toggle('adj',!!st.pct);val.classList.toggle('market',!st.pct);val.textContent=st.pct?ratePctLabel(st.pct):'Market rate';val.removeAttribute('title')}
+      }
       minus.disabled=st.pct<=-RATE_MAX;plus.disabled=st.pct>=RATE_MAX;
       chip.textContent=rateChipText(st);
     }
@@ -3013,13 +3020,42 @@ async function vSettings(version=renderVersion){
     paintRates();
     for(const dir of ['buy','sell']){const st=rateRows[dir];if(st.custom&&!st.touched)fetchCustomChip(dir)}
   };
-  const stepRate=(dir,delta)=>{
+  const applyRate=(dir,pct)=>{
     const st=rateRows[dir];
-    let p=Math.round((st.pct+delta)*10)/10;
+    let p=Math.round(pct*10)/10;
     p=Math.max(-RATE_MAX,Math.min(RATE_MAX,p));
     if(p===st.pct&&!st.custom)return;
     st.pct=p;st.touched=true;st.custom=false;st.chip=null;
     markDirty();paintRates();
+  };
+  const stepRate=(dir,delta)=>applyRate(dir,rateRows[dir].pct+delta);
+  const openRateEdit=(dir)=>{
+    const st=rateRows[dir],val=$('#'+dir+'RateVal');
+    if(!val||st.editing)return;
+    st.editing=true;val.classList.add('editing');
+    const inp=document.createElement('input');
+    inp.className='rateinput';inp.id=dir+'RateInput';inp.type='text';inp.inputMode='decimal';
+    inp.autocomplete='off';inp.spellcheck=false;inp.placeholder='0';
+    inp.setAttribute('aria-label',(dir==='buy'?'Buy receive':'Sell send')+' rate, percent');
+    inp.value=(st.custom&&!st.touched)?'':(st.pct?String(st.pct):'');
+    val.textContent='';val.appendChild(inp);
+    const finish=commit=>{
+      if(!st.editing)return;
+      st.editing=false;val.classList.remove('editing');
+      if(commit){
+        const raw=inp.value.replace(/\u2212/g,'-').replace(/%/g,'').replace(/\s/g,'').replace(',','.');
+        const n=raw===''?0:parseFloat(raw);
+        if(Number.isFinite(n))applyRate(dir,n);
+      }
+      paintRates();
+    };
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){e.preventDefault();e.stopPropagation();finish(true)}
+      else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();finish(false)}
+      else if(e.key===' ')e.stopPropagation();
+    });
+    inp.addEventListener('blur',()=>finish(true));
+    inp.focus();inp.select();
   };
   const rateValue=dir=>{
     const st=rateRows[dir];
@@ -3029,6 +3065,14 @@ async function vSettings(version=renderVersion){
   $('#buyRatePlus').onclick=()=>stepRate('buy',RATE_STEP);
   $('#sellRateMinus').onclick=()=>stepRate('sell',-RATE_STEP);
   $('#sellRatePlus').onclick=()=>stepRate('sell',RATE_STEP);
+  for(const dir of ['buy','sell']){
+    const val=$('#'+dir+'RateVal');
+    if(!val)continue;
+    val.tabIndex=0;val.setAttribute('role','button');
+    val.setAttribute('aria-label','Type the '+(dir==='buy'?'buy':'sell')+' rate');
+    val.addEventListener('click',()=>openRateEdit(dir));
+    val.addEventListener('keydown',e=>{if(e.target!==val)return;if(e.key==='Enter'||e.key===' '){e.preventDefault();openRateEdit(dir)}});
+  }
   const closeRatePops=()=>{
     for(const id of ['buyRatePop','sellRatePop']){const el=$('#'+id);if(el)el.hidden=true}
     document.querySelectorAll('.rinfo').forEach(b=>b.setAttribute('aria-expanded','false'));

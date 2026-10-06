@@ -138,6 +138,7 @@ test('rate rows step in percent with inline live rates and a RIC explainer',()=>
   assert.ok(source.includes('restart it after saving'),'the tooltip explains how a change reaches the RIC');
   assert.ok(!source.includes('id="setRateModifier"'),'the raw modifier-syntax input is gone');
   assert.ok(source.includes('stepRate(')&&source.includes('rateValue('),'steppers drive the stored rate value');
+  assert.ok(source.includes('openRateEdit')&&source.includes('rateinput'),'the percent value can be clicked and typed directly');
 });
 test('percent adjustments convert to and from the stored multiplier form',()=>{
   const block=html.slice(html.indexOf('/* ---- RATE MODIFIER HELPERS ---- */'),html.indexOf('/* ---- END RATE MODIFIER HELPERS ---- */'));

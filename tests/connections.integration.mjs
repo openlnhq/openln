@@ -128,3 +128,39 @@ test('CLINK: connect proves an offer against the stubbed relay; each direction a
     assert.equal(sessRes.status,400,'one-time session codes are refused at connect time');
   }finally{__setClinkClientFactoryForTests(null)}
 });
+test('CLINK debit authorization: budget request mapped end to end; re-send verifies; wrong kind refused',async()=>{
+  const {__setClinkClientFactoryForTests}=clinkmod,{ndebitEncode,nofferEncode}=sdkmod;
+  const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({handle:'qa_auth_'+randomBytes(5).toString('hex'),password:randomBytes(20).toString('hex')})});
+  const b=await r.json();const h={'Content-Type':'application/json',Authorization:'Bearer '+b.token};
+  const p2=(path,body2)=>fetch(base+path,{method:'POST',headers:h,body:JSON.stringify(body2||{})});
+  const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const mkBolt11=(hashHex)=>{const words=[0,0,0,0,0,0,0];const hw=[];let acc=0,bits=0;for(const x of Buffer.from(hashHex,'hex')){acc=(acc<<8)|x;bits+=8;while(bits>=5){bits-=5;hw.push((acc>>bits)&31);}}if(bits)hw.push((acc<<(5-bits))&31);words.push(1,hw.length>>5,hw.length&31,...hw);return 'lnbc1'+words.map(w=>CHARSET[w]).join('')+'qqqqqq';};
+  const hash='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+  let seen=null,mode='ok';
+  __setClinkClientFactoryForTests(()=>({requestInvoice:async()=>({bolt11:mkBolt11(hash)}),debit:async()=>({res:'ok'}),budget:async(req,t)=>{if(mode==='gfy')return {res:'GFY',code:1,error:'user denied'};seen={req,t};return {res:'ok'}},stop:()=>{}}));
+  try{
+    const ndebit=ndebitEncode({pubkey:'b'.repeat(64),relay:'wss://relay.example'});
+    const c=await p2('/api/wallet/connect',{connection:ndebit});
+    assert.equal(c.status,200);const conn=(await c.json()).connection;assert.equal(conn.kind,'ndebit');
+    const a1=await p2('/api/connections/'+conn.id+'/authorize',{amountSats:5000});
+    assert.equal(a1.status,200);const j1=await a1.json();
+    assert.equal(j1.status,'authorized');assert.equal(j1.amountSats,5000);assert.deepEqual(j1.frequency,{number:1,unit:'month'});
+    assert.equal(seen.req.amountSats,5000);assert.deepEqual(seen.req.frequency,{number:1,unit:'month'});assert.equal(seen.t,60);
+    assert.ok(!('bolt11' in seen.req),'an authorization request never carries an invoice');
+    const bad=await p2('/api/connections/'+conn.id+'/authorize',{amountSats:0});
+    assert.equal(bad.status,400);
+    const bad2=await p2('/api/connections/'+conn.id+'/authorize',{amountSats:1,unit:'year'});
+    assert.equal(bad2.status,400);
+    mode='gfy';
+    const a2=await p2('/api/connections/'+conn.id+'/authorize',{amountSats:5000});
+    assert.equal(a2.status,200);const j2=await a2.json();
+    assert.equal(j2.ok,false);assert.equal(j2.status,'rejected');assert.equal(j2.code,1);assert.match(j2.message,/approve/i);
+    const noffer=nofferEncode({pubkey:'a'.repeat(64),relay:'wss://relay.example',offer:'qa-auth-offer',priceType:2});
+    const c2=await p2('/api/wallet/connect',{connection:noffer});assert.equal(c2.status,200);
+    const nid=(await c2.json()).connection.id;
+    const a3=await p2('/api/connections/'+nid+'/authorize',{amountSats:1000});
+    assert.equal(a3.status,400,'a receive offer cannot be authorized');
+    const a4=await p2('/api/connections/00000000-0000-0000-0000-000000000000/authorize',{amountSats:1000});
+    assert.equal(a4.status,404,'an unknown connection id is not visible');
+  }finally{__setClinkClientFactoryForTests(null)}
+});

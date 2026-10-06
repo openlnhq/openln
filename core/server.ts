@@ -13,7 +13,7 @@ import { createWrappedInvoice, cancelWrap, mintNofferInvoice, type WrapRow } fro
 import { encrypt } from "./money/encrypt.js";
 import { resolveWalletSource, merchantFundingFromSource, assignDefaultIfUnset, syncLegacyWalletMirror } from "./money/walletSource.js";
 import { connectionPublicView, connectionKindLabel, deriveConnectionLabel, uniqueConnectionLabel, connectionCapabilities } from "./money/connections.js";
-import { parseClinkPointer, clinkRequestInvoice, generateClinkAppKey, describeClinkError } from "./money/clink.js";
+import { parseClinkPointer, clinkRequestInvoice, generateClinkAppKey, describeClinkError, clinkRequestBudget, clinkAuthorizeFailure } from "./money/clink.js";
 import { processClinkWebhook, ensureClinkHook, rotateClinkHook, clinkHookPaths } from "./money/clinkWebhook.js";
 import { detectFunding } from "./money/fundingInput.js";
 import { recordPaymentEvent } from "./money/paymentLog.js";
@@ -602,6 +602,37 @@ const server = createServer(async (req, res) => {
         const hook = await rotateClinkHook(id);
         if (!hook) return json(res, 500, { error: "Could not rotate this webhook" });
         return json(res, 200, { ok: true, ...clinkHookPaths(hook.hookId), token: hook.token });
+      }
+      const connAuthorize = u.pathname.match(/^\/api\/connections\/([^/]+)\/authorize$/);
+      if (req.method === "POST" && connAuthorize) {
+        // Ask an ndebit wallet for a spending allowance (CLINK budget
+        // request: amount + frequency, no bolt11 - nothing can move). Safe
+        // to re-send: an allowance that already exists answers ok instantly,
+        // so the same call doubles as a verify.
+        const account = await sessionAccount(); if (!account) return json(res, 401, { error: "Authentication required" });
+        const id = decodeURIComponent(connAuthorize[1]);
+        const [conn] = await db
+          .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind, clinkPointer: accountConnectionsTable.clinkPointer, clinkAppKeyEncrypted: accountConnectionsTable.clinkAppKeyEncrypted })
+          .from(accountConnectionsTable)
+          .where(and(eq(accountConnectionsTable.id, id), eq(accountConnectionsTable.accountId, account.id)));
+        if (!conn) return json(res, 404, { error: "Connection not found" });
+        if (conn.kind !== "ndebit") return json(res, 400, { error: "Authorizations apply to CLINK debit wallets - this connection does not send" });
+        const v = await body(req);
+        const amountSats = Math.floor(Number(v.amountSats));
+        if (!Number.isFinite(amountSats) || amountSats < 1 || amountSats > 100_000_000) return json(res, 400, { error: "Enter an allowance between 1 and 100,000,000 sats" });
+        const unit = v.unit === undefined ? "month" : String(v.unit);
+        if (unit !== "day" && unit !== "week" && unit !== "month") return json(res, 400, { error: "The allowance period must be day, week, or month" });
+        const number = v.number === undefined ? 1 : Number(v.number);
+        if (!Number.isInteger(number) || number < 1 || number > 12) return json(res, 400, { error: "The allowance period must be a whole number from 1 to 12" });
+        const pointer = conn.clinkPointer ? parseClinkPointer(conn.clinkPointer) : null;
+        const appKey = resolveNwcUrl(conn.clinkAppKeyEncrypted);
+        if (!pointer || pointer.kind !== "ndebit" || !appKey) return json(res, 500, { error: "This wallet's stored code could not be read - reconnect it" });
+        try {
+          await clinkRequestBudget({ pointer, appKey, amountSats, frequency: { number, unit }, description: "openLN send authorization" });
+          return json(res, 200, { ok: true, status: "authorized", amountSats, frequency: { number, unit } });
+        } catch (err) {
+          return json(res, 200, { ok: false, ...clinkAuthorizeFailure(err) });
+        }
       }
       const connDefault = u.pathname.match(/^\/api\/connections\/([^/]+)\/default$/);
       if (req.method === "POST" && connDefault) {

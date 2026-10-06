@@ -122,6 +122,9 @@ test('wallet connections: several wallets on file, per-feature assignment, capab
   const modal=html.slice(html.indexOf('function walletModal('),html.indexOf('async function loadAuthedImage('));
   assert.ok(modal.includes('r.connection'),'the connect modal reads the saved-connection response');
   assert.ok(html.includes('noffer1'),'CLINK codes are accepted by the connect modal');
+  assert.ok(modal.includes('pendingAuthConn'),'connecting a CLINK debit walks straight to authorizing it');
+  assert.ok(helpers.includes('/authorize')&&helpers.includes('data-cauth'),'CLINK debit rows offer the wallet allowance block');
+  assert.ok(helpers.includes('Authorize sending'),'the allowance block explains itself');
 });
 test('treasury offers the analytics consoles with signed-in entry',()=>{
   const src=html.slice(html.indexOf('/* ---- ADMIN PAYMENTS'),html.indexOf('async function vAdminDetail('));

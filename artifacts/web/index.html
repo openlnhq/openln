@@ -2019,6 +2019,10 @@ function sndRender(){
   sndBind();
 }
 /* ---- WALLET CONNECT ---- */
+/* A CLINK debit wallet needs one wallet-side approval before it can send.
+   pendingAuthConn carries the fresh connection id from the connect modal to
+   the Saved wallets repaint, which opens its authorize block automatically. */
+let pendingAuthConn=null;
 function walletModalModes(){return {
   nwc:{tab:'NWC',label:'NWC connection string',ph:'nostr+walletconnect://…',caps:['recv','send'],
     works:'Works with Alby Hub, LNbits, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum, and any NIP-47 wallet.',
@@ -2056,7 +2060,9 @@ function walletModal(){
   wmInp.addEventListener('input',()=>{if(wmAutoT){clearTimeout(wmAutoT);wmAutoT=null}const d=wmDetect(wmInp.value);if(!d||d===mode||!WM[d])return;wmAutoT=setTimeout(()=>{const v=wmInp.value;mode=d;setTab(m.querySelector('[data-wm="'+d+'"]'));paint();wmInp.value=v;wmInp.focus();try{wmInp.setSelectionRange(v.length,v.length)}catch(e){}},400)});
   paint();
   m.querySelector('#wf').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));
-    try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();const kind=(r.connection&&r.connection.kind)||r.walletMode;toast(kind==='lnaddress'?'Lightning Address connected · receive-only':kind==='noffer'?'CLINK offer connected · webhook values in Saved wallets':kind==='ndebit'?'CLINK debit connected · send-only':'Wallet connected');render()}
+    try{const r=await api('/api/wallet/connect',{method:'POST',body:JSON.stringify(b)});m.remove();const kind=(r.connection&&r.connection.kind)||r.walletMode;
+      if(kind==='ndebit'){pendingAuthConn=(r.connection&&r.connection.id)||null;toast('CLINK debit connected · authorize sending');if(VIEW!=='settings'){navigate('settings')}else{render()}}
+      else{toast(kind==='lnaddress'?'Lightning Address connected · receive-only':kind==='noffer'?'CLINK offer connected · webhook values in Saved wallets':'Wallet connected');render()}}
     catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${prose(x.message)}</p>`}
   };
 }
@@ -2083,6 +2089,7 @@ async function loadWalletConnections(){
       <button class="btn ghost sm dangerText" data-cremove="${esc(c.id)}">Remove</button>
       </div>
       ${c.kind==='noffer'?`<div data-cwh="${esc(c.id)}" style="padding-bottom:4px"></div>`:''}
+      ${c.kind==='ndebit'?`<div data-cauth="${esc(c.id)}" style="padding-bottom:4px"></div>`:''}
     </div>`).join('')}
     <p class="hint" style="margin-top:6px">RIC and Cards use the wallet picked in their sections. Everything else uses the default wallet.</p>
   </div>`;
@@ -2116,6 +2123,44 @@ async function loadWalletConnections(){
       if(rot)rot.onclick=async()=>{if(!confirm('Generate a new bearer token? Your wallet stops confirming payments until you paste the new token there.'))return;rot.disabled=true;try{await api('/api/connections/'+encodeURIComponent(rot.dataset.cwrotate)+'/webhook/rotate',{method:'POST',body:'{}'});toast('New token generated - update it in your wallet');render()}catch(x){toast(x.message||'Could not rotate the token');rot.disabled=false}};
     }catch(e){el.remove()}
   });
+  /* CLINK debits: one wallet-side allowance covers sending. The request is a
+     budget ask (nothing moves); re-sending confirms an existing allowance. */
+  box.querySelectorAll('[data-cauth]').forEach(el=>{
+    const id=el.dataset.cauth;
+    /* Static markup only - no interpolated values reach innerHTML here;
+       server messages go through textContent below. */
+    el.innerHTML=`<details style="margin:0 0 8px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--teal);min-height:24px">Authorize sending (wallet allowance)</summary>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:6px">
+        <p class="hint" style="margin:0 0 8px">openLN asks your wallet once for a spending allowance. Sends within it go through without prompting, and you can change or revoke it any time in ShockWallet under Linked apps. Already authorized? The same button confirms it instantly.</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input class="input" data-caamt type="number" inputmode="numeric" min="1" step="1" value="10000" style="max-width:130px" aria-label="Allowance in sats per month">
+          <span class="dim" style="font-size:12px">sats per month</span>
+          <button class="btn teal sm" data-cago>Send request</button>
+        </div>
+        <div class="hint" data-camsg style="margin-top:6px;display:none"></div>
+      </div></details>`;
+    el.querySelector('[data-cago]').addEventListener('click',async()=>{
+      const btn=el.querySelector('[data-cago]'),amtEl=el.querySelector('[data-caamt]'),msg=el.querySelector('[data-camsg]');
+      const amount=Math.floor(Number(amtEl.value));
+      if(!Number.isFinite(amount)||amount<1||amount>100000000){msg.style.display='';msg.style.color='var(--err)';msg.textContent='Enter an allowance between 1 and 100,000,000 sats.';return}
+      btn.disabled=true;btn.textContent='Waiting for your wallet...';
+      msg.style.display='';msg.style.color='var(--text2)';msg.textContent='Open ShockWallet now and keep it in front. The request appears as a live prompt.';
+      try{
+        const r2=await api('/api/connections/'+encodeURIComponent(id)+'/authorize',{method:'POST',body:JSON.stringify({amountSats:amount})});
+        if(r2.status==='authorized'){msg.style.color='var(--ok)';msg.textContent='Authorized ✓ Sends from openLN now go through without prompting, within the allowance you set.'}
+        else if(r2.status==='timeout'){msg.style.color='var(--gold)';msg.textContent=r2.message}
+        else{msg.style.color='var(--err)';msg.textContent=r2.message||'The request failed.'}
+      }catch(x){msg.style.color='var(--err)';msg.textContent=x.message||'The request failed.'}
+      btn.disabled=false;btn.textContent='Send request';
+    });
+  });
+  /* Just-connected debit: open its block and walk the merchant to it. */
+  if(pendingAuthConn){
+    const want=pendingAuthConn;pendingAuthConn=null;
+    const el=[...box.querySelectorAll('[data-cauth]')].find(x=>x.dataset.cauth===want);
+    if(el){const d=el.querySelector('details');if(d)d.open=true;el.scrollIntoView({block:'center',behavior:'smooth'})}
+  }
 }
 async function loadConnectionsFor(feature,sel,title,blurb){
   const box=document.querySelector(sel); if(!box)return;

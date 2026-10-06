@@ -71,6 +71,17 @@ export class ClinkAmbiguousError extends Error {
   }
 }
 
+/** The wallet definitively declined an authorization request (GFY). Nothing was charged. */
+export class ClinkAuthorizeError extends ClinkError {}
+
+/** The wallet never answered an authorization request in the window. Harmless: a late approval just adds the allowance. */
+export class ClinkAuthorizeTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ClinkAuthorizeTimeoutError";
+  }
+}
+
 const BECH32_DATA = /^[a-z0-9]+$/;
 
 /** Decode and sanity-check a pasted noffer1.../ndebit1... string. Null when unusable. */
@@ -154,6 +165,10 @@ export type ClinkClient = {
     req: { pointer?: string; bolt11: string; amountSats?: number; description?: string; k1?: string },
     timeoutSeconds: number,
   ) => Promise<{ res: "ok"; preimage?: string } | { res: "GFY"; code: number; error: string }>;
+  budget: (
+    req: { amountSats: number; frequency: { number: number; unit: "day" | "week" | "month" }; pointer?: string; description?: string },
+    timeoutSeconds: number,
+  ) => Promise<{ res: "ok" } | { res: "GFY"; code: number; error: string }>;
   stop: () => void;
 };
 
@@ -189,6 +204,23 @@ const defaultClientFactory: ClinkClientFactory = ({ pubkey, relay, appKeyHex }) 
       if (r && r.res === "ok") return { res: "ok", preimage: r.preimage };
       if (r && r.res === "GFY") return { res: "GFY", code: r.code, error: r.error };
       throw new ClinkError("the wallet sent an unexpected reply to the debit request");
+    },
+    budget: async (req, timeoutSeconds) => {
+      // Budget request (kind 21002, no bolt11): the wallet grants a spending
+      // allowance for this app key. Only defined fields ride the wire - a
+      // `pointer: undefined` key trips the SDK's own data validator.
+      const data: { amount_sats: number; frequency: { number: number; unit: "day" | "week" | "month" }; pointer?: string; description?: string } = {
+        amount_sats: req.amountSats,
+        frequency: req.frequency,
+      };
+      if (req.pointer) data.pointer = req.pointer;
+      if (req.description) data.description = req.description.slice(0, 100);
+      const r = (await sdk.Ndebit(data, timeoutSeconds)) as
+        | { res: "ok" }
+        | { res: "GFY"; code: number; error: string };
+      if (r && r.res === "ok") return { res: "ok" };
+      if (r && r.res === "GFY") return { res: "GFY", code: r.code, error: r.error };
+      throw new ClinkError("the wallet sent an unexpected reply to the authorization request");
     },
     stop: () => {
       try {
@@ -336,6 +368,59 @@ export async function clinkPayInvoice(opts: {
   return { preimage: res.preimage ?? null };
 }
 
+/**
+ * Ask an ndebit wallet for a spending authorization (budget request: amount +
+ * frequency, no bolt11 - nothing can move). A GFY reply throws
+ * ClinkAuthorizeError (definitive decline). Silence throws
+ * ClinkAuthorizeTimeoutError - harmless, an approval arriving late simply
+ * adds the allowance, and re-sending confirms it.
+ */
+export async function clinkRequestBudget(opts: {
+  pointer: ParsedClinkPointer;
+  appKey: string;
+  amountSats: number;
+  frequency?: { number: number; unit: "day" | "week" | "month" };
+  description?: string;
+  timeoutMs?: number;
+}): Promise<{ ok: true }> {
+  if (opts.pointer.kind !== "ndebit") throw new ClinkError("not a CLINK debit pointer");
+  const client = makeClient(opts.pointer, opts.appKey);
+  const timeoutMs = opts.timeoutMs ?? CLINK_DEBIT_TIMEOUT_MS;
+  const frequency = opts.frequency ?? { number: 1, unit: "month" as const };
+  let res: { res: "ok" } | { res: "GFY"; code: number; error: string };
+  try {
+    res = await withDeadline(
+      client.budget(
+        {
+          amountSats: opts.amountSats,
+          frequency,
+          ...(opts.pointer.pointerId ? { pointer: opts.pointer.pointerId } : {}),
+          ...(opts.description ? { description: opts.description } : {}),
+        },
+        Math.ceil(timeoutMs / 1000),
+      ),
+      timeoutMs + 4_000,
+      () => new ClinkAuthorizeTimeoutError("the wallet did not answer the authorization request in time"),
+    );
+  } catch (err) {
+    // an already-mapped failure passes through; bare SDK strings and socket
+    // errors become readable causes. A GFY cannot occur here (it is a reply
+    // value, mapped below), only transport-level failures can.
+    if (err instanceof ClinkError || err instanceof ClinkAuthorizeTimeoutError) throw err;
+    const raw = typeof err === "string" ? err : err instanceof Error ? err.message : "";
+    if (/websocket|network error|non-101|failed to connect|econnrefused|enotfound|getaddrinfo|timed? ?out|timeout/i.test(raw)) {
+      throw new ClinkError("could not reach the wallet's relay - check the wallet app is online and try again");
+    }
+    throw new ClinkError(raw || "the request failed");
+  } finally {
+    client.stop();
+  }
+  if (res.res === "GFY") {
+    throw new ClinkAuthorizeError(authorizeErrorMessage(res.code, res.error), res.code);
+  }
+  return { ok: true };
+}
+
 const OFFER_ERRORS: Record<number, string> = {
   1: "Your wallet does not recognise this offer any more - copy a fresh noffer1... from it.",
   2: "Your wallet is temporarily unavailable. Try again in a moment.",
@@ -355,6 +440,32 @@ const DEBIT_ERRORS: Record<number, string> = {
 
 function debitErrorMessage(code: number, error: string): string {
   return DEBIT_ERRORS[code] ?? (error || "the wallet rejected the request");
+}
+
+const AUTHORIZE_ERRORS: Record<number, string> = {
+  1: "Your wallet did not approve the request. If a prompt is waiting there, approve it; otherwise open Linked apps and approve openLN, then try again.",
+  2: "Your wallet is temporarily unavailable. Try again in a moment.",
+  3: "The request expired in your wallet. Try again.",
+  4: "Your wallet is rate-limiting openLN. Wait a minute and try again.",
+  5: "Your wallet rejected that allowance amount - try a smaller one.",
+  6: "Your wallet rejected the request. Check its linked-app settings.",
+};
+
+function authorizeErrorMessage(code: number, error: string): string {
+  return AUTHORIZE_ERRORS[code] ?? (error || "the wallet rejected the request");
+}
+
+/** Map an authorization failure to what the Settings panel shows. */
+export function clinkAuthorizeFailure(err: unknown): { status: "rejected" | "timeout" | "unreachable"; message: string; code?: number } {
+  if (err instanceof ClinkAuthorizeError) {
+    return { status: "rejected", message: AUTHORIZE_ERRORS[err.code ?? -1] ?? (err.message || "Your wallet declined the request."), ...(typeof err.code === "number" ? { code: err.code } : {}) };
+  }
+  if (err instanceof ClinkAuthorizeTimeoutError) {
+    return { status: "timeout", message: "No reply yet. Open ShockWallet, keep it in the foreground, then send the request again. If you approved already, sending again confirms it instantly. Nothing was charged." };
+  }
+  return { status: "unreachable", message: err instanceof ClinkError && /could not reach the wallet's relay/i.test(err.message)
+    ? "Could not reach your wallet's relay. Check the wallet app is online and try again."
+    : "The request did not go through. Make sure ShockWallet is open and try again." };
 }
 
 /** User-facing one-liner for any CLINK failure (connect flow + logs). */

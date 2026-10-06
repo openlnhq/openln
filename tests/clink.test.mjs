@@ -9,6 +9,7 @@ import {
   parseClinkPointer, generateClinkAppKey, clinkRequestInvoice, clinkPayInvoice,
   preimageMatchesHash, clinkLatestFrom, describeClinkError,
   ClinkError, ClinkDebitError, ClinkAmbiguousError,
+  clinkRequestBudget, clinkAuthorizeFailure, ClinkAuthorizeError, ClinkAuthorizeTimeoutError,
   generateClinkHookId, generateClinkHookSecret, clinkHookBearerMatches,
   __setClinkClientFactoryForTests,
 } from '../dist/core/money/clink.js';
@@ -34,6 +35,7 @@ const scriptClient = (impl) => {
   __setClinkClientFactoryForTests(() => ({
     requestInvoice: impl.request ?? (async () => ({ bolt11: '' })),
     debit: impl.debit ?? (async () => ({ res: 'ok' })),
+    budget: impl.budget ?? (async () => ({ res: 'ok' })),
     stop: () => { stops += 1; },
   }));
 };
@@ -101,6 +103,46 @@ test('debits: GFY is definitive, ok resolves with its proof, silence is ambiguou
   scriptClient({ debit: async () => { throw new ClinkError('wallet says no', 1); } });
   await assert.rejects(call, (e) => e instanceof ClinkDebitError && e.code === 1);
   __setClinkClientFactoryForTests(null);
+});
+
+test('authorizations: budget requests carry amount + frequency; GFY and silence map safely', async () => {
+  const ptr = parseClinkPointer(ndebit);
+  const call = (opts = {}) => clinkRequestBudget({ pointer: ptr, appKey: 'b'.repeat(64), amountSats: 5000, frequency: { number: 1, unit: 'month' }, ...opts });
+  let seen = null;
+  scriptClient({ budget: async (req, t) => { seen = { req, t }; return { res: 'ok' }; } });
+  assert.deepEqual(await call(), { ok: true });
+  assert.equal(seen.req.amountSats, 5000);
+  assert.deepEqual(seen.req.frequency, { number: 1, unit: 'month' });
+  assert.equal(seen.t, 60, 'the request window matches the debit window');
+  assert.ok(!('bolt11' in seen.req), 'a budget request never carries an invoice');
+  assert.ok(stops > 0, 'the relay client is stopped after the request');
+  // GFY is a definitive decline with the wallet's own code.
+  scriptClient({ budget: async () => ({ res: 'GFY', code: 1, error: 'user denied' }) });
+  await assert.rejects(call(), (e) => e instanceof ClinkAuthorizeError && e.code === 1);
+  // Silence gets its own class: harmless, re-sending confirms.
+  scriptClient({ budget: async () => new Promise(() => {}) });
+  await assert.rejects(call({ timeoutMs: 30 }), (e) => e instanceof ClinkAuthorizeTimeoutError);
+  // Bare relay failures read like a cause, never SDK internals.
+  scriptClient({ budget: async () => { throw 'websocket error'; } });
+  await assert.rejects(call(), (e) => e instanceof ClinkError && /relay/i.test(e.message));
+  __setClinkClientFactoryForTests(null);
+});
+
+test('authorization failures render wallet-side guidance', () => {
+  const rej = clinkAuthorizeFailure(new ClinkAuthorizeError('denied', 1));
+  assert.equal(rej.status, 'rejected');
+  assert.equal(rej.code, 1);
+  assert.match(rej.message, /approve/i);
+  const to = clinkAuthorizeFailure(new ClinkAuthorizeTimeoutError('no answer'));
+  assert.equal(to.status, 'timeout');
+  assert.match(to.message, /ShockWallet/);
+  const un = clinkAuthorizeFailure(new ClinkError("could not reach the wallet's relay - check the wallet app is online and try again"));
+  assert.equal(un.status, 'unreachable');
+  assert.match(un.message, /relay/i);
+  const odd = clinkAuthorizeFailure(new ClinkError('Cannot find square root'));
+  assert.equal(odd.status, 'unreachable');
+  assert.ok(!/square root/i.test(odd.message), 'raw SDK internals never surface');
+  assert.match(odd.message, /ShockWallet/);
 });
 
 test('proofs: a preimage must hash to the invoice payment hash', () => {

@@ -2066,6 +2066,56 @@ function walletModal(){
     catch(x){m.querySelector('#wres').innerHTML=`<p style="color:var(--err);font-size:13px;margin-top:8px">${prose(x.message)}</p>`}
   };
 }
+/* Rizful one-click wallet: creates a hosted wallet for the account and links
+   it as an NWC connection. While a run is in flight the card polls and shows
+   the current step; when done it lists the login (email + password) so the
+   owner can take over at rizful.com whenever they want. */
+let rzfTimer=null;
+async function loadRizfulProvision(){
+  const body=$('#rzfBody'); if(!body)return;
+  let p=null;
+  try{const d=await api('/api/wallet/rizful/provision');p=d&&d.provision}catch(e){}
+  renderRizful(p);
+}
+function renderRizful(p){
+  const body=$('#rzfBody'); if(!body)return;
+  if(rzfTimer){clearTimeout(rzfTimer);rzfTimer=null}
+  if(!p){
+    body.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn teal sm" id="rzfGo">Create Rizful wallet</button>
+      <span class="dim" style="font-size:12px">About a minute. Credentials shown here when done.</span>
+    </div>`;
+    $('#rzfGo').onclick=startRizfulProvision;
+    return;
+  }
+  if(p.status==='pending'||p.status==='running'){
+    body.innerHTML=`<div class="dim" style="font-size:12.5px">${esc(p.step||'Working')}…</div>`;
+    rzfTimer=setTimeout(loadRizfulProvision,2500);
+    return;
+  }
+  if(p.status==='error'){
+    body.innerHTML=`<p style="color:var(--err);font-size:12.5px;margin:0 0 8px">${esc(p.error||'Setup failed')}</p>
+      <button class="btn teal sm" id="rzfGo">Try again</button>`;
+    $('#rzfGo').onclick=startRizfulProvision;
+    return;
+  }
+  body.innerHTML=`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+    <div style="font-size:12.5px;font-weight:590">Your Rizful login</div>
+    <div style="display:flex;gap:6px;align-items:center;margin:7px 0"><div class="mono" style="font-size:12px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(p.rizfulEmail||'')}</div><button class="btn ghost sm" data-rzfcopy="0">Copy</button></div>
+    <div style="display:flex;gap:6px;align-items:center;margin:7px 0"><div class="mono" style="font-size:12px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(p.rizfulPassword||'')}</div><button class="btn ghost sm" data-rzfcopy="1">Copy</button></div>
+    ${p.lightningAddress?`<div class="dim" style="font-size:11.5px;margin-top:4px">${esc(p.lightningAddress)}</div>`:''}
+    <div class="dim" style="font-size:11.5px;margin-top:8px;line-height:1.5">Save these. Log in at <a href="https://rizful.com/login" target="_blank" rel="noopener">rizful.com</a> any time${p.connectionSaved?'; the wallet is already linked below':''}.</div>
+  </div>`;
+  const vals=[p.rizfulEmail||'',p.rizfulPassword||''];
+  body.querySelectorAll('[data-rzfcopy]').forEach(b=>{b.onclick=()=>navigator.clipboard.writeText(vals[Number(b.dataset.rzfcopy)]).then(()=>toast('Copied'))});
+}
+async function startRizfulProvision(){
+  try{
+    await api('/api/wallet/rizful/provision',{method:'POST',body:'{}'});
+    toast('Creating your Rizful wallet');
+    renderRizful({status:'pending',step:'Queued'});
+  }catch(e){toast(e.message||'Could not start the Rizful setup')}
+}
 /* Saved wallet connections: every wallet on file, what it can do, and where
    each feature (RIC / Cards) receives. An account keeps several wallets and
    each feature picks one; everything else uses the default wallet. */
@@ -3001,6 +3051,11 @@ async function vSettings(version=renderVersion){
           <button class="btn ghost sm" id="setWalletBtn">${wAny?'Add wallet':'Connect'}</button>
         </div>
         <div id="setConnList"></div>
+        <div id="rzfCard" style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+          <div style="font-size:12px;font-weight:590;color:var(--text2)">Rizful wallet (one click)</div>
+          <div class="dim" style="font-size:11.5px;margin-top:4px;line-height:1.5">Creates a real Rizful account for you (custodial, by Megalithic), links it as a wallet connection, and shows you the login to keep. Free, no install, good for small balances.</div>
+          <div id="rzfBody" style="margin-top:8px"></div>
+        </div>
         <div class="wlanehead">Wallet connection options</div>
         <div class="wlane">
           <div class="wlanetop"><span class="wlanename">Nostr Wallet Connect</span><div class="wchips"><span class="wchip on">Receive</span><span class="wchip on">Send</span></div></div>
@@ -3257,6 +3312,7 @@ async function vSettings(version=renderVersion){
   // wallet connect/replace
   $('#setWalletBtn').onclick=walletModal;
   loadWalletConnections();
+  loadRizfulProvision();
   if(settingsFocus){const tgt=settingsFocus==='pin'?$('#setPinNew'):(settingsFocus==='rates'?$('#setRateCard'):$('#setCurrency'));const sCard=tgt?tgt.closest('.setcard'):null;if(sCard){sCard.scrollIntoView({block:'start'});sCard.style.outline='2px solid var(--accent)';sCard.style.outlineOffset='2px';setTimeout(()=>{sCard.style.outline=''},2400)}if(settingsFocus==='pin'&&tgt){try{tgt.focus()}catch(e){}}settingsFocus=''}
 
   // telegram account link

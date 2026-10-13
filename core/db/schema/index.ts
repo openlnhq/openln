@@ -16,3 +16,4 @@ export * from './ricDeviceTelemetry.js';
 
 export * from './partner.js';
 export * from "./extensions.js";
+export * from "./rizfulProvisions.js";

@@ -45,7 +45,12 @@ export class CdpConnection {
 
   static async connect(endpoint: string): Promise<CdpConnection> {
     const base = String(endpoint || "").replace(/\/+$/, "");
-    const res = await fetch(base + "/json/version", { signal: AbortSignal.timeout(8000) });
+    let res: any;
+    try {
+      res = await fetch(base + "/json/version", { signal: AbortSignal.timeout(8000) });
+    } catch {
+      throw new Error("the provisioning browser is not reachable");
+    }
     if (!res.ok) throw new Error(`provisioning browser is not reachable (HTTP ${res.status} at ${base})`);
     const info: any = await res.json();
     const wsUrl: string = info?.webSocketDebuggerUrl || "";

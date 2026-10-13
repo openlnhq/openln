@@ -8,6 +8,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { makePassword, parseVerifyLink, parseOneTimeCode, runRizfulFlow } from "../dist/core/money/rizfulProvision.js";
+import { CdpConnection } from "../dist/core/money/cdpBrowser.js";
+
+test("a dead provisioning browser is reported in plain words", async () => {
+  await assert.rejects(CdpConnection.connect("http://127.0.0.1:9"), /not reachable/);
+});
 
 test("parseVerifyLink finds the rizful verify link in email text", () => {
   const link = "https://rizful.com/verify-account?key=12067_l9wuXUFWyrVDCt1R__VxFPnh7yvOv7TKr12p4RM5pQc";

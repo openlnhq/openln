@@ -1014,7 +1014,9 @@ const server = createServer(async (req, res) => {
 const port = Number(process.env.PORT ?? 3001);
 let stopWrapDriver: (() => void) | undefined;
 let stopPartnerPayoutDriver: (() => void) | undefined;
-server.listen({ port, host: "0.0.0.0" }, () => {
+// BIND_HOST: loopback-only in prod (Caddy on the same box is the only client);
+// the dev box keeps the 0.0.0.0 default because the edge Caddy dials it over the tailnet.
+server.listen({ port, host: process.env.BIND_HOST ?? "0.0.0.0" }, () => {
   console.log(`openLN core listening on ${port}`);
   if (process.env.WRAP_DRIVER_ENABLED === "0") return;
   // One place advances hold-wraps; HTTP polls never touch the relay.

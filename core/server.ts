@@ -210,6 +210,24 @@ const server = createServer(async (req, res) => {
         return res.end(data);
       } catch { return json(res, 404, { error: "Not found" }); }
     }
+    // Service worker + offline page for the installed app (PWA). Served from
+    // the root so the worker scope covers the whole origin; the worker itself
+    // is a network pass-through except the offline navigation fallback, so
+    // /app keeps its no-store discipline (phones must never run stale code).
+    if (req.method === "GET" && u.pathname === "/sw.js") {
+      try {
+        const data = await readFile(new URL("../../artifacts/web/sw.js", import.meta.url), "utf8");
+        res.writeHead(200, { "content-type": "application/javascript; charset=utf-8", "cache-control": "no-cache" });
+        return res.end(data);
+      } catch { return json(res, 404, { error: "Not found" }); }
+    }
+    if (req.method === "GET" && u.pathname === "/offline.html") {
+      try {
+        const data = await readFile(new URL("../../artifacts/web/offline.html", import.meta.url), "utf8");
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600" });
+        return res.end(data);
+      } catch { return json(res, 404, { error: "Not found" }); }
+    }
     // Digital Asset Links: tells Android this site is related to the openLN
     // Card Writer app (app.bitpos.cardwriter), which enables
     // navigator.getInstalledRelatedApps() in the browser and https app links.

@@ -31,3 +31,12 @@ test('media serves SVG and WOFF2 with real types (nosniff blocks an SVG sent as 
   const svg=await fetch(base+'/media/brand/favicon.svg');assert.equal(svg.status,200);assert.equal(svg.headers.get('content-type'),'image/svg+xml');
   const font=await fetch(base+'/media/fonts/archivo-latin.woff2');assert.equal(font.status,200);assert.equal(font.headers.get('content-type'),'font/woff2');
 });
+test('install routes: manifest, service worker and offline page',async()=>{
+  const m=await fetch(base+'/manifest.webmanifest');assert.equal(m.status,200);
+  assert.match(m.headers.get('content-type')||'',/^application\/manifest\+json/);
+  assert.equal(JSON.parse(await m.text()).display,'standalone');
+  const sw=await fetch(base+'/sw.js');assert.equal(sw.status,200);
+  assert.match(sw.headers.get('content-type')||'',/^application\/javascript/);
+  const off=await fetch(base+'/offline.html');assert.equal(off.status,200);
+  assert.match(off.headers.get('content-type')||'',/^text\/html/);
+});

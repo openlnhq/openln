@@ -1,7 +1,11 @@
 {
   "name": "openLN",
   "short_name": "openLN",
+  "id": "/app",
+  "description": "Take bitcoin at your counter. The RIC terminal or any phone: customers tap or scan, and the payment lands in your own wallet.",
   "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
   "background_color": "#050e0e",
   "theme_color": "#050e0e",
   "icons": [

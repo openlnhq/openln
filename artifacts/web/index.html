@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/media/brand/favicon.svg" type="image/svg+xml"><link rel="icon" href="/media/brand/favicon-32.png" sizes="32x32" type="image/png"><link rel="apple-touch-icon" href="/media/brand/apple-touch-icon.png">
+<meta name="theme-color" content="#050e0e"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="openLN"><meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>openLN | Wallet</title>
 <style>
 /* openLN design system v3 — Linear-precision dark + openLN teal/gold identity
@@ -3181,6 +3182,11 @@ async function vSettings(version=renderVersion){
         <div id="tgCodeBox" style="display:none"></div>`}
       </div>
 
+      <div class="setcard">
+        <h3>App</h3>
+        <div id="setInstallRow"></div>
+      </div>
+
     </div>
   </div>`;
 
@@ -3400,6 +3406,9 @@ async function vSettings(version=renderVersion){
     try{ await api('/api/telegram/unlink',{method:'POST',body:JSON.stringify({})}); toast('Telegram disconnected'); navigate('settings'); }
     catch(e){ tgUnlinkBtn.disabled=false; tgUnlinkBtn.textContent='Disconnect'; $('#tgStatus').textContent=displayText(e.message); }
   };
+
+  // install (PWA)
+  paintInstallRow();
 }
 /* ---- PARTNER ---- */
 const ptok=()=>localStorage.getItem('openln_partner_token');
@@ -4141,6 +4150,45 @@ async function admRenderUbDetail(id){
     };
   }catch(e){ body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
 }
+/* ---- INSTALL (PWA) ---- */
+// Installability is manifest-driven (display: standalone in
+// manifest.webmanifest); the browser surfaces Install app / Add to Home
+// screen on its own. This section adds the in-app install button
+// (beforeinstallprompt fires on Chrome and Edge once the criteria pass),
+// an iOS hint, and the service worker registration that gives the installed
+// app a branded offline page. The worker is a network pass-through for
+// everything else: /app stays no-store so phones never run stale code.
+const PWA={deferred:null};
+const pwaStandalone=()=>{try{return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true}catch(e){return false}};
+const pwaIsIOS=()=>{const ua=navigator.userAgent||'';return /iPad|iPhone|iPod/.test(ua)||((navigator.platform||'')==='MacIntel'&&navigator.maxTouchPoints>1)};
+function pwaInstallNow(){
+  const ev=PWA.deferred;if(!ev)return;
+  PWA.deferred=null;
+  try{ev.prompt()}catch(e){}
+  const done=()=>{if($('#setInstallRow'))paintInstallRow()};
+  if(ev.userChoice&&typeof ev.userChoice.then==='function')ev.userChoice.then(c=>{if(c&&c.outcome==='accepted')toast('Installing openLN');done()}).catch(done);
+  else done();
+}
+// Rows below are static markup only (no interpolated values), so there is
+// nothing to escape; every dynamic string in this app goes through esc().
+function paintInstallRow(){
+  const row=$('#setInstallRow');if(!row)return;
+  if(PWA.deferred){
+    row.innerHTML=`<div class="sub">Install openLN on this device: it opens full screen from your home screen, without the browser bar.</div>
+      <div class="set-actions"><button class="btn teal sm" id="setInstallBtn">Install app</button></div>`;
+    const b=$('#setInstallBtn');if(b)b.onclick=pwaInstallNow;
+    return;
+  }
+  if(pwaStandalone()){row.innerHTML='<div class="sub">Installed. openLN opens full screen from this device.</div>';return}
+  if(pwaIsIOS()){row.innerHTML='<div class="sub">To install: tap Share, then Add to Home Screen.</div>';return}
+  row.innerHTML='<div class="sub">In your browser menu, choose Install app or Add to Home Screen.</div>';
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();PWA.deferred=e;if($('#setInstallRow'))paintInstallRow()});
+window.addEventListener('appinstalled',()=>{PWA.deferred=null;toast('openLN installed');if($('#setInstallRow'))paintInstallRow()});
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js').catch(()=>{})});
+}
+/* ---- END INSTALL (PWA) ---- */
 (function(){
   var root=document.documentElement;
   var saved=localStorage.getItem('openln_app_theme');

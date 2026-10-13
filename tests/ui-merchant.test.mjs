@@ -191,3 +191,11 @@ test('treasury gains a Userbase console with health, balances and support views'
   assert.ok(html.includes("ADM_PAGE==='userbase'"),'page state routes between payments and userbase');
   assert.ok(html.includes('reportActivity(); startActivitySync();'),'boot reports presence for the admin console');
 });
+test('settings offer app install, and the app registers the service worker',()=>{
+  const source=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));
+  assert.ok(source.includes('setInstallRow'),'settings carry the install row');
+  assert.ok(source.includes('paintInstallRow'),'the row paints from the live browser install state');
+  assert.ok(html.includes("navigator.serviceWorker.register('/sw.js')"),'the app registers the service worker');
+  assert.ok(html.includes('beforeinstallprompt'),'the install prompt is captured for a one-click install');
+  assert.ok(html.includes('apple-mobile-web-app-title'),'iOS home screen uses the short app name');
+});

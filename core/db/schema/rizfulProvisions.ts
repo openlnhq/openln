@@ -20,6 +20,9 @@ export const rizfulProvisionsTable = pgTable("rizful_provisions", {
   error: text("error"),
   rizfulEmail: text("rizful_email"),
   rizfulPasswordEncrypted: text("rizful_password_encrypted"),
+  // The wallet connection URI (encrypted) so a removed wallet can be re-linked
+  // instead of creating a fresh Rizful account.
+  nwcUriEncrypted: text("nwc_uri_encrypted"),
   lightningAddress: text("lightning_address"),
   mailboxAddress: text("mailbox_address"),
   mailboxPasswordEncrypted: text("mailbox_password_encrypted"),

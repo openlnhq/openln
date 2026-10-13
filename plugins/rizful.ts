@@ -14,7 +14,7 @@
  * instead of blocking forever; credentials are encrypted at rest.
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { and, desc, eq, gte, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, or } from "drizzle-orm";
 import { db, accountConnectionsTable, accountsTable, entitiesTable, rizfulProvisionsTable } from "../core/db/index.js";
 import { encrypt, decrypt } from "../core/money/encrypt.js";
 import { runRizfulFlow } from "../core/money/rizfulProvision.js";
@@ -41,6 +41,9 @@ function provisionView(row: any) {
     rizfulEmail: row.rizfulEmail,
     lightningAddress: row.lightningAddress,
     connectionSaved: !!row.connectionId,
+    // A removed wallet can be re-linked when its URI was kept (rows from
+    // before migration 0025 cannot; the card then only offers a fresh run).
+    relinkable: status === "done" && !row.connectionId && !!row.nwcUriEncrypted,
   };
   if (status === "done" && row.rizfulPasswordEncrypted) {
     try { view.rizfulPassword = decrypt(row.rizfulPasswordEncrypted); } catch { /* unreadable; leave out */ }
@@ -111,6 +114,7 @@ async function processProvision(id: string): Promise<void> {
       error: null,
       rizfulEmail: result.rizfulEmail,
       rizfulPasswordEncrypted: encrypt(result.rizfulPassword),
+      nwcUriEncrypted: encrypt(result.nwcUri),
       lightningAddress: result.lightningAddress,
       mailboxAddress: result.mailbox.address,
       mailboxPasswordEncrypted: encrypt(result.mailbox.password),
@@ -168,8 +172,58 @@ export async function handleRizfulRoute(
   u: URL,
   account: { id: string } | null | undefined,
 ): Promise<boolean> {
-  if (u.pathname !== "/api/wallet/rizful/provision") return false;
+  const isProvision = u.pathname === "/api/wallet/rizful/provision";
+  const isRelink = u.pathname === "/api/wallet/rizful/relink";
+  if (!isProvision && !isRelink) return false;
   if (!account?.id) { json(res, 401, { error: "Authentication required" }); return true; }
+
+  if (isRelink) {
+    // Restore a wallet the owner removed from Saved wallets: the provision row
+    // kept the (encrypted) connection URI, so re-linking needs no new Rizful
+    // account. Idempotent: an identical live connection is reused.
+    if (req.method !== "POST") { json(res, 405, { error: "Method not allowed" }); return true; }
+    const [row] = await db.select().from(rizfulProvisionsTable)
+      .where(and(
+        eq(rizfulProvisionsTable.accountId, account.id),
+        eq(rizfulProvisionsTable.status, "done"),
+        isNull(rizfulProvisionsTable.connectionId),
+        isNotNull(rizfulProvisionsTable.nwcUriEncrypted),
+      ))
+      .orderBy(desc(rizfulProvisionsTable.createdAt)).limit(1);
+    if (!row) return json(res, 404, { error: "Nothing to re-link. Create a new Rizful wallet instead." });
+    let uri = "";
+    try {
+      uri = decrypt(row.nwcUriEncrypted);
+      const parsed = new URL(uri);
+      if (parsed.protocol !== "nostr+walletconnect:" || !/^[0-9a-f]{64}$/i.test(parsed.hostname) || !/^[0-9a-f]{64}$/i.test(parsed.searchParams.get("secret") || "")) throw new Error("bad uri");
+    } catch {
+      return json(res, 409, { error: "The saved connection could not be read. Create a new Rizful wallet instead." });
+    }
+    const existing = await db
+      .select({ id: accountConnectionsTable.id, kind: accountConnectionsTable.kind, label: accountConnectionsTable.label, nwcUrlEncrypted: accountConnectionsTable.nwcUrlEncrypted })
+      .from(accountConnectionsTable)
+      .where(eq(accountConnectionsTable.accountId, account.id));
+    let connectionId: string;
+    const dup = existing.find((r) => r.kind === "nwc" && resolveNwcUrl(r.nwcUrlEncrypted) === uri);
+    if (dup) {
+      connectionId = dup.id;
+    } else {
+      try { await getBalance(uri); }
+      catch { return json(res, 422, { error: "Could not read this wallet right now. Try again, or create a new Rizful wallet." }); }
+      const [created] = await db.insert(accountConnectionsTable).values({
+        accountId: account.id,
+        kind: "nwc",
+        mode: "custom",
+        label: uniqueConnectionLabel(existing, deriveConnectionLabel("nwc", uri)),
+        nwcUrlEncrypted: encrypt(uri),
+      }).returning();
+      connectionId = created.id;
+      await assignDefaultIfUnset(account.id, created.id);
+    }
+    await db.update(rizfulProvisionsTable).set({ connectionId, updatedAt: new Date() }).where(eq(rizfulProvisionsTable.id, row.id));
+    console.log(`[rizful] provision ${row.id} re-linked for account ${account.id}`);
+    return json(res, 200, { ok: true, connectionSaved: true });
+  }
 
   if (req.method === "GET") {
     const [row] = await db.select().from(rizfulProvisionsTable)
@@ -192,13 +246,15 @@ export async function handleRizfulRoute(
       json(res, 409, { error: "A Rizful setup is already running.", provision: provisionView(activeRow) });
       return true;
     }
-    const [recent] = await db.select({ id: rizfulProvisionsTable.id }).from(rizfulProvisionsTable)
+    const [recent] = await db.select({ id: rizfulProvisionsTable.id, connectionId: rizfulProvisionsTable.connectionId }).from(rizfulProvisionsTable)
       .where(and(
         eq(rizfulProvisionsTable.accountId, account.id),
         eq(rizfulProvisionsTable.status, "done"),
         gte(rizfulProvisionsTable.createdAt, new Date(Date.now() - RETRY_COOLDOWN_MS)),
-      )).limit(1);
-    if (recent) {
+      )).orderBy(desc(rizfulProvisionsTable.createdAt)).limit(1);
+    // Cooldown only while the fresh wallet is still linked; once the owner
+    // removed it there is nothing a double-click could duplicate.
+    if (recent?.connectionId) {
       json(res, 429, { error: "A Rizful wallet was just created for this account. Try again in a few minutes." });
       return true;
     }

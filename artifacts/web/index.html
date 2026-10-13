@@ -2126,12 +2126,31 @@ function renderRizful(p){
     <div style="display:flex;gap:6px;align-items:center;margin:7px 0"><div class="mono" style="font-size:12px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(p.rizfulEmail||'')}</div><button class="btn ghost sm" data-rzfcopy="0">Copy</button></div>
     <div style="display:flex;gap:6px;align-items:center;margin:7px 0"><div class="mono" data-rzfpw style="font-size:12px;flex:1;overflow-wrap:anywhere;user-select:all">${RZF_MASK}</div><button class="btn ghost sm" data-rzfsee>See</button><button class="btn ghost sm" data-rzfcopy="1">Copy</button></div>
     ${p.lightningAddress?`<div class="dim" style="font-size:11.5px;margin-top:4px">${esc(p.lightningAddress)}</div>`:''}
-    <div class="dim" style="font-size:11.5px;margin-top:8px;line-height:1.5">Save these. Log in at <a href="https://rizful.com/login" target="_blank" rel="noopener">rizful.com</a> any time${p.connectionSaved?'; the wallet is already linked below':''}.</div>
-  </div>`;
+    <div class="dim" style="font-size:11.5px;margin-top:8px;line-height:1.5">${p.connectionSaved?'Save these. Log in at <a href="https://rizful.com/login" target="_blank" rel="noopener">rizful.com</a> any time; the wallet is linked in Saved wallets.':'This wallet was removed from Saved wallets. The Rizful account still exists and this login works at <a href="https://rizful.com/login" target="_blank" rel="noopener">rizful.com</a>.'}</div>
+  </div>
+  ${!p.connectionSaved?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    ${p.relinkable?'<button class="btn teal sm" id="rzfRelink">Re-link this wallet</button>':''}
+    <button class="btn ghost sm" id="rzfNewToggle">Create a new one instead</button>
+  </div>
+  <div id="rzfNewBox" style="display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+    ${rzfTermsRow()}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn teal sm" id="rzfGo" disabled>Create Rizful wallet</button>
+      <span class="dim" style="font-size:12px">A fresh Rizful account. About a minute.</span>
+    </div>
+  </div>`:''}`;
   const vals=[p.rizfulEmail||'',p.rizfulPassword||''];
   body.querySelectorAll('[data-rzfcopy]').forEach(b=>{b.onclick=()=>navigator.clipboard.writeText(vals[Number(b.dataset.rzfcopy)]).then(()=>toast('Copied'))});
   const pwEl=body.querySelector('[data-rzfpw]'),seeB=body.querySelector('[data-rzfsee]');
   if(pwEl&&seeB){let shown=false;seeB.onclick=()=>{shown=!shown;pwEl.textContent=shown?(p.rizfulPassword||''):RZF_MASK;seeB.textContent=shown?'Hide':'See'}}
+  if(!p.connectionSaved){
+    const nt=$('#rzfNewToggle');
+    if(nt)nt.onclick=()=>{const box=$('#rzfNewBox');if(box)box.style.display=box.style.display==='none'?'block':'none'};
+    const g=$('#rzfGo');
+    if(g){rzfWireTerms();g.onclick=startRizfulProvision}
+    const rb=$('#rzfRelink');
+    if(rb)rb.onclick=async()=>{rb.disabled=true;rb.textContent='Re-linking…';try{await api('/api/wallet/rizful/relink',{method:'POST',body:'{}'});toast('Wallet re-linked');loadWalletConnections();loadRizfulProvision()}catch(e){toast(e.message||'Could not re-link');rb.disabled=false;rb.textContent='Re-link this wallet'}};
+  }
 }
 async function startRizfulProvision(){
   try{
@@ -2169,7 +2188,7 @@ async function loadWalletConnections(){
   </div>`;
   box.querySelectorAll('[data-cdefault]').forEach(b=>b.addEventListener('click',async()=>{b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cdefault)+'/default',{method:'POST',body:'{}'});toast('Default wallet updated');render()}catch(x){toast(x.message||'Could not update');b.disabled=false}}));
   box.querySelectorAll('[data-cedit]').forEach(b=>b.addEventListener('click',async()=>{const c=conns.find(x=>x.id===b.dataset.cedit);if(!c)return;const name=await dlgPrompt({title:'Name this wallet',body:'Shown in the RIC and Cards wallet pickers.',label:'Wallet name',value:c.label||'',maxlength:40,confirmText:'Save name'});if(name===null)return;if(!name){toast('Wallet name cannot be empty');return}try{await api('/api/connections/'+encodeURIComponent(c.id),{method:'PATCH',body:JSON.stringify({label:name})});toast('Wallet name saved');render()}catch(x){toast(x.message||'Could not rename')}}));
-  box.querySelectorAll('[data-cremove]').forEach(b=>b.addEventListener('click',async()=>{if(conns.length<2){toast('Add another wallet before removing this one');return}if(!confirm('Remove this wallet connection? You can add it again any time.'))return;b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cremove),{method:'DELETE'});toast('Wallet removed');render()}catch(x){toast(x.message||'Could not remove');b.disabled=false}}));
+  box.querySelectorAll('[data-cremove]').forEach(b=>b.addEventListener('click',async()=>{if(conns.length<2){toast('Add another wallet before removing this one');return}const rzfC=conns.find(x=>x.id===b.dataset.cremove);const rzfQ=rzfC&&/rizful/i.test(rzfC.label||'');if(!confirm(rzfQ?'Remove this wallet from Saved wallets? The Rizful account and this login stay yours (see the Rizful card below), and you can re-link it from there.':'Remove this wallet connection? You can add it again any time.'))return;b.disabled=true;try{await api('/api/connections/'+encodeURIComponent(b.dataset.cremove),{method:'DELETE'});toast('Wallet removed');render()}catch(x){toast(x.message||'Could not remove');b.disabled=false}}));
   /* CLINK offers: the wallet can push a paid confirmation to openLN when the
      merchant sets the offer's webhook. Values are fetched lazily (the secret
      is owner-only) and rendered as copy-paste rows; every interpolated value

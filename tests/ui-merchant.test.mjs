@@ -124,6 +124,8 @@ test('wallet connections: several wallets on file, per-feature assignment, capab
   assert.ok(html.includes('rzf-fill')&&html.includes('rzfPct'),'the Rizful run shows an electric progress bar');
   assert.ok(html.includes('data-rzfpw')&&html.includes('data-rzfsee'),'the Rizful password stays masked with a See toggle');
   assert.ok(html.includes('rizful.com/create-account'),'a failed Rizful setup points the merchant at rizful.com');
+  assert.ok(html.includes('rzfRelink')&&html.includes('/api/wallet/rizful/relink'),'a removed Rizful wallet can be re-linked');
+  assert.ok(html.includes('removed from Saved wallets')&&html.includes('Create a new one instead'),'a removed Rizful wallet explains itself and offers a fresh run');
   assert.ok(html.includes("loadConnectionsFor('ric',"),'the RIC section assigns its wallet');
   assert.ok(html.includes("loadConnectionsFor('cards',"),'the Cards section assigns its wallet');
   const modal=html.slice(html.indexOf('function walletModal('),html.indexOf('async function loadAuthedImage('));

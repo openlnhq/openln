@@ -191,6 +191,7 @@ export async function handleRizfulRoute(
       ))
       .orderBy(desc(rizfulProvisionsTable.createdAt)).limit(1);
     if (!row) return json(res, 404, { error: "Nothing to re-link. Create a new Rizful wallet instead." });
+    if (!row.nwcUriEncrypted) return json(res, 404, { error: "This wallet cannot be re-linked. Create a new Rizful wallet instead." });
     let uri = "";
     try {
       uri = decrypt(row.nwcUriEncrypted);

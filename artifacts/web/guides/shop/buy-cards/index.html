@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to order cards from the shop | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Shop</span>
+  </header>
+
+  <h1>How to order cards from the shop</h1>
+  <p class="intro">This guide walks you through ordering from the openLN card shop at <code>cards.openln.com</code>, from the shop home to the checkout and the moment the invoice is paid. The shop sells NFC cards for bitcoin and Lightning: blank NTAG424 cards that you write yourself, cards printed with your own design, and ready-made designs from community creators. Ordering takes a few minutes, and you do not need an account. One thing to know before the numbers below: the shop shows prices as a live snapshot, and they can change between visits, because they follow the bitcoin rate. Each price also carries a fiat estimate beside it. When you order, the amount shown on your own invoice at checkout is the amount you pay.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>A <b>Lightning wallet</b> that can pay a Lightning invoice. If it can scan a QR code or paste an invoice and pay sats, it works.</li>
+      <li>A <b>shipping address</b> you can type at checkout. Cards ship worldwide.</li>
+      <li>No openLN account is needed. Checkout asks for your email and your shipping address, nothing else.</li>
+      <li>The prices in this guide are a <b>snapshot</b> from the day the screenshots were taken. The shop's numbers move with the bitcoin rate, so treat them as examples of what checkout looks like, not fixed prices.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Start at the shop home and press Browse Catalog</h3></div>
+    <p>Open <code>cards.openln.com</code>. The hero states what the shop is: <b>Custom NFC cards, minted to order, designed by you.</b> Cards are produced only once you order them. Under the hero the shop summarizes the essentials: cards from <b>4,021 sats</b> at the snapshot, the chip is <b>NTAG424</b>, its security is <b>AES-128</b>, and payment settles over <b>Lightning</b>. Those chip facts repeat across the shop, and they matter: the NTAG424 DNA is the chip the Bolt Card standard runs on, and AES-128 is what makes every tap verifiable against cloning.</p>
+    <p>Below the buttons, three tiles outline the ways to buy: <b>01 / BLANK, Buy a blank card</b>; <b>02 / YOUR DESIGN, Print your own art</b>, printed front and back with a minimum of one unit; <b>03 / COMMUNITY, Pick from the catalog</b>, which supports community creators. This guide takes the blank cards, the simplest product to start with. Press <b>Browse Catalog</b>, boxed in red in the screenshot. Everything in the shop starts there.</p>
+    <div class="shot"><img src="step-1.png" alt="Shop home with the Browse Catalog button boxed in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Choose Blank Cards on the catalog</h3></div>
+    <p>The catalog opens on the line <b>Designs, minted to order.</b> with the chip restated underneath: NXP NTAG 424 DNA chip, CR80 credit card size. A strip above the grid shows the shop's running numbers at the snapshot: <b>6 cards minted</b>, <b>3,600 sats paid to creators</b>, and <b>4 creators</b>. Just above the tiles, the catalog notes <b>9 designs available</b>.</p>
+    <p>The first tiles are the options the shop is built on. <b>RIC Terminal</b>, 58,729 sats at the snapshot: the point of sale terminal, in nine colours. <b>Blank Cards</b>, 4,021 sats: unprinted NTAG424 cards. <b>Custom Design</b>, 12,062 sats: your own artwork printed front and back by the studio. Below those come the community designs, each one showing its creator handle and a royalty in sats that the creator earns when the design sells.</p>
+    <p>Blank cards are the ones you write yourself. They arrive unprinted, with the chip at factory defaults, and after delivery you write them from the openLN app or with a RIC Terminal: a URL, a line of text, or your own payload. To order them, press the <b>Blank Cards</b> tile, boxed in red in the screenshot.</p>
+    <div class="shot"><img src="step-2.png" alt="Catalog with the Blank Cards tile boxed in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Check the product page and press Continue to Checkout</h3></div>
+    <p>The product page for Blank Cards states exactly what you are buying: <b>Order unprinted NTAG424 cards with no design. Pay only for the card and shipping.</b> The <b>Design Details</b> card repeats it line by line: card type NTAG424 DNA NFC Card, design Blank, unprinted, card price 4,021 sats, printing price Not printed.</p>
+    <p>On the right sits the pricing. <b>Total Unit Price</b> reads <b>4,021 sats</b>, with a fiat estimate of about <b>&euro;3.00</b> at the snapshot. The <b>Quantity</b> dropdown sets how many cards you want; it starts at 1 card. The <b>ORDER SUMMARY</b> below is where shipping appears: Cards (1) at 4,021 sats, then <b>Worldwide Shipping</b> as its own line, 40,204 sats in this example, about &euro;30.00 at the snapshot rate. The two add up to a total of <b>44,225 sats</b>, about &euro;33.00 at the snapshot. If the numbers look right, press <b>Continue to Checkout</b>, boxed in red in the screenshot. Nothing is charged yet.</p>
+    <div class="shot"><img src="step-3.png" alt="Product page with the Continue to Checkout button boxed in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">4</span><h3>In the cart, press Continue to Checkout</h3></div>
+    <p>The cart page is titled <b>CHECKOUT / Your Cart</b>. It repeats the order once more before payment: the item row shows Blank NTAG424 DNA NFC Card at 4,021 sats each, with plus and minus controls to change the count, and the same <b>ORDER SUMMARY</b> on the right with the shipping line and the same total. <b>Continue shopping</b> goes back to the catalog, and <b>Clear cart</b> empties the order.</p>
+    <p>Under the checkout button sits the sentence that decides whether you need an account: <b>No account needed. Check out with just your email and a Lightning wallet.</b> Signing in is optional and only saves your address and tracks your orders; the <b>Sign in</b> link sits in that same line. Press <b>Continue to Checkout</b>, boxed in red in the screenshot.</p>
+    <p>Then comes the payment. The checkout asks for your email and your shipping address, then shows a Lightning invoice: a QR code and a string you can copy into your wallet. Pay it with any Lightning wallet you have. The page watches the invoice and confirms the payment on screen, then takes you to your order page. In the shop's own words, orders are confirmed once the Lightning invoice is paid, and an unpaid invoice expires without placing the order.</p>
+    <p>After that, your cards are minted and shipped: every card is produced to order, production usually takes a few business days, and then worldwide shipping applies based on your destination and the method chosen at checkout. If you ordered a community design instead of a blank card, its creator earns a royalty in sats when the design sells. The catalog keeps the running count, 3,600 sats paid to creators across 4 creators at the snapshot.</p>
+    <div class="shot"><img src="step-4.png" alt="Cart with the Continue to Checkout button boxed in red"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Prices are a live snapshot and can change.</b> The numbers in this guide are what the shop showed on the day of the screenshots. Prices follow the bitcoin rate and the fiat estimates move with them. The amount on your own invoice at checkout is the amount you pay.</li>
+      <li><b>Unpaid invoices expire.</b> If you close the page before paying, the order is not placed and nothing is charged.</li>
+      <li><b>Shipping is added at checkout.</b> Standard shipping is a flat worldwide rate, converted to sats at the moment you order; express options cost more.</li>
+      <li><b>Cards ship unencoded.</b> The NTAG424 DNA arrives at factory defaults and is not preprogrammed, even as a Bolt Card. You write it yourself after delivery, with the app, a RIC, or any NFC capable phone.</li>
+      <li><b>Creators earn a share.</b> Every community design lists a royalty in sats that the creator earns per sale. At the snapshot, the catalog had paid out 3,600 sats to creators across 4 creators.</li>
+      <li><b>No account needed.</b> Checkout runs on your email and a Lightning wallet alone. An account is only for saved addresses and order tracking.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://cards.openln.com">Open the shop</a>
+    <span style="margin-left:auto">Screenshots from the openLN card shop. Prices are a live snapshot and can change.</span>
+  </footer>
+</div>
+</body>
+</html>

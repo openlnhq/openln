@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to add, edit, and remove POS items | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / POS</span>
+  </header>
+
+  <h1>How to add, edit, and remove POS items</h1>
+  <p class="intro">The POS pad shows one tile for each thing you sell, and those tiles come from your account's item list. Build the list once and it is there on every device you sign in to. This guide adds a Cola as the example, then shows how to change a price or a name and how to remove an item later.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> with the <b>POS page</b> open. The pad can be empty or already full; the flow is the same.</li>
+      <li>A connected wallet is <b>not needed</b> to build the list, and nothing here charges anyone. Sales pay straight into the wallet you connect, and openLN never takes custody of your sats.</li>
+      <li>It helps to know your <b>prices</b> and, for the price field, your account's currency (US dollars in these screenshots).</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the Items dialog and press Add item</h3></div>
+    <p>On the POS page, tap <b>Edit items</b> at the top right, next to the gears. If your pad is still empty, the same dialog opens from the <b>Add items</b> button in the middle of the screen. This is the <b>Items</b> dialog, and it explains its own purpose at the top: "These tiles appear on the POS pad. Tap an item at the counter to add it to the sale." That sentence is the whole idea: one tile per thing you sell, tapped at the counter to put it into the current sale. On a fresh account the list just says "No items yet." Press <b>Add item</b> at the bottom of the dialog to create your first one.</p>
+    <div class="shot"><img src="step-1.png" alt="Items dialog with the helper text, an empty list and the Add item button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Fill in the New item form</h3></div>
+    <p>The editor has four fields, top to bottom. <b>Photo</b> is optional: press <b>Add photo</b> to pick an image from your device, and openLN shrinks it in the browser before saving, so the tiles stay quick to load. <b>Name</b> is what appears on the tile, and it is the field the red mark points at, so start here. <b>Price</b> is in your account's currency: the label reads "Price in USD" here because this account is in US dollars. <b>Description</b> is optional and shows under the price on the tile, which is handy for a size or a short note. Name and Price are the only required fields; Photo and Description carry an "optional" tag.</p>
+    <div class="shot"><img src="step-2.png" alt="New item form with Photo, Name, Price and Description fields, the Name field highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Save it: Cola for 25</h3></div>
+    <p>For this example, type <code>Cola</code> in Name, <code>25</code> in Price, and <code>Chilled can, 330 ml</code> in Description. Then press <b>Add item</b> at the bottom of the form. openLN saves the item to your account, closes the form, and the list shows the new item right away. When you are editing an item that already exists, the same button reads <b>Save changes</b>. Nothing is charged at any point here: you are only describing what you sell.</p>
+    <div class="shot"><img src="step-3.png" alt="The filled New item form with Cola, 25 and a description, and the Add item button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">4</span><h3>Back on the pad, tap the tile to sell</h3></div>
+    <p>Close the Items dialog with the <b>X</b> in the corner. The Cola tile is now on the POS pad: a letter mark (<b>C</b>) because there is no photo, the name, the price with two decimals (<b>25.00 USD</b>), and the description underneath. Tap the tile at the counter to add a Cola to the sale, and tap it again for a second can. From there the sale finishes the usual way with <b>Charge</b>. The tile is not just for this sale: it is on the pad every time you open the POS.</p>
+    <div class="shot"><img src="step-4.png" alt="POS pad with the saved Cola tile and the red mark pointing at it"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Change a price or a name any time.</b> Open <b>Edit items</b> and tap <b>Edit</b> on the item's row. The same editor opens, with <b>Save changes</b> instead of Add item. Update what you need and save; the tiles on the pad update right away. Paid invoices are not affected.</li>
+      <li><b>Removing an item.</b> Open it in the editor and press <b>Delete item</b> at the bottom, then confirm in the dialog (Delete item / Keep item). Paid invoices are not affected.</li>
+      <li><b>Items belong to your account.</b> The list appears on every device you sign in to, and the POS pad on each of them shows the same tiles. openLN never takes custody of your sats; item sales pay straight into the wallet you connected.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app.</span>
+  </footer>
+</div>
+</body>
+</html>

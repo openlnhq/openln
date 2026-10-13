@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to receive sats with an invoice | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Wallets</span>
+  </header>
+
+  <h1>How to receive sats with an invoice</h1>
+  <p class="intro">An invoice is how you ask someone to pay you in sats. This guide walks through the whole flow in the openLN app: press Receive, set the amount on the keypad, create the invoice, then show its QR code or send the invoice text to the customer. The screen tracks the payment for you and says exactly how many sats your wallet will receive. The whole thing takes less than a minute.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>A wallet is connected to receive into. This guide uses an account that receives into its Wallet of Satoshi Lightning Address, <code>bob@walletofsatoshi.com</code>. If no wallet is connected yet, the Receive button opens the connect dialog instead, so connect one first.</li>
+      <li>Creating an invoice costs nothing and moves no money. The sats arrive only when the customer pays, and they go into your own wallet. openLN never holds your sats.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Press Receive on the Wallet view</h3></div>
+    <p>Open the <b>Wallet</b> view and look at the bottom of the screen. The big yellow <b>POS</b> button is at the top of that block, and directly under it sit <b>Receive</b> and <b>Send</b> side by side. <b>Press Receive.</b> The <b>Receive sats</b> dialog opens straight away. If no wallet is connected yet, the same press opens the connect dialog instead: that means there is nowhere for the sats to land, so connect a wallet before you take payment. Above the buttons, the screen names the wallet your money lands in, tagged <b>Receive-only</b>, and prints the custody rule plainly: "Your balance stays in your funding wallet. openLN never holds your sats."</p>
+    <div class="shot"><img src="step-1.png" alt="Wallet view with the big Receive button highlighted under the POS button"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Set the amount and choose the Books class</h3></div>
+    <p>The dialog is called <b>Receive sats</b>. At the top, the <b>YOUR LIGHTNING ADDRESS</b> row shows the address the money will land on, <code>bob@walletofsatoshi.com</code> in this account, with a <b>Copy</b> button that is handy for a regular customer who pays you address to address. Under it, the <b>Sats / USD toggle</b> picks the unit you are working in: the invoice is always a sats invoice, but you can type and read the amount in <b>sats</b> or in your account's display currency, and the choice is remembered on this device. If your account is already set to sats, the toggle is not shown. The <b>keypad</b> below the amount sets the figure: each tap appends a digit to the number above it, the backspace key removes one digit, and <b>Clear</b> starts over. For this example, tap <b>2</b> then <b>1</b> to make it <b>21 sats</b>. Under the keypad, <b>Memo</b> is optional: a short note like "coffee" or "order 12" travels with the payment and shows up when you look back at it. The <b>Books</b> selector decides how the payment is classified in your books, and it is worth a moment of thought. <b>Sale: a customer is paying me</b> is for money you are earning: a drink, a plate of food, a service. <b>Top-up: my own funds, not income</b> is for moving your own sats in, which is not a sale and must not read as income. The app remembers the last class you picked on the device. The dialog scrolls, so scroll down a little if the selector is not on screen yet. When the amount and the class look right, press <b>Create invoice</b>.</p>
+    <div class="shot"><img src="step-2.png" alt="Receive sats dialog with the sats toggle highlighted, keypad and memo below"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Show the QR or send the invoice</h3></div>
+    <p>Creating the invoice moves the dialog to the payment screen. The <b>QR code</b> is the invoice: a customer in front of you points their phone camera at it, checks the amount, and pays from any Lightning wallet. If the customer is somewhere else, press <b>Copy</b> next to the invoice text under the QR, the <code>lnbc</code> string, and send it in a chat, a text message or an email; the customer pastes it into their wallet and pays the same invoice. The <b>Copy</b> button on the address row at the top still works too, for paying address to address. While you wait, the status line under the QR reads <b>Waiting for payment...</b> and the app checks for the payment on its own, so there is nothing to refresh. The line under the status tells you exactly what will arrive: <b>Routing fee · 1 sats · your wallet receives 20 sats</b>. That 1 sat routing fee is the cost of openLN's wrapped settlement, which delivers the payment straight to your saved wallet; the remaining 20 sats reach the wallet you connected, and openLN never takes custody of your sats at any point. The payout number is on screen before anyone pays, so it is never a surprise. You can also close the dialog while you wait: that cancels nothing, and the invoice simply stays valid until it expires.</p>
+    <div class="shot"><img src="step-3.png" alt="Invoice view with the QR code highlighted and the Waiting for payment status"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">4</span><h3>Payment received: the sats are in your wallet</h3></div>
+    <p>When the customer pays, the status bar turns green and reads <b>Payment received</b>, with the fee line under it confirming the amounts that landed: the 1 sat routing fee and the 20 sats that went into the wallet in this example. Close the dialog when you are done with the customer. The sale now appears in your <b>wallet activity</b> on the Wallet view, tagged <b>Sale</b> with the routing fee noted, and in <b>Books</b> it is recorded under the class you picked, so a sale counts as income and a top-up does not. That is the full loop: press Receive, set the amount, create, get paid.</p>
+    <div class="shot"><img src="step-4.png" alt="Green Payment received confirmation under the invoice QR"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Closing the dialog cancels nothing.</b> The invoice stays valid on its own until it expires, so you can pocket the phone or switch apps while you wait. If it expires unpaid, the screen switches to <b>Invoice expired</b> and you simply create a fresh one; nobody was charged either way.</li>
+      <li><b>One invoice, one payment.</b> The <code>lnbc</code> text is the invoice itself, and a single payment fills it, so create a new invoice for the next sale. Copying it for a chat works because any Lightning wallet can open the pasted text the same way it scans the QR.</li>
+      <li><b>Sale or top-up matters.</b> Top-ups and transfers are your own money moving, not income, which is why the Books class you pick keeps your takings honest. The app remembers the last class you used on this device.</li>
+      <li><b>Your sats stay yours.</b> Every wrapped sale shows its routing fee and payout in advance, and settles straight into the wallet you saved. openLN never takes custody of the money at any point.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Wallet of Satoshi is a third-party service.</span>
+  </footer>
+</div>
+</body>
+</html>

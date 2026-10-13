@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to design a card in the Card Studio | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;margin-top:14px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Shop</span>
+  </header>
+
+  <h1>How to design a card in the Card Studio</h1>
+  <p class="intro">The Card Studio is where you design a custom NFC card and then decide what happens to it. You can publish the design to the catalog, where anyone can order it and you earn a share of every sale, or send it straight to production so the card is printed and shipped just for you. This guide is a tour of the whole screen: the tools, the canvas, and the two ways to finish. You can open the studio at cards.openln.com/studio, or click <b>Studio</b> in the top navigation of the cards site. Everything happens in your browser, nothing to install.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are <b>signed in</b>. The studio opens without an account, but drafts and both finishing paths ask for a signed-in account, so sign in at the top right first and your work is tied to you from the start.</li>
+      <li>You have your <b>artwork ready</b> if you want your own image on the card: any photo or logo file on your device will do. If you do not, that is fine too, you can start from a template or the toolbar.</li>
+      <li>Nothing is charged while you design. Money is involved only when you order cards, at checkout.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>The studio at a glance</h3></div>
+    <p>Start at the <b>top right of the page</b>, where the red arrow marked <b>1</b> points. That is the <b>Sign in</b> button. Press it and sign in before you get going: <b>Drafts</b> asks for a signed-in account before it shows anything, the studio keeps each account's work separate, and both ways of finishing ask you to sign in as well. Signing in from the start means the drafts you save now are waiting for you when you come back.</p>
+    <p>Below the site navigation sits the studio's own bar. On the left: <b>Back</b> to leave the studio, the <b>CARD STUDIO</b> label, the <b>undo</b> and <b>redo</b> arrows, and a help button (the question mark icon). On the right are the four actions you will use from here on: <b>Drafts</b>, <b>Preview</b>, <b>Publish</b> and <b>Send to production</b>. The red box in the screenshot sits around the last two, because those are the two ways to finish a design, and the paragraphs below explain each in turn.</p>
+    <div class="shot"><img src="step-1.png" alt="The Card Studio: Publish and Send to production boxed in red, and Sign in marked with the red arrow"></div>
+    <p>In the middle of the screen is the card itself, the area you actually design on. Above it, <b>FRONT</b> and <b>BACK</b> switch which side you are editing, and each side keeps its own elements and background. Next to them, <b>Copy front to back</b> copies everything you have put on the current side onto the other one; the wording flips to <b>Copy back to front</b> when you are working on the back. On a fresh card you will see the prompt: drop an image, pick a template, or use the toolbar. Any image file you drag from your computer onto the canvas lands on the card, ready to move and resize. The white line is the trim edge, exactly where the card is cut, and the red dashed line is the safe area, so keep text and logos inside it. Both guides show only while you edit; they never appear in previews, exports, or the printed card.</p>
+    <p>Down the left edge runs the toolbar: <b>Templates</b>, <b>Image</b>, <b>Add text</b>, <b>Add QR code</b>, <b>Shapes</b> (rectangle, ellipse, triangle and line), <b>Stickers</b>, then <b>Layers</b> and <b>Brand kit</b>. Hover any button to see its name. At the bottom is the <b>zoom</b> row: minus and plus to zoom out and in, and the percentage in the middle. Click the percentage to snap back to 100%.</p>
+    <p>On the right is the properties panel. With nothing selected it reads <b>Select an element to edit it.</b> and shows the <b>BACKGROUND</b> controls for the side you are on. <b>Solid</b> gives the card a flat color, and the field under it shows the current value (the screenshot shows <code>#1a1a2e</code>); click it to open a color picker. <b>Gradient</b> blends two colors at an angle you choose. <b>Image</b> lets you upload a picture as a full background. Click any element on the card and this panel switches to that element's own controls, position, size, colors, and so on.</p>
+    <p><b>Publish</b> is the path for designs you want to sell. It saves your work and takes you to a publish page: give the design a name, set your royalty in sats, and it goes live in the catalog, where it joins the community designs anyone can order. Buyers pay the card cost plus your royalty, and your share is paid to your Lightning address on every sale. Publishing needs a signed-in account and a Lightning Address to receive royalties, and if you do not have one saved yet, the page asks you for it right there.</p>
+    <p><b>Send to production</b> is the path for cards for yourself or your business. It first runs a print check: is the front empty, is anything sitting outside the safe area, is any image too low in resolution, and is the back included. If everything is fine, confirm, and the studio saves the design and takes you to checkout. There you pick the quantity, from a single card up to a batch of 50 (the selector offers 1, 2, 3, 5, 10, 20 and 50), enter where to ship it, and pay in sats. The card is printed and sent to you, and it is made to order, so a batch is simply a larger quantity of the same design.</p>
+    <p>The other two buttons on the top bar round out the workday. <b>Drafts</b> is where you save the design you are on with a name of your choosing, and load or delete earlier ones; the studio also autosaves as you go, so nothing is lost if you close the tab. <b>Preview</b> opens a dialog with the front and back as they will look, hides the guides, and offers a PNG download, plus another button into Send to production once you are happy.</p>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Live numbers.</b> The counts you see around the catalog, how many cards have been minted, how much has been paid to creators, and each design's own sale count, come from a live snapshot of the shop's data. They change as orders come in, so a number you noted yesterday may be different today.</li>
+      <li><b>Where drafts live.</b> Drafts and the autosave are kept in the browser you are working in, separated per account. Sign in before you start, keep using the same browser, and your work is where you left it.</li>
+      <li><b>What costs what.</b> Designing is free and publishing is free. You pay only when you order cards: checkout totals the card and the printing, adds shipping, and takes payment in sats over Lightning.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://cards.openln.com/studio">Open the Card Studio</a>
+    <span style="margin-left:auto">Screenshot from the Card Studio at cards.openln.com.</span>
+  </footer>
+</div>
+</body>
+</html>

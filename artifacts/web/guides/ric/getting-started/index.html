@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to flash and link your RIC | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .step ol{margin:6px 0 12px 42px;padding-left:20px;color:var(--dim)}
+  .step ol li{margin:7px 0}
+  .step ol li b{color:var(--text);font-weight:600}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.step ol,.shot{margin-left:0}}
+  .more{background:var(--card);border:1px solid var(--teal);border-radius:12px;padding:18px 20px;margin:0 0 40px;font-size:14px}
+  .more b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .more p{margin:0 0 12px;color:var(--dim)}
+  .more p b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .more a{display:inline-block;background:var(--teal);color:#06110f;font-weight:650;font-size:13.5px;border-radius:8px;padding:8px 14px;text-decoration:none}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .note a{color:var(--teal);text-decoration:none}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / RIC</span>
+  </header>
+
+  <h1>How to flash and link your RIC</h1>
+  <p class="intro">The RIC is openLN&rsquo;s counter terminal: the small touchscreen device that sits at your till, shows the payment QR, and lets customers tap a Bolt card. Out of the box it does not run openLN yet, and two setup jobs stand between it and its first sale: writing the openLN firmware onto it (called flashing), and attaching it to your account and WiFi (called linking). Both jobs run from the RIC page in the openLN app on a computer, and this guide walks through them in order.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> in <b>Chrome or Edge on a laptop or desktop</b>. Flashing uses USB access and linking uses Bluetooth; iPhone and iPad can do neither.</li>
+      <li>Your <b>RIC device</b> and a <b>USB cable</b> to connect it to the computer.</li>
+      <li>The <b>WiFi network name (SSID) and password</b> of the network the RIC will use at the counter, for the linking step.</li>
+      <li>Nothing is charged during setup and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the RIC page and pick the right tile</h3></div>
+    <p>In openLN, open the <b>RIC</b> page from the menu (the entry hinted &ldquo;Your counter devices&rdquo;). Under the <b>Hardware</b> heading, two tiles sit at the top, one for each setup job:</p>
+    <p><b>Install firmware</b> is for a new, unflashed device. The tile&rsquo;s own words: &ldquo;For a new, unflashed device. USB &middot; CYD ESP32-2432S028R Board.&rdquo; If your RIC has never had openLN on it, this is your path, and it is the one marked with the red 1 in the screenshot.</p>
+    <p><b>Link your RIC</b> is for an already flashed device. That tile says: &ldquo;Already flashed? Pair over Bluetooth and connect it to WiFi.&rdquo; If your RIC already runs openLN, you can skip the flashing step and go straight to step 3.</p>
+    <p>If you are not sure which one applies: a device that has never been flashed will not appear in the linking scan, so when in doubt, start with <b>Install firmware</b>. A flash always ends with a device that is ready to link.</p>
+    <div class="shot"><img src="step-1.png" alt="RIC page with the two tiles: Install firmware marked with a red 1, Link your RIC beside it"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Flash a new device from the Flash device dialog</h3></div>
+    <p>Click <b>Install firmware</b>. The <b>Flash device</b> dialog opens. Its header line tells you exactly what is about to be written: firmware <b>v1.0.16</b> &middot; <b>1.5 MB</b> &middot; <b>ESP32-2432S028R Only.</b> That version comes from openLN&rsquo;s current release, so it may be newer than this screenshot shows. One thing to check on your own device: it must be the <b>ESP32-2432S028R</b> board (the CYD screen board). The ESP32-S3 and ES3C28P variants are refused, and nothing is written to them.</p>
+    <p>The dialog then takes you through its three numbered steps:</p>
+    <ol>
+      <li><b>1 Connect.</b> Plug the RIC into the computer with the USB cable, then click <b>Connect to device</b> (marked with the red 2 in the screenshot) and pick the RIC&rsquo;s port in the browser&rsquo;s port picker.</li>
+      <li><b>2 Flash firmware.</b> Click <b>Flash firmware</b>. Before anything is written, the app checks the board really is an ESP32 and verifies the firmware image byte for byte, so a wrong board or a bad download is stopped instead of written. The bar then fills with the write progress and the line under it counts up in percent (<code>42% written</code> and so on). Do not unplug the cable while it is writing; wait until it reads 100% written.</li>
+      <li><b>3 Result.</b> The dialog finishes with <b>Firmware v1.0.16 installed</b> and one instruction: power-cycle the device by unplugging the USB cable and plugging it back in. It starts up in Bluetooth setup mode, ready for the next step.</li>
+    </ol>
+    <p>One small line under the checklist is the requirement for this whole step: <b>Requires Chrome or Edge on desktop (USB access)</b>. If you open the RIC page in some other browser, the dialog shows a warning instead of the Connect button and tells you to open the page in Chrome or Edge on desktop; do that, plug the RIC back in, and start again.</p>
+    <div class="shot"><img src="step-2.png" alt="Flash device dialog: firmware v1.0.16, 1.5 MB, steps Connect, Flash firmware, Result, with Connect to device marked with a red 2"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Link the RIC to your account and WiFi</h3></div>
+    <p>With the RIC powered up again, open the RIC page and click <b>Link your RIC</b>. The <b>Link device</b> dialog opens, subtitled <b>Pair via Bluetooth</b>. It pairs the RIC over Bluetooth and connects it to WiFi in one flow, again with three numbered steps:</p>
+    <ol>
+      <li><b>1 Connect.</b> Click <b>Scan for nearby device</b> and pick your RIC in the browser&rsquo;s chooser. The device advertises as <b>RIC-XXXX</b> (the same name shown on its screen); devices running older firmware show up as <b>posBOX</b> or <b>RIC</b>.</li>
+      <li><b>2 WiFi credentials.</b> Type the network name (SSID) and the password of the WiFi the RIC should use at the counter, then click <b>Provision device</b>. openLN sends the WiFi details and an account token to the device over Bluetooth.</li>
+      <li><b>3 Result.</b> The device restarts, joins the WiFi and calls home. Keep the dialog open: when its first authenticated call arrives the step turns green with <b>RIC linked to your account</b>. The dialog watches for up to two minutes; if the device has not come online by then, check the network name and the password and run the pairing again.</li>
+    </ol>
+    <p>Linking needs <b>Web Bluetooth</b>, which means Chrome or Edge on a laptop or desktop. It does not work on iPhone or iPad, where Apple blocks Web Bluetooth in every browser. If the page cannot use it, the dialog shows a note in place of the scan button: &ldquo;Web Bluetooth is not available in this browser. Open this page in Chrome or Edge on a laptop or desktop.&rdquo; The screenshot shows that note, marked with the red 3. On a supported computer you get the checklist and the scan button instead.</p>
+    <p>After linking, the device appears under <b>Linked devices</b> on the RIC page with an online status, the installed firmware version and its health details. Your RIC is set up.</p>
+    <div class="shot"><img src="step-3.png" alt="Link device dialog showing the Web Bluetooth note, marked with a red 3"></div>
+  </div>
+
+  <div class="more">
+    <b>See what the device shows</b>
+    <p>Once linked, the RIC runs on its own touchscreen: the amount pad, the QR payment screen, card taps, card issuing and wiping, the pairing beacon, WiFi connect and the firmware update screens. The <b>RIC screens gallery</b> collects every one of them, frame by frame, rendered from the firmware itself.</p>
+    <a href="../screens-gallery/index.html">Open the RIC screens gallery</a>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>One RIC per counter.</b> Plan on one device per till: a second counter gets its own RIC, set up with the same steps in this guide.</li>
+      <li><b>It fetches its next unwritten card by itself.</b> When you issue a card from the RIC, the device pulls the next queued, unwritten card from your account automatically. Queue the card in openLN first; there is no QR to scan and no keys to type on the device.</li>
+      <li><b>Its settings come from your account.</b> The currency, the buy and sell rates, and the wallets the RIC uses are read from your account settings, not typed on the device. After changing any of them in openLN, restart the RIC (power it off and on) so it picks up the new values.</li>
+      <li><b>Not sure what the device is showing?</b> The <a href="../screens-gallery/index.html">RIC screens gallery</a> labels every screen, from the amount pad to the pairing and update animations.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the app</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Flashing and linking both need Chrome or Edge on a computer.</span>
+  </footer>
+</div>
+</body>
+</html>

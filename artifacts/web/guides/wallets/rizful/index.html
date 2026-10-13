@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to create a Rizful wallet in one click | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+  a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Wallets</span>
+  </header>
+
+  <h1>How to create a Rizful wallet in one click</h1>
+  <p class="intro">This guide walks you through the one-click Rizful wallet: openLN creates a real Rizful account for you, links it to your openLN account as a wallet connection, and shows you the login to keep. Rizful is a hosted Lightning wallet operated by Megalithic. The wallet is custodial, which means Megalithic is the custodian and holds the funds, while the login belongs to you. It is free, there is nothing to install, it suits small balances, and the whole thing takes about a minute.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>You do not need a Rizful account, and there is nothing to install: openLN creates the account for you.</li>
+      <li>You are ready to accept <b>Rizful's terms</b>. The terms line in the card links to <a href="https://rizful.com/terms" target="_blank" rel="noopener">rizful.com/terms</a>, so you can read them before you start.</li>
+      <li>Nothing is charged during setup and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open Settings and find the Rizful wallet (one click) card</h3></div>
+    <p>Go to <b>Settings</b> and find the <b>Wallet</b> card, the one that starts with "How this account receives and sends sats". Scroll down past <b>Saved wallets</b> and you will see a block titled <b>Rizful wallet (one click)</b>. Its description tells you exactly what it does: it creates a real Rizful account for you (custodial, by Megalithic), links it as a wallet connection, and shows you the login to keep. Free, no install, good for small balances.</p>
+    <p>Underneath the description is the button this step is about: <b>Create Rizful wallet</b>, with the line "About a minute. Credentials shown here when done." beside it. The button is dimmed at this point, and that is on purpose: it only becomes active after you accept Rizful's terms, which is the next step.</p>
+    <div class="shot"><img src="step-1.png" alt="The Rizful wallet (one click) card with the Create Rizful wallet button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Tick "I accept Rizful's terms"</h3></div>
+    <p>Above the button is a checkbox that reads <b>I accept Rizful's terms.</b> The word "terms" is a link to <a href="https://rizful.com/terms" target="_blank" rel="noopener">rizful.com/terms</a>, so open it first if you want to see what you are agreeing to.</p>
+    <p>Tick the box. This is the gate the card waits behind: openLN creates the Rizful account for you only after you accept Rizful's terms, and the <b>Create Rizful wallet</b> button stays disabled while the box is empty. The moment you tick it, the button comes alive. Press it and the one-click run starts.</p>
+    <div class="shot"><img src="step-2.png" alt="The I accept Rizful's terms checkbox highlighted, with the Create Rizful wallet button still disabled"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Watch the progress bar while the wallet is built</h3></div>
+    <p>The card switches to a live progress bar and starts registering the account for you. There is nothing to fill in; openLN walks the whole registration and the bar names each stage as it goes: creating a temporary inbox, opening the Rizful signup, passing the bot check, creating your account, waiting for and verifying the email, fetching the one-time code, and finally linking the wallet over NWC. The screenshot catches it early, at <b>Creating a temporary inbox...</b> with 14% shown on the right.</p>
+    <p>This takes about a minute. Keep the tab open and let it finish; the card checks on the run by itself, and the page refreshes when the wallet lands. When it is done you will see a "Rizful wallet connected" message.</p>
+    <div class="shot"><img src="step-3.png" alt="The progress bar early in the run, showing Creating a temporary inbox... at 14%"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">4</span><h3>Done: save your Rizful login</h3></div>
+    <p>The card now shows a box titled <b>Your Rizful login</b>. It holds the two things that are yours to keep: the email address of the account (the example shows <code>job@example.com</code>) and the password, which stays masked behind asterisks until you ask for it. Press the <b>See</b> button to reveal the password, and press <b>Copy</b> beside either line to copy the email or the password without revealing it.</p>
+    <p>Save both, ideally somewhere you will still have them in a year. This email and this password are your login at <a href="https://rizful.com/login" target="_blank" rel="noopener">rizful.com</a>, and they work there at any time, whether you are using openLN or not; sign in with them whenever you want to take the wallet over. Treat the password like the wallet itself: anyone who has it can log in.</p>
+    <p>Below the two lines the card also shows the wallet handle, for example <code>rich-wombat-6@rizful.com</code>. That is the wallet's Lightning Address, the address it can receive payments at.</p>
+    <div class="shot"><img src="step-4.png" alt="The Your Rizful login box with the email highlighted, a masked password with See and Copy buttons, and the wallet handle below"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">5</span><h3>Find it in Saved wallets as Rizful NWC</h3></div>
+    <p>Look back up at <b>Saved wallets</b>. The wallet is listed there as <b>Rizful NWC</b>, tagged <b>RECEIVE</b> and <b>SEND</b>. Both tags lit means it is a full wallet: openLN can receive payments into Rizful and send sats from it when you ask.</p>
+    <p>From here it works like any other saved wallet. Press <b>Rename</b> to give it a name you will recognize, press <b>Default</b> to make it the wallet everything uses (the RIC and Cards keep using whatever is picked in their own sections), or press <b>Remove</b> to take it off the list. The <a href="../manage-wallets/">manage wallets guide</a> walks through these controls; remember that removing the row does not close the Rizful account, which stays yours with the same login.</p>
+    <div class="shot"><img src="step-5.png" alt="Saved wallets showing Rizful NWC tagged RECEIVE and SEND, with Default, Rename and Remove buttons highlighted"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>If a one-click run fails, you have a fallback.</b> The card shows the error and tells you that you can create a wallet yourself in about a minute at <a href="https://rizful.com/create-account" target="_blank" rel="noopener">rizful.com</a> and connect it here, with a <b>Try again</b> button under it. The account stays yours either way: openLN only ever creates it in your name, and the login it hands you works at rizful.com regardless of what openLN shows.</li>
+      <li><b>Custody, plainly.</b> openLN never holds your sats. This wallet is custodial: Rizful, operated by Megalithic, is the custodian and holds the funds. openLN keeps the connection that lets your account receive and send through it, and nothing more.</li>
+      <li><b>One run at a time.</b> Pressing Create again while a run is in flight answers "A Rizful setup is already running." and changes nothing. Right after a success, a fresh run is held back for a few minutes while the new wallet is still linked.</li>
+      <li><b>The login survives everything.</b> If you remove Rizful NWC from Saved wallets later, the Rizful account and this login stay yours, and the card below offers <b>Re-link this wallet</b> to put the same wallet back on the list without creating anything new.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Rizful is a third-party service, operated by Megalithic; the wallet is custodial.</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to set your currency and RIC rates | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Settings</span>
+  </header>
+
+  <h1>How to set your currency and RIC rates</h1>
+  <p class="intro">This guide shows you how to pick the currency your customers see at the counter, and how to set the buy and sell rates your RIC applies when sats change hands. Everything happens in one card on the Preferences page, and the whole thing takes about a minute. The RIC is the device that reads these settings, so you restart it once after saving.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b>. Open <b>Preferences</b> from the menu (the page is at <code>/app#settings</code>).</li>
+      <li>You know which <b>currency</b> you charge in. That is the currency customers see at the counter.</li>
+      <li>You have the <b>RIC</b> nearby if you want to watch it adopt the new values, though the restart itself can wait until later.</li>
+      <li>Nothing is charged while you change rates, and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Pick your currency, the price source, and the rates</h3></div>
+    <p>On <b>Preferences</b>, find the <b>Currency &amp; RIC rates</b> card. Its subcopy sets the rule for the whole process: "Your RIC reads these settings. Restart it after saving to fetch the latest values." You restart the RIC at the end of this guide.</p>
+    <p><b>Currency</b>, labeled "Amount entered at the counter", is the currency customers see at the counter. Choose from <b>ZAR, USD, EUR, THB, GBP, JPY, BTC or sats</b>. This example uses <b>USD · US dollar</b>.</p>
+    <p><b>Price source</b>, labeled "Exchange rate provider", is where the live numbers come from. This example uses <b>coingecko</b>, and binance is the other choice.</p>
+    <p>The two rows below decide how sats are valued. <b>Buy · Receive</b> ("Customers pay · you receive sats") is how sats are valued when customers pay you. <b>Sell · Send</b> ("You send sats from the RIC") is how sats are valued whenever the RIC sends sats out, for example on a withdrawal.</p>
+    <p>Each row carries the same controls: a <b>minus</b> chip, a <b>plus</b> chip, and a chip in the middle that reads <b>Market rate</b> while no modifier is set. The chip on the right shows the live value, for example <code>1,192.07 sats / USD</code>. Press the <b>plus</b> or <b>minus</b> chip to move the rate in 0.5 percent steps, so pressing <b>plus twice</b> changes the chip from <b>Market rate</b> to <b>+1.0%</b>. That is exactly what the second screenshot shows on the Buy · Receive row.</p>
+    <p>The red badge in this screenshot points at <b>Save preferences</b>, the button you press in the next step.</p>
+    <div class="shot"><img src="step-1.png" alt="The Currency and RIC rates card on Preferences, both rows at Market rate, with the Save preferences button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Press Save preferences, then restart your RIC</h3></div>
+    <p>Press <b>Save preferences</b> at the bottom of the card. When the save goes through, the status line next to the button reads <b>Saved · restart your RIC to refresh</b>, and the values you set are stored on your account.</p>
+    <p>The screenshot shows the moment after saving: the <b>Buy · Receive</b> row now carries <b>+1.0%</b>, and the live chip on the right has moved to match the modifier. The <b>Sell · Send</b> row is still at <b>Market rate</b>, so it keeps the untouched live rate.</p>
+    <p>Now restart the RIC. It fetches its currency and rates when it starts, so a restart is what makes the new values appear at the counter. Until the restart, the device keeps showing the values it had before, with the old currency.</p>
+    <div class="shot"><img src="step-2.png" alt="The saved card with a +1.0 percent modifier on the Buy and Receive row and the Saved status next to Save preferences"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Modifiers stack on the market rate.</b> Every press of plus or minus is a 0.5 percent step and the steps add up, so two presses of plus is +1.0 percent. A row that shows <b>Market rate</b> has no modifier at all: the live rate is used exactly as published.</li>
+      <li><b>The steppers stop at 50 percent</b> in either direction, up or down.</li>
+      <li><b>Prefer an exact number?</b> Click the percent chip on a row and type a value. Enter saves it, Escape cancels, and 0 or empty returns the row to <b>Market rate</b>.</li>
+      <li><b>No guessed rates.</b> If the price lookup fails, the chip says "Rate preview unavailable" and no substitute number appears, so the page never shows a stale rate.</li>
+      <li><b>Custody.</b> Changing rates never moves funds, and openLN never takes custody of your sats. The rates only change how sats are priced.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Live values were captured at the time of writing.</span>
+  </footer>
+</div>
+</body>
+</html>

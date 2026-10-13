@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to write cards from a computer (desktop Card Writer) | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .step p a,.bef li a,.note li a{color:var(--teal);text-decoration:none}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Cards</span>
+  </header>
+
+  <h1>How to write cards from a computer (desktop Card Writer)</h1>
+  <p class="intro">The Card Writer also comes as a page on your computer. It does the same job as the phone app: it puts a freshly issued card's keys onto a blank NTAG424 chip. The difference is the hardware. A browser on its own cannot talk to a card reader, so the desktop route needs two things: a <b>PC/SC USB NFC reader</b>, and a small local helper called the <b>bridge</b> that carries the card conversation between the page and the reader. Once those are in place, the writer pulls the next card waiting on your openLN server and programs it. When that write lands, the card leaves the READY TO WRITE state and can take payments.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You have <b>issued the card</b> and it is waiting in the list with a READY TO WRITE badge. If you have not done that yet, start with <a href="../issue/index.html">How to issue a new Bolt card</a>.</li>
+      <li>You have a <b>blank NTAG424 card</b> ready to write. The card shop sells them, through the <b>Get a physical card</b> link on the Cards page.</li>
+      <li>You have a <b>PC/SC USB NFC reader</b> (an ACR122U, an ACR1252U, or a PN532 kit) and the <b>bridge</b> running on the same machine. Step 2 walks through both.</li>
+      <li>You have your <b>openLN device token</b> at hand, the 64 character code from the cards page. If you would rather not use the token, the writer also accepts a card's setup link or manual keys (step 1).</li>
+      <li>Nothing is charged during a write, and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Pull a card and program it from the Write card tab</h3></div>
+    <p>Open the Card Writer page. Your openLN host serves it at <code>/card-writer</code>. The screenshot shows it freshly opened. In the top bar on the right sits the bridge status pill: until the bridge or the Chrome extension is set up, it shows a red dot and <b>"no bridge found"</b>, and that is expected on a new machine. Step 2 fixes it. The four tabs under the header are <b>Write card</b>, <b>Wipe card</b>, <b>Card info</b> and <b>Setup</b>. They mirror the jobs the phone app does, and the page opens on Write card.</p>
+    <p>The write screen is two panels. On the left, <b>1 · Card data</b> asks where the card's data should come from, with three options: <b>openLN device token</b> (the default), <b>Provision link or JSON</b>, and <b>Manual keys</b>. Stay on openLN device token and paste your token into the <b>Device token</b> field. It is the 64 character token you copied from the cards page, and it tells your openLN server that this computer is allowed to pull from the card queue. The line under the options says exactly what the button does: <b>"Pulls the next card waiting for programming from your openLN server."</b></p>
+    <p>Press <b>Get next card</b> (red mark). The writer asks your openLN server for the oldest card waiting to be written and loads its data. The token is <b>saved locally in this browser</b> the moment you use it, so you paste it once and every later visit remembers it. You can also save it up front on the Setup tab (step 2). The other two sources do the same job without a token: <b>Provision link or JSON</b> takes the setup link from a card's QR, or a saved JSON payload, and <b>Manual keys</b> takes an lnurlw base plus k0 to k4, for lab cards.</p>
+    <p>On the right, <b>2 · Program</b> is the scoreboard. Before any data is loaded, it reads <b>"No card data loaded yet."</b> and the Write card button cannot be pressed. After a successful Get next card, it fills in with the loaded card's details: the card name and id, the lnurlw, a short prefix of each key (k0 to k4), where the NDEF content comes from, and the Random UID line.</p>
+    <p>One choice belongs here, before writing. <b>Set random UID (privacy)</b> makes the chip stop showing its real UID, and the note next to it says the rest: it is irreversible for that chip. Leave it off unless you want it. Card data pulled from the server can also ask for it, and the box arrives ticked when it does.</p>
+    <p>Then the write itself: <b>hold the blank card flat on the reader and press Write card</b>. Keep the card in place. Lines stream into the log under the button as the writer moves through the chip: the NDEF content first, then the SDM settings, then the keys, with k0 last, because changing it ends the session. A good run ends with <b>"card written and keys verified against the chip"</b>, alongside the card's UID and three follow-up buttons. <b>Verify (tap check)</b> reads the card the way a phone would. <b>Mark written in openLN</b> tells the server the write is done, so the card stops showing as ready to write. <b>Write another</b> clears the panel for the next blank card.</p>
+    <div class="shot"><img src="step-1.png" alt="Write card tab with the openLN device token source selected and the Get next card button marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Save the connection and set up the bridge</h3></div>
+    <p>Step 1 assumed the bridge already answers. This step makes that true. Open <b>Setup</b>. The <b>Connection</b> block stores two things and nothing else: the <b>openLN server</b> this writer talks to, and the <b>Device token (saved locally in this browser)</b> it talks with. The status list at the top of the block reports what the page currently sees: channel, transport, reader, readers found. Fill the server field if your account is not on openln.com, paste the same 64 character token into the token field, then press <b>Save</b> (red mark). Both values stay in this browser only. Close the tab, come back, and the connection is where you left it.</p>
+    <p>The <b>Install hints</b> panel beside it explains the hardware. First, the <b>reader</b>: plug a PC/SC NFC reader into the machine. The common choices are the ACR122U and the ACR1252U, and PN532 kits work too. Install the Python package that talks to readers of this kind, on the machine running the bridge: <code>pip install pyscard</code>. On Linux, install the PC/SC daemon as well: <code>sudo apt install pcscd</code>.</p>
+    <p>Second, the <b>bridge</b>: run <code>python3 bridge/openln-cardbridge.py --http</code> and open the page. The bridge listens on your own machine only, so the page finds it by itself, and the pill in the top bar stops saying "no bridge found" and shows the reader's name, or "simulator" in simulation mode. The other way is the <b>included Chrome extension</b>, for hands-free use from openln.com: it talks to the reader through a native host instead of a local server.</p>
+    <p>To set up the extension, open <code>chrome://extensions</code>, switch on <b>Developer mode</b>, press <b>Load unpacked</b>, and pick the <code>extension/</code> folder that ships with the writer tools. The native host is registered by running <code>./install.sh</code> once.</p>
+    <p>No reader at the desk yet? The bridge can run in simulation mode with <code>--sim</code>. The page then adds a <b>Simulator</b> box with a <b>Reset simulated card</b> button, and writes, key changes and tap checks all run against a built-in chip simulation. As the hint at the bottom of the panel puts it: <b>"Simulation mode lets you try everything before any hardware shows up."</b></p>
+    <div class="shot"><img src="step-2.png" alt="Setup tab with the Connection block, server and token fields, and the Save button marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Read any card on the Card info tab</h3></div>
+    <p>The third tab is a checker. Nothing is written and nothing changes; the page just looks at whatever chip is on the reader. Open <b>Card info</b> and put a card flat on the reader. The line under the heading describes the read: <b>"Reads the chip in front of the reader: NDEF content, version, key versions. Enter k0 to also verify the master key and read the UID."</b> The k0 field is optional, and for a first check you can leave it empty.</p>
+    <p>With the card in place, press <b>Read</b> (red mark). The results land in the <b>Card details</b> panel beside it. Without k0 you get the safe half: the NDEF content the chip carries, the chip version, and the key versions. If you paste the card's master key into the k0 field, 32 hex characters, the same read also verifies that key and reads the card's UID.</p>
+    <p>Use this tab <b>before a write</b>, to see whether the card on the reader is a factory blank or already carries something, and <b>after a write</b>, to confirm that the expected content landed. It is also the first stop when a write is refused: the log names the reason with a short code, and a read settles it. <code>91AE</code> usually means the chip no longer answers to the factory keys, so wipe the card first; <code>6982</code> means its file is already locked; and <code>91AD</code> means an earlier run stopped halfway, so that card wants a wipe and a fresh start.</p>
+    <div class="shot"><img src="step-3.png" alt="Card info tab with the Read card panel and the Read button marked in red"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>No computer needed, if you prefer.</b> The openLN Card Writer app on an Android phone writes cards, and a linked RIC writes cards from the counter, both with no computer involved. The desktop route is for desks that would rather keep a reader plugged into the computer. Those two lanes live in <a href="../write/index.html">How to write a card (openLN app or RIC)</a>.</li>
+      <li><b>The queue is shared.</b> Unwritten cards wait on your openLN server, and both the RIC and this desktop writer pull from the same queue, oldest card first. Either one can finish whichever card has waited longest.</li>
+      <li><b>Simulator first, hardware second.</b> Every screen in this guide can be walked through with no reader at all, in simulation mode. Do a rehearsal run there, then repeat it with a real card on the reader.</li>
+      <li><b>Your token stays close.</b> The device token is saved in this browser only, and the writer sends it only toward your own openLN server. The bridge binds to 127.0.0.1, meaning the same machine only; it holds no keys and stores nothing, it just passes card conversations back and forth.</li>
+      <li><b>Nothing is lost if you stop halfway.</b> An unwritten card keeps its READY TO WRITE badge and simply cannot pay yet. Write it when a blank card and the reader are at hand.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the desktop Card Writer.</span>
+  </footer>
+</div>
+</body>
+</html>

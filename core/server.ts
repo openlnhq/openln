@@ -268,6 +268,20 @@ const server = createServer(async (req, res) => {
         return res.end(data);
       } catch { return json(res, 404, { error: "Not found" }); }
     }
+    // Guides (/guides/): the openLN how-to library. Static pages + images
+    // served straight from the repo; directory paths resolve to their index.html.
+    if (req.method === "GET" && (u.pathname === "/guides" || u.pathname.startsWith("/guides/"))) {
+      let rel = u.pathname.replace(/^\/guides\/?/, "").replace(/[^a-zA-Z0-9._/-]/g, "");
+      if (!rel || rel.endsWith("/")) rel += "index.html";
+      else if (!rel.includes(".")) rel += "/index.html";
+      if (rel.includes("..") || rel.startsWith("/") || rel.includes("//")) return json(res, 404, { error: "Not found" });
+      try {
+        const data = await readFile(new URL("../../artifacts/web/guides/" + rel, import.meta.url));
+        const type = rel.endsWith(".html") ? "text/html; charset=utf-8" : rel.endsWith(".png") ? "image/png" : rel.endsWith(".svg") ? "image/svg+xml" : rel.endsWith(".webp") ? "image/webp" : rel.endsWith(".css") ? "text/css; charset=utf-8" : rel.endsWith(".js") ? "text/javascript; charset=utf-8" : "application/octet-stream";
+        res.writeHead(200, { "content-type": type, "cache-control": rel.endsWith(".html") ? "no-cache" : "public, max-age=3600" });
+        return res.end(data);
+      } catch { return json(res, 404, { error: "Guide not found" }); }
+    }
     if (req.method === "GET" && u.pathname === "/api/plugins") return json(res, 200, registry.list());
     if (req.method === "POST" && u.pathname === "/api/auth/register") { const v = await body(req); try { return json(res, 201, await auth.register(String(v.handle ?? ""), String(v.password ?? ""))); } catch (e) { return json(res, 400, { error: e instanceof Error ? e.message : "Invalid request" }); } }
     if (req.method === "POST" && u.pathname === "/api/auth/login") { const v = await body(req); try { const out = await auth.login(String(v.handle ?? ""), String(v.password ?? "")); if (out?.account?.id) void touchAccountActivity(out.account.id, req); return json(res, 200, out); } catch (e) { return json(res, 401, { error: e instanceof Error ? e.message : "Invalid credentials" }); } }

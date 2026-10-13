@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to write a card (openLN app or RIC) | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .step p a,.bef li a,.note li a{color:var(--teal);text-decoration:none}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Cards</span>
+  </header>
+
+  <h1>How to write a card (openLN app or RIC)</h1>
+  <p class="intro">Issuing creates the card's record and keys in openLN; writing puts those keys onto the physical chip. There are two ways to write, and you use one of them per card: the openLN Card Writer app on an Android phone, or a RIC on the counter. Both start from the same <b>Set up your card</b> dialog, and both end the same way: the card's badge flips from <b>READY TO WRITE</b> to active, and the card can take payments.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You have <b>issued the card</b> and it is waiting in the list with a READY TO WRITE badge. If you have not done that yet, start with <a href="../issue/index.html">How to issue a new Bolt card</a>.</li>
+      <li>You have a <b>blank NTAG424 card</b> ready to write. The card shop sells them, through the <b>Get a physical card</b> link on the Cards page.</li>
+      <li>For the phone lane: an <b>Android phone with NFC</b>. The openLN Card Writer app comes from the setup dialog itself, as a .apk file (step 1).</li>
+      <li>For the RIC lane: a <b>RIC linked to your account</b>, on the counter, with its card reader. No phone needed (step 2).</li>
+      <li>Nothing is charged during a write, and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Write with the openLN app, from the QR</h3></div>
+    <p>Open the card's <b>Set up your card</b> dialog. It opens by itself right after you issue a card, and any card sitting at READY TO WRITE reopens it from the list. Stay on the <b>With the openLN app</b> tab. The red mark in the screenshot sits beside the setup QR, which is where this lane starts.</p>
+    <p>On the phone side, install the <b>openLN Card Writer app</b> if you have not already. It downloads from this very dialog, with the button <b>Download the openLN Card Writer app (.apk)</b>. The line under it sets expectations: <b>"Install it once. Your phone will ask to allow installs from this site."</b> Allow that prompt once, and the app is on the phone for good. The writer app runs on Android phones with NFC.</p>
+    <p>Then the write itself: open the app, scan the QR shown in the dialog, and hold the blank card flat against the phone. The app writes the card's keys and settings onto the chip and reports the result back to openLN on its own, so there is nothing to type on the phone. Keep the dialog open while this happens. It sits on <b>"Waiting for the app to write the card..."</b> and flips to <b>"Card written and linked to your wallet."</b> when the write lands.</p>
+    <p>If you would rather not scan, press <b>Copy setup link</b> instead: it copies the same one-use link, and you can paste it into the app. Two rules for that link. It expires after 24 hours, and it can be read only once. And never open it in a normal browser: a browser is not a writer, it will show you the card's keys, and reading the link consumes it. If either happens, generate a new one from the card and use that.</p>
+    <div class="shot"><img src="step-1.png" alt="Set up your card dialog on the With the openLN app tab, setup QR marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Or write with your RIC, no link to handle</h3></div>
+    <p>If you have a RIC on the counter, pick the other tab, <b>With your RIC</b> (the red mark in the screenshot). There is no QR to scan and nothing to type: the card's data travels to the terminal over your account. If no RIC is linked yet, the tab says so and links you to the place where one gets linked.</p>
+    <p>On the RIC itself, open <b>Settings</b> and choose <b>Issue Card</b>, then hold the blank card against the reader until the terminal confirms the write. The RIC fetches the next unwritten card from your account automatically, so this works even when the card was issued from a different device, and it never asks you for keys or codes.</p>
+    <p>The RIC writes one card at a time, oldest first. If the queue is holding another card's setup, the dialog warns you that another card is first, and asks you to finish or cancel that setup first. Clear it, then hold the blank card to the reader again.</p>
+    <p>As on the phone lane, the dialog is the scoreboard: it waits while the RIC writes, and flips to <b>"Card written and linked to your wallet."</b> when the card reports in.</p>
+    <div class="shot"><img src="step-2.png" alt="Set up your card dialog on the With your RIC tab marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Open Advanced for keys and browser support</h3></div>
+    <p>The bottom of the dialog holds one more section, collapsed: <b>Advanced - keys and browser support</b> (the red mark in the screenshot). Open it when you want the detail in one place. It spells out the two lanes: phones write with the app, and a linked RIC pulls the next card from the write queue on its own. It is also where the card's keys are listed for the tools that need them.</p>
+    <p>Those keys are what make the card yours: they control the chip and the link to your wallet. In this example they are hidden on purpose. Keep card keys private. View them only on a device you trust, and copy them only into a writer you are deliberately using. Anyone who has the keys can write them onto another chip and spend from your wallet from that copy, so treat them like the card itself, only more so.</p>
+    <p>And the ending to expect: once the write lands, the card flips from <b>READY TO WRITE</b> to active. The badge in the list changes, the dialog reports <b>"Card written and linked to your wallet."</b>, and the card is live. It can take payments at the counter from that moment, and those payments settle straight to your wallet.</p>
+    <div class="shot"><img src="step-3.png" alt="Advanced keys and browser support section marked in red, with the key values hidden"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>One lane per card is enough.</b> App or RIC, either one finishes the write. Use whichever you have at hand; the result is the same chip with the same card on it.</li>
+      <li><b>The setup link is one use and 24 hours.</b> Do not open it in a normal browser: it reveals the keys and consumes the link. If it lapses or gets spent, generate a new one from the card. The keyboard on the RIC lane does not exist, because there is no link to handle there.</li>
+      <li><b>Keep the dialog open while writing.</b> It is the scoreboard: it waits, then confirms. If you close it, the card still waits in the list, and its row reopens the dialog.</li>
+      <li><b>Nothing is lost if you stop halfway.</b> An unwritten card keeps its READY TO WRITE badge and simply cannot pay yet. Write it when a blank card is at hand.</li>
+      <li><b>Your sats stay yours.</b> Once the card is live, payments made with it settle straight to your wallet. openLN never takes custody of your funds. Limits and the payment PIN can be changed later from the card's page (<a href="../manage/index.html">manage a card</a>).</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app.</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to connect CLINK codes and authorize sending | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+  a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Wallets</span>
+  </header>
+
+  <h1>How to connect CLINK codes and authorize sending</h1>
+  <p class="intro">CLINK is a direct connection between openLN and a wallet that speaks the CLINK protocol, such as Lightning.Pub or ShockWallet. Instead of a key or an address, you connect it with a static code your wallet shows under Linked apps: an offer code receives and a debit code sends. Each code covers exactly one direction, so a full wallet means connecting one of each. This guide connects a code and explains the one-time authorization a debit asks for before it can send.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>You have <b>Lightning.Pub or ShockWallet</b> (both are CLINK wallets, from clinkme.dev), set up and able to connect to its relay.</li>
+      <li>In the wallet, open <b>Linked apps</b> and copy a <b>static</b> code: a <code>noffer1...</code> code to receive or an <code>ndebit1...</code> code to send. Do not copy a one-time session code; openLN refuses those and asks for the static one.</li>
+      <li>Keep the wallet app <b>online</b> while you work through this: openLN reaches the wallet through its relay, starting with the check it runs at connect time.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the connect dialog and choose the CLINK tab</h3></div>
+    <p>Go to <b>Settings</b> and find the <b>Wallet</b> card, the one that starts with "How this account receives and sends sats". Press <b>Connect</b> on your first wallet, or <b>Add wallet</b> when one is already saved; the <b>Connect wallet</b> dialog opens either way.</p>
+    <p>The dialog offers four kinds of connections: <b>NWC</b>, <b>Blink</b>, <b>Lightning Address</b> and <b>CLINK</b>. Press the <b>CLINK</b> tab. The chips under the tabs show <b>Receive</b> and <b>Send</b>; which of the two your connection gets depends on the code you paste.</p>
+    <p>The dialog's own text is the whole model, so read it once: <b>"An offer (noffer1...) receives: openLN asks your wallet for each invoice. A debit (ndebit1...) sends: openLN hands your wallet invoices to pay."</b> In plain words: an offer code is a receive code, and every time a payment needs to come in, openLN asks your wallet to mint a fresh invoice. A debit code is a send code, and every time a payment needs to go out, openLN hands the invoice to your wallet to pay.</p>
+    <p>Each code covers one direction only: a noffer lands in receive lists and an ndebit in send lists. <b>Connect one of each for a full wallet.</b> A debit also needs a one-time authorization that no setup step can skip: the first time openLN wants to send from it, your wallet asks you to approve the request. openLN prompts for this right after you connect a debit, so it is worth having the wallet app open and in front of you now.</p>
+    <p>As on every lane, openLN never takes custody of your sats. The wallet signs what leaves it, and the codes only give openLN permission to ask.</p>
+    <div class="shot"><img src="step-1.png" alt="Connect wallet dialog with the CLINK tab highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Paste the code and press Connect</h3></div>
+    <p>Press the <b>CLINK code</b> field and paste the code exactly as your wallet shows it. The field is <b>masked</b> (it shows dots) because a CLINK code is a secret you should not paste into chats or show in screenshots. For example, an offer code looks like <code>noffer1qbob_demo_code_example</code>.</p>
+    <p>Press the big <b>Connect</b> button at the bottom of the dialog. openLN reads the code and checks it before saving anything: an offer is proven by asking your wallet for a tiny real invoice (it is left to expire unpaid, nothing is charged), while a debit gets structural checks only, because a probe on a debit would move money. A one-time session code is refused with a message telling you to open Linked apps and copy your static code.</p>
+    <p>When the check passes, the wallet is added to <b>Saved wallets</b> with the name of its kind and the capability for its direction: a noffer carries <b>Receive</b>, an ndebit carries <b>Send</b>. If it is your first wallet it also becomes the default.</p>
+    <p>CLINK works with <b>Lightning.Pub</b> and <b>ShockWallet</b> (from clinkme.dev). Keep your wallet app <b>online so its relay is reachable</b>: openLN reaches the wallet through that relay for every invoice it asks for, every invoice it hands over to pay, and the authorization prompt. If the wallet cannot be reached, openLN says so instead of proceeding, and a message like "Could not reach your wallet's relay" simply means the wallet was offline; bring it back online and try again.</p>
+    <p>Right after a debit connects, openLN opens the <b>Authorize sending (wallet allowance)</b> block under the new row. Open your wallet now and keep it in front: set the allowance (10,000 sats per month by default, up to 100,000,000), press <b>Send request</b>, and approve the request when it appears in the wallet as a live prompt. Once approved, sends within the allowance go through without prompting; you can change or revoke it any time in the wallet under Linked apps, and pressing Send request again is safe, it simply confirms an existing allowance.</p>
+    <div class="shot"><img src="step-2.png" alt="CLINK code field with a code typed in, highlighted"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>One direction per code.</b> An offer receives, a debit sends; no single code does both. A CLINK-only setup therefore needs two connections, one of each, and they simply sit side by side in Saved wallets. In the RIC and Cards sections each feature picks which saved wallet it uses, so the offer can serve receive and the debit can serve send, each in its own slot.</li>
+      <li><b>The first send may wait for you.</b> Silence on a fresh debit usually means the wallet is holding an approval prompt for you, not that something failed. Approve it in the wallet (ShockWallet shows it under Linked apps) and the send proceeds.</li>
+      <li><b>Ambiguous sends are never retried blindly.</b> If a debit gets no answer in time, openLN leaves the payment pending and checks the wallet's own record before calling anything failed, so a slow approval can never cause a double payment.</li>
+      <li><b>The wallet keeps the funds.</b> openLN never takes custody of your sats; it asks your wallet for invoices and your wallet pays the ones you authorize. If the codes ever stop working, check the wallet's relay connection first.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. CLINK, Lightning.Pub and ShockWallet are third-party services.</span>
+  </footer>
+</div>
+</body>
+</html>

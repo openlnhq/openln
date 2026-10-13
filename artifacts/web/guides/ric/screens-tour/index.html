@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>What the RIC shows - openLN guides</title>
+<style>
+  :root{--bg:#0e0d12;--card:#17161d;--line:#2a2833;--ink:#eceaf2;--dim:#a19daf;--red:#ff2e2e;--teal:#23c7a6;--amber:#f5a623}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:880px;margin:0 auto;padding:34px 22px 80px}
+  .crumbs{font-size:13px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+  .crumbs a{color:var(--dim);text-decoration:none}
+  h1{font-size:31px;line-height:1.2;margin:14px 0 8px}
+  .lede{color:var(--dim);font-size:17px;margin:0 0 22px}
+  .box{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:12px;padding:16px 18px;margin:20px 0}
+  .box b{color:var(--teal)}
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 20px 16px;margin:22px 0}
+  .step h2{font-size:19px;margin:0 0 4px}
+  .step h2 .n{display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:50%;background:var(--red);color:#fff;font-size:15px;margin-right:10px;vertical-align:2px}
+  .step p{margin:10px 0}
+  .step img{width:100%;max-width:640px;display:block;margin:14px auto 6px;border-radius:10px;border:1px solid var(--line)}
+  .cap{color:var(--dim);font-size:13.5px;text-align:center;margin:2px 0 4px}
+  .when{color:var(--amber);font-size:14px;letter-spacing:.03em}
+  table{width:100%;border-collapse:collapse;margin:14px 0}
+  td,th{border-bottom:1px solid var(--line);text-align:left;padding:8px 6px;font-size:15px;vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+  .foot{color:var(--dim);font-size:13.5px;margin-top:34px;border-top:1px solid var(--line);padding-top:16px}
+  .foot a{color:var(--teal)}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="../">openLN guides</a> / <a href="../getting-started/">RIC</a> / Screens</div>
+  <h1>What the RIC shows you</h1>
+  <p class="lede">Every screen on the counter terminal, what it means, and what to do when you see it. Screenshots are from the real device (RIC v1.0), resized for reading. The red marks point at the part that matters.</p>
+
+  <div class="box"><b>Three moves, every time.</b> Type the amount, the customer scans or taps, the green screen confirms. Everything below is one of those three moves, or the device taking care of itself.</div>
+
+  <div class="step">
+    <h2><span class="n">1</span>Payment received</h2>
+    <p class="when">When you see it: right after a customer pays.</p>
+    <p>The RIC shows a green check, the exact amount (35 sats in the example), and <i>Payment received</i>. Show it to the customer, then dismiss it or wait a few seconds. Big amounts get their own layout (125,000 sats below) so they never get cut off at the edge.</p>
+    <img src="receive.png" alt="RIC payment received screen" />
+    <div class="cap">Payment received, 35 sats.</div>
+    <img src="receive-big.png" alt="RIC payment received, large amount" />
+    <div class="cap">The same screen with a large amount.</div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">2</span>Payment sent</h2>
+    <p class="when">When you see it: after the shop sends sats out, for example in a cash-for-bitcoin trade.</p>
+    <p>A green check, the amount, and <i>Payment sent</i>. It works exactly like the received screen, only the direction of the money is opposite. Both directions settle to the same wallet, so Books always tells you which way it went.</p>
+    <img src="send.png" alt="RIC payment sent screen" />
+    <div class="cap">Payment sent, 2,100 sats.</div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">3</span>Confirming payment</h2>
+    <p class="when">When you see it: the payment is in, and the RIC is double-checking with the server over a slow connection.</p>
+    <p>Gears and <i>Reconnecting...</i> mean the device lost touch with the internet for a moment. Nothing is lost: the payment amount is shown at the bottom, and the screen finishes on its own once the connection is back. If a customer is waiting, the sale has still gone through.</p>
+    <img src="stall.png" alt="RIC confirming payment screen" />
+    <div class="cap">Confirming payment while the connection recovers.</div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">4</span>Connecting to WiFi</h2>
+    <p class="when">When you see it: during setup, or when the RIC comes back after the router restarts.</p>
+    <p>The RIC shows the network it is joining (your shop's WiFi) and a Cancel button. If it cannot connect, press Cancel and pick the network again from the device menu, or re-link the RIC from the app.</p>
+    <img src="connect.png" alt="RIC connecting to WiFi screen" />
+    <div class="cap">Joining the shop network.</div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">5</span>Pairing name (Bluetooth)</h2>
+    <p class="when">When you see it: while pressing Link device in the app.</p>
+    <p>The RIC turns into a Bluetooth beacon and shows its name (RIC-7F3A in the example). In the app, open Link device and choose this exact name. The number keeps two RICs apart when more than one is in range.</p>
+    <img src="provision.png" alt="RIC pairing name screen" />
+    <div class="cap">Match this name with the app's Link device list.</div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">6</span>Card issued, Card wiped</h2>
+    <p class="when">When you see it: while issuing cards at the counter (RIC Settings, Issue Card), and after wiping one.</p>
+    <p><i>Card issued</i> with the openLN card graphic confirms the blank NFC card now carries its keys and is ready for payments. <i>Card wiped</i> means the chip was reset to factory: the physical card is blank and can be issued again.</p>
+    <img src="card-issue.png" alt="RIC card issued screen" />
+    <div class="cap">A card was written and is ready to pay.</div>
+    <img src="card-wipe.png" alt="RIC card wiped screen" />
+    <div class="cap">A card was reset to blank.</div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">7</span>Updating firmware</h2>
+    <p class="when">When you see it: after you press Update on the device.</p>
+    <p>A progress ring counts to 100 percent (72 percent in the picture) while the new firmware writes. <b>Do not disconnect power</b> while the ring is moving. When it finishes the RIC restarts on its own and reconnects.</p>
+    <img src="update.png" alt="RIC updating firmware screen" />
+    <div class="cap">Firmware writing, older version to newer version.</div>
+  </div>
+
+  <div class="step">
+    <h2><span class="n">8</span>The celebration screens</h2>
+    <p class="when">When you see it: on a fresh payment, before the summary.</p>
+    <p>Received and sent payments both get a brief burst of dots behind the amount. It is the device saying the payment went through, in the same green every time.</p>
+    <img src="cel-recv.png" alt="RIC received celebration" />
+    <div class="cap">Money in.</div>
+    <img src="cel-sent.png" alt="RIC sent celebration" />
+    <div class="cap">Money out.</div>
+  </div>
+
+  <div class="box"><b>The colors are the same everywhere.</b> Green means done, orange means working (connecting, updating), red means cancel or attention. If a screen ever sits on orange for more than a minute, check the WiFi and try again; nothing gets charged twice.</div>
+
+  <div class="foot">
+    Related: <a href="../getting-started/">Flash and link your RIC</a> · <a href="../screens-gallery/">all animated RIC screens, frame by frame</a> · <a href="../../pos/take-a-sale/">Take a sale</a><br />
+    openLN guides. Screenshots from a real RIC on a demo account.
+  </div>
+</div>
+</body>
+</html>

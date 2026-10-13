@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to issue a new Bolt card | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .step p a,.bef li a,.note li a{color:var(--teal);text-decoration:none}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Cards</span>
+  </header>
+
+  <h1>How to issue a new Bolt card</h1>
+  <p class="intro">Issuing is the account side of the job. It creates the card's record in openLN with its name, spending limits, payment PIN and the keys the physical chip will carry. No card touches anything yet. The whole thing happens in the app and takes under a minute, and the one thing worth having ready is a blank NTAG424 card for the writing step, which is the next guide.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>You have <b>blank NTAG424 cards</b>, or you know where they come from. The card shop sells them, and the <b>Get a physical card</b> link at the top of the Cards page points there. Issuing does not need the card in hand; a blank is only touched in the next guide.</li>
+      <li>You know which wallet the cards should spend from. Cards pay from the <b>Cards wallet</b>, and payments settle straight to your wallet (step 1 explains where that is set).</li>
+      <li>Nothing is charged while you set a card up, and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the Cards page and tap the Issue tile</h3></div>
+    <p>Open the menu and choose <b>Cards</b>. The page is headed <b>Bolt Cards</b>, with the summary line <b>"Tap to pay from your connected wallet. Set a PIN and spending limits for each card."</b></p>
+    <p>At the top sits the <b>Cards wallet</b> block. This is the money side of every card on the page: in openLN's words, <b>"Card spending pays from this wallet, and anything sent to the card lands here."</b> The two pickers, <b>Receive wallet</b> and <b>Send wallet</b>, both start on your default wallet (the screenshot shows <b>Default wallet - Wallet of Satoshi</b>). If you keep card money in its own wallet, point them there before you issue. Either way the sats stay yours: card payments settle straight to your wallet, and openLN never takes custody of them.</p>
+    <p>Below the wallet block is the tile grid. On an account with no cards yet it holds a single tile, <b>+ Issue new card</b>, which the red mark in the screenshot points at. <b>Tap it.</b></p>
+    <p>Issue as many cards as you need. Each tap creates its own card, with its own limits, PIN, tap note and keys, so a shop can run one card per till, one per staff member, or a spare, without them interfering with each other. Each one is written to its own blank NTAG424 in the next guide.</p>
+    <div class="shot"><img src="step-1.png" alt="Cards page with the Issue new card tile marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Fill in the card form</h3></div>
+    <p>The <b>Issue a new card</b> form has five fields and one button. Read the labels first, then type:</p>
+    <p><b>Card name.</b> A label for you, up to 64 characters. It shows on the card's tile and detail page, so pick something you will recognize at a glance. The red mark in the screenshot sits on this field.</p>
+    <p><b>Daily limit (sats)</b> and <b>Per-payment limit (sats).</b> The most this card can spend in one day and the most it can spend in a single tap, both in whole sats. Left empty, each field uses the account default, which is what the grey <b>Default</b> in the boxes means. Type a number to override the default for this card only.</p>
+    <p><b>Payment PIN 4 digits.</b> Exactly four digits. The PIN authorizes card payments at checkout, so a tap without it does not go through. It is separate from your account password, and it is separate from any send PIN you use for outgoing payments. Treat it like a password: pick digits you do not use anywhere else, and note them down, because the field will only ever show dots.</p>
+    <p><b>Tap note.</b> A short line of text, up to 120 characters, shown in your Books next to every payment this card makes. The hint under the field says it plainly: <b>"Shown in your books for each card payment."</b> A note like "Coffee counter" makes bookkeeping easy, especially once you run more than one card. The hint under the form adds the rest: <b>"The PIN authorizes card payments. It is separate from your account password. You can issue as many cards as you need."</b></p>
+    <div class="shot"><img src="step-2.png" alt="Issue a new card form with the Card name field marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Fill the example and press Issue card</h3></div>
+    <p>Here is a worked example, the same one this guide uses throughout: card name <b>Counter card</b>, daily limit <b>50000</b> sats, per payment limit <b>10000</b> sats, a 4-digit PIN of your choosing (the field shows only dots, never the digits) and the tap note <b>Coffee counter</b>. In plain terms that is a card that can spend at most 50000 sats in a day, at most 10000 sats per tap, and whose payments are tagged "Coffee counter" in your books.</p>
+    <p>When the form looks right, press the <b>Issue card</b> button at the bottom, which the red mark in the screenshot points at. openLN stores the card with its limits, PIN and keys in one go. Nothing is written to any chip yet, and the card cannot take a payment before the next step.</p>
+    <div class="shot"><img src="step-3.png" alt="Filled issue form with the Issue card button marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">4</span><h3>Meet the Set up your card dialog</h3></div>
+    <p>The moment the card is created, openLN opens the <b>Set up your card</b> dialog, the one in the screenshot. It starts with the line <b>"Keys Issued. Now write a blank NTAG424 card."</b> In other words: the record exists, its keys are ready, and the next job is to put them on a blank chip. The red mark in the screenshot sits beside the setup QR.</p>
+    <p>Everything the writing step needs lives in this dialog: the <b>setup QR</b>, the two tabs <b>With the openLN app</b> and <b>With your RIC</b>, the <b>Download the openLN Card Writer app (.apk)</b> button, the <b>Copy setup link</b> button, and the advanced section at the bottom. You can close the dialog whenever you like; reopen it later from the card's row in the list.</p>
+    <p>Meanwhile the card appears in the list with a <b>READY TO WRITE</b> badge. Read that as: the record is done, and it is waiting for a blank card. It cannot take a payment until it is written. The setup link inside the dialog is one use and expires after 24 hours, so write the card while you have one to hand.</p>
+    <p>Writing is the next guide: <a href="../write/index.html">How to write a card (openLN app or RIC)</a> covers both lanes, phone and RIC, step by step.</p>
+    <div class="shot"><img src="step-4.png" alt="Set up your card dialog with the setup QR marked in red"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>The PIN is its own code.</b> It authorizes card payments at checkout, card by card, and it is separate from your account password. You can change or remove it later from the card's page (<a href="../manage/index.html">manage a card</a>).</li>
+      <li><b>Limits are per card.</b> The daily limit caps a day of spending, the per payment limit caps one tap, both in sats. Leave a field empty to use the account default, and edit the numbers whenever your takings say so.</li>
+      <li><b>Issuing does not reserve hardware.</b> A card can sit at READY TO WRITE for as long as you need; it only becomes payable once a blank NTAG424 has been written with it. Keep blanks in a drawer and issue the next card when you actually need it.</li>
+      <li><b>Your sats stay yours.</b> Card spending pays from the wallet set in the Cards wallet block, and card payments settle straight to your wallet. openLN never takes custody of your funds.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app.</span>
+  </footer>
+</div>
+</body>
+</html>

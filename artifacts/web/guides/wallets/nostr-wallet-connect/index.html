@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to connect a Nostr Wallet Connect wallet | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+  .note a,.step p a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Wallets</span>
+  </header>
+
+  <h1>How to connect a Nostr Wallet Connect wallet</h1>
+  <p class="intro">Nostr Wallet Connect, or NWC, is the fullest way to connect a wallet to openLN. It gives openLN receive and send: sats come into your wallet when customers pay, sats go out when you use the sending features, and openLN can read the balance and fund cards from the same wallet. It works with any NIP-47 wallet, which covers most Lightning wallets today. All you need is a connection string you copy from your wallet app. The whole thing takes about two minutes.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>You have a wallet app that can create a Nostr Wallet Connect connection: Alby Hub, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum, or any other NIP-47 wallet. In most apps this lives under <b>Settings</b>, then <b>Connections</b> or <b>Apps</b>.</li>
+      <li>You have the connection string copied in full. It starts with <code>nostr+walletconnect://</code> and is a secret, so keep it out of chats and screenshots.</li>
+      <li>Nothing is charged during setup and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the Wallet card and press Add wallet</h3></div>
+    <p>Go to <b>Settings</b> and find the <b>Wallet</b> card, the one that starts with "How this account receives and sends sats". On the right of the card there is a button: it reads <b>Add wallet</b> when at least one wallet is already saved, and <b>Connect</b> when none is. <b>Click it</b>; both open the same dialog. In this screenshot the account already has two wallets saved, so the button reads Add wallet.</p>
+    <div class="shot"><img src="step-1.png" alt="Settings Wallet card with the Add wallet button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Choose the NWC tab</h3></div>
+    <p>The <b>Connect wallet</b> dialog has four tabs: NWC, Blink, Lightning Address and CLINK. Keep the <b>NWC</b> tab, the first one, selected. The chips under it say <b>RECEIVE</b> and <b>SEND</b>, so this kind of wallet both receives and sends, and the line below explains that it is a full wallet for receive, send and card funding. The dialog also reminds you to create the connection in your wallet app first, usually under Settings, then Connections. Here is the NWC line from the dialog: "Works with Alby Hub, LNbits, Zeus, Coinos, Primal, Minibits, Blitz, Flash, Electrum, and any NIP-47 wallet."</p>
+    <div class="shot"><img src="step-2.png" alt="Connect wallet dialog with the NWC tab highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Paste your NWC connection string</h3></div>
+    <p>Click the field labeled <b>NWC connection string</b> and paste the string you copied from your wallet app. The screenshots use a shortened demo value, <code>nostr+walletconnect://bob_demo_key_example</code>. A real string is much longer, because it carries the wallet's public key, at least one relay address and the secret. Paste it in full. If a piece is missing, the dialog answers "Paste the complete NWC connection, including relay and secret."</p>
+    <div class="shot"><img src="step-3.png" alt="NWC connection string field with a demo string entered"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">4</span><h3>Press Connect and check Settings</h3></div>
+    <p>Press the big <b>Connect</b> button. openLN asks your wallet for its balance as a live check and only saves the connection if the wallet answers; if it cannot, you see "Could not read this wallet. Check its NWC permissions and connection; nothing was changed." and nothing is saved. Pasting a string that is already connected answers "This wallet is already connected." On success you are back in Settings and the new row appears under <b>Saved wallets</b>, tagged <b>RECEIVE</b> and <b>SEND</b>. It is named after the provider the string declares; the demo used a Rizful wallet, so the row is called <b>Rizful NWC</b>. You can press <b>Rename</b> if you want a different label, see the <a href="../manage-wallets/">manage wallets guide</a>.</p>
+    <div class="shot"><img src="step-4.png" alt="Saved wallets list with the newly added Rizful NWC row highlighted"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>A full wallet.</b> NWC gives receive and send, plus balance reads and card funding, so it can be picked wherever sending is needed and in the RIC and Cards sections, or left as the default for everything. As the app puts it: "RIC and Cards use the wallet picked in their sections. Everything else uses the default wallet."</li>
+      <li><b>Keep the string private.</b> It is a secret credential: anyone who has it can use the connection. Never paste it into a chat or a support message and never include it in a screenshot. If it leaks, revoke the connection in your wallet app and create a new one.</li>
+      <li><b>Your keys, your sats.</b> openLN never takes custody of your sats. The connection only lets openLN ask your wallet to receive and to pay. You can remove the wallet from openLN's Saved wallets list, or revoke the connection in your wallet app, at any time.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Alby Hub, Zeus, Coinos and the other wallets named are third-party services.</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to manage a card: freeze, PIN, keys, wipe | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Cards</span>
+  </header>
+
+  <h1>How to manage a card: freeze, PIN, keys, wipe</h1>
+  <p class="intro">Every card you issue has a detail page, and that page is where you manage it: change its name, tap note and spending limits, freeze it if it goes missing, cancel it for good, set the 4-digit payment PIN, look at the card keys, and wipe the chip clean. This guide walks through the controls one by one. Freeze and cancel only change the card's record in openLN, the PIN adds a check at the tap, and the wipe reaches the physical card. Card spending pays from the wallet you connect in the Cards section, so none of these controls hold or move your money, and openLN never takes custody of your sats.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>You have <b>at least one card issued</b>. openLN calls them Bolt Cards; each one is listed as a tile on the Cards page. If you have none yet, issue a card first in its own guide.</li>
+      <li>Everything except the last step happens in the app: open the menu, choose <b>Cards</b>, then tap the card tile. Step 5 also needs the <b>physical card</b> and a phone with the openLN Card Writer app, or a RIC linked to your account.</li>
+      <li>Nothing is charged during any of this, and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the card detail page and learn the controls</h3></div>
+    <p>Open the menu and choose <b>Cards</b>, the entry that starts with "Your tap-to-pay cards". Every card you have is a tile on that page. Tap the tile of the card you want to manage and its <b>detail page</b> opens, the screen in the screenshot.</p>
+    <p>At the top is the card face with the card's name, here <b>Counter card</b>, and a state badge: <b>READY TO WRITE</b> before the card has been written, <b>FROZEN</b> while it is frozen, and a cancelled marker after a cancel or a wipe. Under the face sits the row of controls this guide is about: <b>Edit details</b>, <b>Freeze card</b> and <b>Cancel card</b>. The red mark in the screenshot sits on the first of them, <b>Edit details</b>. Below the row, the <b>CARD</b> and <b>LIMITS</b> sections list the current name, tap note, issue date and both limits, so you can check them without opening a form.</p>
+    <p><b>Edit details</b> opens the edit form. There you can change the <b>Card name</b> (up to 64 characters), the <b>Tap note</b> (up to 120 characters; it is printed in Books next to every payment this card makes, so write something you will recognize at bookkeeping time, for example "Coffee counter"), the <b>Daily limit</b> and the <b>Per payment limit</b>, both in whole sats. Limits must be zero or more, and you can raise or lower them as often as you like. Press <b>Save card</b> and you return to the detail page with the new values shown. If a value is refused, the message appears on the form itself.</p>
+    <p>The other two buttons differ in one way that matters: <b>Freeze card</b> is the reversible stop (step 2), and while a card is frozen the same button reads <b>Enable card</b>. <b>Cancel card</b> is the permanent one: press it, confirm in the <b>"Cancel this card?"</b> dialog, and the card can never pay again. Cancel does not erase the physical card; it blocks the card record. A cancelled card cannot be edited back to life or reactivated, so press Cancel only when the card is not coming back. If you are simply not sure where it is, use Freeze instead.</p>
+    <div class="shot"><img src="step-1.png" alt="Card detail page with the Edit details button marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Freeze the card the moment it goes missing</h3></div>
+    <p>Press <b>Freeze card</b>. The card stops instantly: from that moment it cannot pay, with no further action needed. What you will see: the badge on the card face flips to <b>FROZEN</b> (the screenshot shows the frozen state, with the red mark next to the badge and the caption <b>Card frozen</b>), and the tile back on the Cards page carries the same badge, so you can check at a glance which cards are stopped. The button you pressed now reads <b>Enable card</b>.</p>
+    <p>At the tap, a frozen card is refused by openLN: a wallet that taps it may still read the card, but the payment does not go through, so the customer sees a clean error instead of a pending charge. Nothing is spent and nothing needs to be done to the card itself. Taps stop working until you press <b>Enable card</b>.</p>
+    <p>Use freeze the moment a card is lost or you are not sure where it is. It takes one press and it is fully reversible: if the card turns up, press <b>Enable card</b> and it works again with the same name, limits and PIN. Leave it frozen while you look for the card. If it never turns up, cancel the record (step 1) and wipe the chip when you have the card back in hand (step 5).</p>
+    <p>One side effect to know: a frozen card cannot be written or set up while it is frozen. Freezing clears the card's pending setup link, and the app refuses to mark a frozen card as written. That only matters mid-setup; a card already written and in use is unaffected except that it stops paying.</p>
+    <div class="shot"><img src="step-2.png" alt="Card tile in the Cards list showing the FROZEN badge, with the frozen state marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Set or change the 4-digit payment PIN</h3></div>
+    <p>The <b>PAYMENT PIN</b> section on the detail page shows <b>Protection: Enabled</b> or <b>Disabled</b>. When a PIN is set, the card asks for it at the tap and no payment goes through without it. This is the card payment PIN: exactly 4 digits, one per card, and it authorizes card payments. It is not your openLN account password, and it is not the 6-digit send PIN that approves sending sats out of your wallet. Keep the three apart.</p>
+    <p>Press <b>Change PIN</b> to open the form (the button reads <b>Enable PIN</b> when the card has none yet). The <b>Change card PIN</b> panel in the screenshot is that form; the red mark points at it. The first field is <b>Current PIN</b>: type the PIN the card has today. The second is <b>New PIN 4 digits</b>. When you are setting a PIN for the first time there is no current PIN to prove, so only the new one is asked for. When you change an existing PIN, the current one is always verified first, so keep your PIN somewhere safe while it is in use. Save, and the new PIN applies to the next tap.</p>
+    <p>Two more buttons live in this section. <b>Remove PIN</b> takes the protection off, and it asks for the current PIN before it does; afterwards the card pays without any PIN, the way it did before the PIN was enabled. Use Remove when asking at the tap is not practical for a card, not as a weak form of freeze. <b>Unlock PIN</b> appears if the card has locked itself: a wrong or missing PIN at the tap is refused before anything reaches your wallet, and after too many failures the card locks. Press <b>Unlock PIN</b> and the card will accept a PIN again on the next tap.</p>
+    <p>The PIN lives in the card's record in openLN, not on the chip, and openLN stores it only in a scrambled, hashed form. It can never be shown back to you, only changed or removed, so treat the four digits like any other password. Pick digits you do not use anywhere else.</p>
+    <div class="shot"><img src="step-3.png" alt="Change card PIN panel with the Current PIN field, marked in red"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">4</span><h3>Look at the card keys, and keep them private</h3></div>
+    <p>The <b>Card writing</b> section lower on the detail page holds <b>View keys</b>. Press it and the <b>Card keys</b> modal opens, the one in the screenshot. Its warning is the whole story: <b>"These keys control this card. Keep them private."</b></p>
+    <p>What is in the modal: the five AES keys a Bolt card is built on (k0 to k4) and the <b>lnurlw template</b> that points the card at your wallet, as a block you can put on the clipboard with <b>Copy keys</b>. In the screenshot the values are hidden on purpose; this guide shows you where the keys are and what they do, not what yours are. Right after issuing, the same block is available under <b>"Advanced - keys &amp; browser support"</b> in the setup dialog, with its own copy button, ready for the moment you write the card.</p>
+    <p>Why private matters: these keys are the card. Anyone who has k0 to k4 and the template can write the same values onto another NTAG424 chip, and that clone pays from your wallet like the original. So treat the modal like the card itself. Open it only on a device you trust, and copy the keys only into tooling you are deliberately using.</p>
+    <p>Where you will actually need them: to write a replacement card with a third-party or manual writer, and to wipe a card (step 5 exports the same key material as the reset data a writer needs; your keys are not rotated until the chip confirms). openLN keeps the keys encrypted on the server and hands them over only when you ask. That is also why a card whose keys are lost can no longer be reset, so check now, before you need it, that you can open this modal.</p>
+    <div class="shot"><img src="step-4.png" alt="Card keys modal with the warning to keep the keys private and the key values hidden"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">5</span><h3>Wipe the card when it is retired</h3></div>
+    <p>In the <b>Card writing</b> section of the detail page press <b>Wipe card</b>. The <b>Wipe card</b> dialog in the screenshot opens, and it is precise: <b>"Reset the physical NTAG424 to factory defaults"</b>, and <b>"Reset the card with your phone or with your RIC. Once the wipe is confirmed, this card record is marked cancelled and cannot be reused."</b> Read the second sentence twice. Wiping is neither freeze nor cancel: it reaches the physical chip and resets it back to factory keys with the card data erased. The card record is then marked <b>cancelled</b> and cannot be reused.</p>
+    <p>Press <b>Show reset options</b>. openLN exports the card's current keys as the reset data the writer tool needs. This is an export only; openLN does not rotate your keys before the chip reports success, so nothing is lost even if the wipe never happens. Then pick the lane that matches your hardware:</p>
+    <p><b>With a phone:</b> press <b>"Open the openLN Card Writer app"</b> and the app opens on its Wipe tab with the reset data already loaded. A different wipe-capable writer app works too: scan the <b>reset QR</b>, or press <b>Copy reset data</b> and paste it in.</p>
+    <p><b>With your RIC:</b> on the RIC that is linked to your account open <b>Settings</b> and choose <b>Wipe Card</b>, then hold the card on the reader.</p>
+    <p>Wait for the card and the app together. A current writer app reports back on its own and the dialog changes to <b>"Wipe confirmed by your phone. This card record is cancelled."</b> If the writer app is older than 1.2.3 it cannot report back, so once the app itself shows the wipe as finished, press <b>"Card is wiped - cancel this record"</b> yourself. Only then is the record cancelled.</p>
+    <p>Once the record is cancelled, <b>Delete card</b> becomes available: openLN deletes only records that are cancelled, so this is the one way to take a card off your list, and the detail page and tile stop offering anything else for it. Two honest limits. First, a wipe runs with the card's current keys, so a card whose record or keys are lost can no longer be reset. Second, a wiped chip is just a chip: if you want the same NTAG424 back in service, issue a new card in openLN and write it to the chip. If the card is gone or damaged and you need a new one, order it from the card shop, the <b>Get a physical card</b> link on the Cards page.</p>
+    <div class="shot"><img src="step-5.png" alt="Wipe card dialog explaining the factory reset and the cancellation warning"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Three different stops, do not mix them up.</b> Freeze is reversible and stops spending at once. Cancel is permanent on the record and stops the card for good. Wipe resets the chip itself. Cancel does not erase the physical card, and a wipe needs the card's current keys, so press Freeze first when something is off and decide about the rest when you know more.</li>
+      <li><b>Cancelled is a one-way door.</b> A cancelled card cannot be edited, reactivated or written, and openLN only deletes records that are already cancelled. Treat the Cancel card button with the same care as deleting a wallet.</li>
+      <li><b>Do not freeze a card mid-setup.</b> Freezing or cancelling clears the card's pending setup link, and the app refuses to mark such a card as written. A card in that state is only good for wiping or for the record to be cancelled and deleted.</li>
+      <li><b>The keys are the card.</b> Anyone with k0 to k4 can clone it. Copy keys only into tooling you are deliberately using, and only when you are writing or wiping a card.</li>
+      <li><b>The payment PIN is its own thing.</b> Four digits for card payments, per card, separate from your account password and from the 6-digit send PIN. Changing it always starts with the current PIN, so keep the digits somewhere safe.</li>
+      <li><b>None of this touches your sats.</b> Cards spend from the wallet you connected in the Cards section, and these controls are about the card's record and the chip. Your bitcoin stays in your own wallet. openLN never takes custody of your funds.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app.</span>
+  </footer>
+</div>
+</body>
+</html>

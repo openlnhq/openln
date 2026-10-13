@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to set or change your send PIN | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Settings</span>
+  </header>
+
+  <h1>How to set or change your send PIN</h1>
+  <p class="intro">The send PIN is the six digit code that guards sats going out of your account. The RIC requires it before any send, whether that is an LNURL-w withdrawal QR or a tap of a card, and the wallet asks for it too when you send from there. Receiving never needs it. This guide shows you how to set the PIN the first time, and how to change it later. It takes about a minute, and nothing is charged during setup.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> and can open <b>Preferences</b> (the page is at <code>/app#settings</code>). The Send PIN block sits in the <b>Security</b> card.</li>
+      <li>You have <b>six digits</b> in mind. The form checks only two things: that the PIN is exactly six digits, and that both entries match.</li>
+      <li>You can also arrive from the wallet home nudge ("Set your 6-digit send PIN") or the gate card on the RIC page. Both jump straight to this block.</li>
+      <li>Receiving keeps working with no PIN set. Nothing sends until one exists.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Fill in New send PIN</h3></div>
+    <p>In the <b>Send PIN</b> block, the subcopy states the rule: "Six digits. The RIC requires it before any send: LNURL-w QR or tapping a card. Until it is set, the device cannot send." So this PIN is what authorizes sats leaving your account or your RIC. An LNURL-w withdrawal QR waits for it, a card tap that sends waits for it, and sending from the wallet waits for it. Receiving never asks for it, so customers can pay you with no PIN at all.</p>
+    <p>Type exactly <b>six digits</b> into the <b>New send PIN</b> field. The small label under it reads "Exactly 6 digits", and the field masks what you type as dots, one dot per digit. Pick a code you will remember, because the RIC asks for it on every send.</p>
+    <div class="shot"><img src="step-1.png" alt="The New send PIN field in the Security card with its red highlight"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Repeat it and press Set send PIN</h3></div>
+    <p>Type the same six digits again into <b>Confirm send PIN</b>. openLN checks the form before it saves: a PIN that is not exactly six digits is refused with "Send PIN must be exactly 6 digits", and two entries that differ are refused with "The two entries do not match". Nothing is stored until both checks pass.</p>
+    <p>When both fields hold the same six digits, press <b>Set send PIN</b>. The red badge in this screenshot points at it.</p>
+    <div class="shot"><img src="step-2.png" alt="Both send PIN fields filled, with the Set send PIN button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>After saving: your PIN is set, and it can be changed here</h3></div>
+    <p>When the save succeeds, the card replies <b>Send PIN saved</b> and refreshes itself a moment later. The refreshed card is the one in this screenshot: it has gained a <b>Current send PIN</b> field at the top, and the button now reads <b>Change send PIN</b>.</p>
+    <p>To change the PIN later, come back to this same block, type the current PIN into <b>Current send PIN</b>, enter the new PIN twice, and press <b>Change send PIN</b>. If the current PIN you type is wrong, the card says "Current send PIN is incorrect" and nothing changes.</p>
+    <div class="shot"><img src="step-3.png" alt="The saved Send PIN card with the Current send PIN field and the Change send PIN button"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>The card payment PIN is a different thing.</b> Cards use a 4-digit PIN that lives on the <b>Cards</b> page. The send PIN here is 6 digits and only covers sats leaving the account or the RIC. Changing one does not change the other.</li>
+      <li><b>Receiving never needs the send PIN.</b> Incoming payments, receive QR codes and store payments all work without it. Only sends wait for the code.</li>
+      <li><b>Until a PIN is set, the RIC simply refuses to send.</b> That is the design: nothing leaves the device until you have chosen the code.</li>
+      <li><b>Custody.</b> The PIN is what stops someone holding your phone or tapping your RIC from sending without you. Setting it moves no funds, and openLN never takes custody of your sats.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app.</span>
+  </footer>
+</div>
+</body>
+</html>

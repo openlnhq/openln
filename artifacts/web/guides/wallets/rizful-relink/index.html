@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to re-link a removed Rizful wallet | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Wallets</span>
+  </header>
+
+  <h1>How to re-link a removed Rizful wallet</h1>
+  <p class="intro">Removing a Rizful wallet from Saved wallets does not delete anything. This guide shows you how to bring the same wallet back with one button. Re-linking takes a few seconds, creates no new account, and asks you to type nothing. Rizful is the one-click wallet that openLN sets up for you from the Rizful wallet (one click) card, and it is custodial: the account is held for you by Rizful (by Megalithic), and the login on the card is the key to it. openLN links the wallet and never takes custody of your sats.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b>.</li>
+      <li>Your <b>Rizful wallet</b> was created from the Rizful wallet (one click) card and later removed from Saved wallets. Re-link is offered when openLN still holds the saved connection for it.</li>
+      <li>Nothing is charged during re-linking and <b>no funds move</b>. There is nothing to pay for and nothing to type.</li>
+      <li>Your login keeps working at <b>rizful.com</b> whether or not the wallet is linked here. A removal never strands funds.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the Rizful card and press Re-link this wallet</h3></div>
+    <p>Go to <b>Settings</b> and find the <b>Wallet</b> card. Under <b>Saved wallets</b> the Rizful wallet is gone, and further down, on the <b>Rizful wallet (one click)</b> card, openLN tells you exactly what that means: "This wallet was removed from Saved wallets. The Rizful account still exists and this login works at rizful.com." Read that sentence again, because it is the heart of this guide. Removing the wallet from Saved wallets only removed the <b>link inside openLN</b>. The Rizful account itself, its balance and its login were never touched, and the card still shows the login with <b>Copy</b> and <b>See</b> so you can prove it to yourself (this is the card shown in the screenshot, in its removed state). Now press <b>Re-link this wallet</b>, the teal button at the bottom of the card. openLN uses the saved connection it kept from the day it created the account, so there is no new account, no password to type and no import: the same wallet comes back to the same place. If you would rather start over, the button next to it, <b>Create a new one instead</b>, sets up a brand new Rizful account and links that one. Your old account is not deleted by that either, and its login keeps working at rizful.com.</p>
+    <div class="shot"><img src="step-1.png" alt="Rizful wallet card in the removed state, with the Re-link this wallet and Create a new one instead buttons"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>The wallet is back under Saved wallets</h3></div>
+    <p>A moment later a toast confirms <b>Wallet re-linked</b>, and the Rizful row is back in <b>Saved wallets</b> (marked in the screenshot) with its <b>RECEIVE</b> and <b>SEND</b> chips and the same <b>Default</b>, <b>Rename</b> and <b>Remove</b> buttons as any other saved wallet. Everything works as before: the wallet is ready to receive, the RIC and Cards sections can pick it again, and sending works wherever sending is used. The login box stays right below the list, with <b>Copy</b> and <b>See</b> ready the moment you need it for rizful.com.</p>
+    <div class="shot"><img src="step-2.png" alt="Saved wallets list with the Rizful wallet back in place"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>If re-linking fails.</b> Two failures can happen: "This wallet cannot be re-linked" when the saved connection cannot be matched to the wallet, and "Could not read this wallet right now" when the connection exists but cannot be opened. In both cases press <b>Create a new one instead</b>. A wallet that was never fully created has nothing to re-link, and the card is honest about it.</li>
+      <li><b>The login is the account.</b> Rizful is custodial, held by Rizful (by Megalithic). The login shown on this card is the key to the balance, so put it somewhere safe with <b>Copy</b> or <b>See</b>. openLN never takes custody of your sats.</li>
+      <li><b>Removal is safe by design.</b> You can remove the wallet from Saved wallets again whenever you like. The account and the login stay yours, and this same card lets you re-link again.</li>
+      <li><b>Nothing is charged.</b> Re-linking is free and moves no funds. It only restores the connection inside openLN.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Rizful is a third-party service.</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIC screens, frame by frame | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:880px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 20px;max-width:78ch}
+  .toc{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 30px;font-size:13.5px}
+  .toc a{color:var(--teal);text-decoration:none;border-bottom:1px dotted #2f5b57}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 44px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .bef code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .scene{margin:0 0 46px}
+  .scene + .scene{border-top:1px solid var(--line);padding-top:42px}
+  .scene h2{font-size:19px;letter-spacing:-.3px;margin:0 0 10px;display:flex;align-items:center;gap:11px}
+  .idx{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--teal);color:#06110f;font-size:12px;font-weight:750;display:flex;align-items:center;justify-content:center}
+  .scene p.desc{margin:0 0 18px;color:var(--dim);max-width:78ch}
+  .still{margin:0 0 16px;display:flex;flex-direction:column;align-items:center}
+  .still img{width:480px;max-width:100%;height:auto;image-rendering:pixelated;border:1px solid var(--line);border-radius:10px;background:#000;box-shadow:0 10px 28px rgba(0,0,0,.4)}
+  .still figcaption{color:var(--dim);font-size:12.5px;margin-top:9px;text-align:center}
+  .strip{display:flex;gap:10px;overflow-x:auto;padding:12px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .strip::-webkit-scrollbar{height:8px}
+  .strip::-webkit-scrollbar-thumb{background:#2a2436;border-radius:4px}
+  .strip::-webkit-scrollbar-track{background:transparent}
+  .strip img{flex:0 0 auto;width:160px;height:120px;image-rendering:pixelated;border-radius:6px;border:1px solid #241f30;background:#000;display:block}
+  .stripcap{color:var(--dim);font-size:12.5px;margin:8px 0 0}
+  @media(max-width:640px){.still img{width:100%}}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / RIC</span>
+  </header>
+
+  <h1>RIC screens, frame by frame</h1>
+  <p class="intro">Every animated screen of the RIC payment terminal, rendered frame by frame from the device's own firmware: receive and send flows, card issue and wipe, BLE pairing, WiFi connect, and firmware update. Each section shows one representative still at large size, and a strip of evenly spaced frames from the same animation underneath.</p>
+
+  <nav class="toc"><a href="#receive">Payment received</a> <a href="#receive-big">Large payment</a> <a href="#cel-recv">Received celebration</a> <a href="#cel-sent">Sent celebration</a> <a href="#send">Payment sent</a> <a href="#stall">Reconnecting</a> <a href="#card-issue">Card issued</a> <a href="#card-wipe">Card wiped</a> <a href="#provision">Pairing beacon</a> <a href="#connect">WiFi connect</a> <a href="#update">Firmware update</a></nav>
+
+  <div class="bef">
+    <b>About these images</b>
+    <ul>
+      <li>Rendered from the RIC firmware's own animation code (firmware <b>1.0.16</b>, commit <code>afadab5</code>) with the in-repo host preview tool. The renderer is deterministic and pixel exact; no device and no browser were used.</li>
+      <li>Every image is <b>320x240</b>, the native resolution of the ILI9341 panel. Stills are upscaled about 1.5x with nearest neighbour (pixelated) scaling; frames in the strips are shown at half size.</li>
+      <li>Scenario text and amounts are <b>sample values</b> (35, 2,100 and 125,000 sats; device name RIC-7F3A). A real device shows live values; layout and animation are identical.</li>
+      <li>This set covers the animated Motion screens only. Static screens (amount and numpad, QR payment screen, PIN pads, settings menu, WiFi setup, error screen, Firmware &amp; Updates page, card read result) are not included in these renders.</li>
+    </ul>
+  </div>
+
+  <section class="scene" id="receive">
+    <h2><span class="idx">01</span>Payment received (full flow)</h2>
+    <p class="desc">The full received payment, start to finish. The machine shows Processing payment with orange gears turning around a lightning bolt hub, then Confirming payment and Settling over Lightning with the amount (35 sats) at the bottom and bitcoin coins being pulled into the machine, then Finishing up. Do not tap again. while the wallet commits, and finally the full-screen green success: a white check badge, 35 sats, and Payment received. Appears after a customer taps an openLN card and the Lightning invoice settles. The 35 sats shown here is the preview&#x27;s sample amount; a real device shows the real invoice amount.</p>
+    <figure class="still">
+      <img src="img/receive/still.png" alt="Payment received (full flow) still" width="480" height="360">
+      <figcaption>Still: Final hold at 8052 ms: 35 sats, Payment received.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/receive/frame-01.png" alt="Payment received (full flow) frame 1 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-02.png" alt="Payment received (full flow) frame 2 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-03.png" alt="Payment received (full flow) frame 3 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-04.png" alt="Payment received (full flow) frame 4 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-05.png" alt="Payment received (full flow) frame 5 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-06.png" alt="Payment received (full flow) frame 6 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-07.png" alt="Payment received (full flow) frame 7 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-08.png" alt="Payment received (full flow) frame 8 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-09.png" alt="Payment received (full flow) frame 9 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-10.png" alt="Payment received (full flow) frame 10 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-11.png" alt="Payment received (full flow) frame 11 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-12.png" alt="Payment received (full flow) frame 12 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-13.png" alt="Payment received (full flow) frame 13 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-14.png" alt="Payment received (full flow) frame 14 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-15.png" alt="Payment received (full flow) frame 15 of 16" loading="lazy" width="160" height="120">
+      <img src="img/receive/frame-16.png" alt="Payment received (full flow) frame 16 of 16" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-16 of the animation, sampled evenly across the 8.6 s scenario.</p>
+  </section>
+
+  <section class="scene" id="receive-big">
+    <h2><span class="idx">02</span>Large payment (125,000 sats)</h2>
+    <p class="desc">A larger sale, showing the five-figure amount path. The same confirming flow: Confirming payment, Settling over Lightning, and 125,000 sats (the thousands separator is drawn by hand), then the received celebration with the amount counting up to 125,000 sats and Payment received. Appears on any sale with a larger amount. One frame in the strip catches the count-up mid-flight at 108,078 sats.</p>
+    <figure class="still">
+      <img src="img/receive-big/still.png" alt="Large payment (125,000 sats) still" width="480" height="360">
+      <figcaption>Still: Final hold at 4092 ms: 125,000 sats, Payment received.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/receive-big/frame-01.png" alt="Large payment (125,000 sats) frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-02.png" alt="Large payment (125,000 sats) frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-03.png" alt="Large payment (125,000 sats) frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-04.png" alt="Large payment (125,000 sats) frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-05.png" alt="Large payment (125,000 sats) frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-06.png" alt="Large payment (125,000 sats) frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-07.png" alt="Large payment (125,000 sats) frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-08.png" alt="Large payment (125,000 sats) frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-09.png" alt="Large payment (125,000 sats) frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-10.png" alt="Large payment (125,000 sats) frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-11.png" alt="Large payment (125,000 sats) frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/receive-big/frame-12.png" alt="Large payment (125,000 sats) frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 4.5 s scenario.</p>
+  </section>
+
+  <section class="scene" id="cel-recv">
+    <h2><span class="idx">03</span>Payment received (celebration)</h2>
+    <p class="desc">The received payment celebration on its own. A dark screen with an orange magnet core draws bitcoin coins in, there is a flash, then a green flood and shock ring, and finally the green hold: check badge, 35 sats, and Payment received. Appears from the success result screen after a payment is received; the final frame holds until it is replaced.</p>
+    <figure class="still">
+      <img src="img/cel-recv/still.png" alt="Payment received (celebration) still" width="480" height="360">
+      <figcaption>Still: Final hold at 2145 ms: 35 sats, Payment received.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/cel-recv/frame-01.png" alt="Payment received (celebration) frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-02.png" alt="Payment received (celebration) frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-03.png" alt="Payment received (celebration) frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-04.png" alt="Payment received (celebration) frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-05.png" alt="Payment received (celebration) frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-06.png" alt="Payment received (celebration) frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-07.png" alt="Payment received (celebration) frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-08.png" alt="Payment received (celebration) frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-09.png" alt="Payment received (celebration) frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-10.png" alt="Payment received (celebration) frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-11.png" alt="Payment received (celebration) frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-recv/frame-12.png" alt="Payment received (celebration) frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 2.4 s scenario.</p>
+  </section>
+
+  <section class="scene" id="cel-sent">
+    <h2><span class="idx">04</span>Payment sent (celebration)</h2>
+    <p class="desc">The sent payment celebration on its own. Coins are blasted away from the center of the dark screen, followed by a flash, a green flood, and the green hold: check badge, 2,100 sats, and Payment sent. The flash comes earlier in this scene than in the received version. Appears after a successful send; the final frame holds.</p>
+    <figure class="still">
+      <img src="img/cel-sent/still.png" alt="Payment sent (celebration) still" width="480" height="360">
+      <figcaption>Still: Final hold at 2000 ms: 2,100 sats, Payment sent.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/cel-sent/frame-01.png" alt="Payment sent (celebration) frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-02.png" alt="Payment sent (celebration) frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-03.png" alt="Payment sent (celebration) frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-04.png" alt="Payment sent (celebration) frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-05.png" alt="Payment sent (celebration) frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-06.png" alt="Payment sent (celebration) frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-07.png" alt="Payment sent (celebration) frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-08.png" alt="Payment sent (celebration) frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-09.png" alt="Payment sent (celebration) frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-10.png" alt="Payment sent (celebration) frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-11.png" alt="Payment sent (celebration) frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/cel-sent/frame-12.png" alt="Payment sent (celebration) frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 2.4 s scenario.</p>
+  </section>
+
+  <section class="scene" id="send">
+    <h2><span class="idx">05</span>Payment sent (full flow)</h2>
+    <p class="desc">The send (payout) flow. Sending payment, To the tapped card, and 2,100 sats with the gears running while coins are fed into the machine, then the sent celebration: blast out, green flood, and 2,100 sats with Payment sent. Appears when the merchant taps an openLN card to pay out to it.</p>
+    <figure class="still">
+      <img src="img/send/still.png" alt="Payment sent (full flow) still" width="480" height="360">
+      <figcaption>Still: Final hold at 4800 ms: 2,100 sats, Payment sent.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/send/frame-01.png" alt="Payment sent (full flow) frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-02.png" alt="Payment sent (full flow) frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-03.png" alt="Payment sent (full flow) frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-04.png" alt="Payment sent (full flow) frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-05.png" alt="Payment sent (full flow) frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-06.png" alt="Payment sent (full flow) frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-07.png" alt="Payment sent (full flow) frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-08.png" alt="Payment sent (full flow) frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-09.png" alt="Payment sent (full flow) frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-10.png" alt="Payment sent (full flow) frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-11.png" alt="Payment sent (full flow) frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/send/frame-12.png" alt="Payment sent (full flow) frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 5.8 s scenario.</p>
+  </section>
+
+  <section class="scene" id="stall">
+    <h2><span class="idx">06</span>Reconnecting while confirming</h2>
+    <p class="desc">Confirming payment while the connection hiccups. The title stays Confirming payment, the subtitle reads Reconnecting..., the gears are dimmed to a muted brown and turn slower, and the amount (35 sats) stays at the bottom. There is no Cancel button in this state. Appears while the invoice is settling but the link is down, and in the WiFi lost, invoice kept reconnecting variant.</p>
+    <figure class="still">
+      <img src="img/stall/still.png" alt="Reconnecting while confirming still" width="480" height="360">
+      <figcaption>Still: Mid-animation at 1600 ms: Confirming payment, Reconnecting...</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/stall/frame-01.png" alt="Reconnecting while confirming frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-02.png" alt="Reconnecting while confirming frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-03.png" alt="Reconnecting while confirming frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-04.png" alt="Reconnecting while confirming frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-05.png" alt="Reconnecting while confirming frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-06.png" alt="Reconnecting while confirming frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-07.png" alt="Reconnecting while confirming frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-08.png" alt="Reconnecting while confirming frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-09.png" alt="Reconnecting while confirming frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-10.png" alt="Reconnecting while confirming frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-11.png" alt="Reconnecting while confirming frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/stall/frame-12.png" alt="Reconnecting while confirming frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 3.0 s scenario.</p>
+  </section>
+
+  <section class="scene" id="card-issue">
+    <h2><span class="idx">07</span>Card issued (writing a card)</h2>
+    <p class="desc">The Issue Card flow. Writing card and Keep the card on the reader, with an openLN card graphic, orange NFC emission dots, and a three-step tracker (Write data, Authenticate, Secure card) that turns each step green as it completes. The finale shows the card with a green check badge, Card issued, and Ready for payments. Appears in the Issue Card flow from the settings menu when a blank card is tapped.</p>
+    <figure class="still">
+      <img src="img/card-issue/still.png" alt="Card issued (writing a card) still" width="480" height="360">
+      <figcaption>Still: Final hold at 5100 ms: Card issued, Ready for payments.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/card-issue/frame-01.png" alt="Card issued (writing a card) frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-02.png" alt="Card issued (writing a card) frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-03.png" alt="Card issued (writing a card) frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-04.png" alt="Card issued (writing a card) frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-05.png" alt="Card issued (writing a card) frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-06.png" alt="Card issued (writing a card) frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-07.png" alt="Card issued (writing a card) frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-08.png" alt="Card issued (writing a card) frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-09.png" alt="Card issued (writing a card) frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-10.png" alt="Card issued (writing a card) frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-11.png" alt="Card issued (writing a card) frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-issue/frame-12.png" alt="Card issued (writing a card) frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 5.6 s scenario.</p>
+  </section>
+
+  <section class="scene" id="card-wipe">
+    <h2><span class="idx">08</span>Card wiped (wiping a card)</h2>
+    <p class="desc">The Wipe Card flow. Wiping card and Keep the card on the reader, with the card graphic and a four-step tracker (Read, Authenticate, Reset, Erase). A red erase beam crosses the card as the last step runs. The finale shows a blank grey card with a green check badge, Card wiped, and Blank and ready to issue again. The badge waits for the erase beam to exit before it pops.</p>
+    <figure class="still">
+      <img src="img/card-wipe/still.png" alt="Card wiped (wiping a card) still" width="480" height="360">
+      <figcaption>Still: Final hold at 5500 ms: Card wiped, Blank and ready to issue again.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/card-wipe/frame-01.png" alt="Card wiped (wiping a card) frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-02.png" alt="Card wiped (wiping a card) frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-03.png" alt="Card wiped (wiping a card) frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-04.png" alt="Card wiped (wiping a card) frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-05.png" alt="Card wiped (wiping a card) frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-06.png" alt="Card wiped (wiping a card) frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-07.png" alt="Card wiped (wiping a card) frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-08.png" alt="Card wiped (wiping a card) frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-09.png" alt="Card wiped (wiping a card) frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-10.png" alt="Card wiped (wiping a card) frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-11.png" alt="Card wiped (wiping a card) frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/card-wipe/frame-12.png" alt="Card wiped (wiping a card) frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 6.0 s scenario.</p>
+  </section>
+
+  <section class="scene" id="provision">
+    <h2><span class="idx">09</span>Pairing beacon (BLE)</h2>
+    <p class="desc">The BLE pairing beacon. A Bluetooth rune inside pulsing orange radar rings, the device name shown large (RIC-7F3A is the sample name in these frames), and the instruction Open openln.com/app, Link device, and choose this name. Appears whenever the unit is not yet linked, on first boot or after the WiFi credentials were wiped from the connect screen. It runs until the device is linked, and a real device shows its own BLE name.</p>
+    <figure class="still">
+      <img src="img/provision/still.png" alt="Pairing beacon (BLE) still" width="480" height="360">
+      <figcaption>Still: Mid-radar at 2600 ms.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/provision/frame-01.png" alt="Pairing beacon (BLE) frame 1 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-02.png" alt="Pairing beacon (BLE) frame 2 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-03.png" alt="Pairing beacon (BLE) frame 3 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-04.png" alt="Pairing beacon (BLE) frame 4 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-05.png" alt="Pairing beacon (BLE) frame 5 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-06.png" alt="Pairing beacon (BLE) frame 6 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-07.png" alt="Pairing beacon (BLE) frame 7 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-08.png" alt="Pairing beacon (BLE) frame 8 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-09.png" alt="Pairing beacon (BLE) frame 9 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-10.png" alt="Pairing beacon (BLE) frame 10 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-11.png" alt="Pairing beacon (BLE) frame 11 of 12" loading="lazy" width="160" height="120">
+      <img src="img/provision/frame-12.png" alt="Pairing beacon (BLE) frame 12 of 12" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-12 of the animation, sampled evenly across the 4.8 s scenario.</p>
+  </section>
+
+  <section class="scene" id="connect">
+    <h2><span class="idx">10</span>Connecting to WiFi</h2>
+    <p class="desc">WiFi join and linking, in three phases: Connecting to WiFi with the network name and a red Cancel button; Linking to openLN and Secure connection with the WiFi arcs sparking; and Reconnecting to openLN and Saved settings kept. Retrying. with the arcs dimmed. Runs at boot and after WiFi loss; the link phase runs through the TLS handshake and auth.</p>
+    <figure class="still">
+      <img src="img/connect/still.png" alt="Connecting to WiFi still" width="480" height="360">
+      <figcaption>Still: Join phase at 1650 ms: Connecting to WiFi.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/connect/frame-01.png" alt="Connecting to WiFi frame 1 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-02.png" alt="Connecting to WiFi frame 2 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-03.png" alt="Connecting to WiFi frame 3 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-04.png" alt="Connecting to WiFi frame 4 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-05.png" alt="Connecting to WiFi frame 5 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-06.png" alt="Connecting to WiFi frame 6 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-07.png" alt="Connecting to WiFi frame 7 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-08.png" alt="Connecting to WiFi frame 8 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-09.png" alt="Connecting to WiFi frame 9 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-10.png" alt="Connecting to WiFi frame 10 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-11.png" alt="Connecting to WiFi frame 11 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-12.png" alt="Connecting to WiFi frame 12 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-13.png" alt="Connecting to WiFi frame 13 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-14.png" alt="Connecting to WiFi frame 14 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-15.png" alt="Connecting to WiFi frame 15 of 16" loading="lazy" width="160" height="120">
+      <img src="img/connect/frame-16.png" alt="Connecting to WiFi frame 16 of 16" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-16 of the animation, sampled evenly across the 7.0 s scenario.</p>
+  </section>
+
+  <section class="scene" id="update">
+    <h2><span class="idx">11</span>Firmware update</h2>
+    <p class="desc">The firmware update, in three phases: Checking updates and Secure connection to openLN with a spinning orange tick ring; Updating firmware from v1.0.13 to v1.0.14 with the progress ring, percent, and a Do not disconnect power footer with a lightning bolt; and Update verified and Restarting device with a green check ring. Appears on OTA checks: automatic at boot and roughly every 15 minutes, or a manual check from the Firmware &amp; Updates page. The version strings here are sample values.</p>
+    <figure class="still">
+      <img src="img/update/still.png" alt="Firmware update still" width="480" height="360">
+      <figcaption>Still: Download at 4356 ms: Updating firmware, 72%.</figcaption>
+    </figure>
+    <div class="strip">
+      <img src="img/update/frame-01.png" alt="Firmware update frame 1 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-02.png" alt="Firmware update frame 2 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-03.png" alt="Firmware update frame 3 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-04.png" alt="Firmware update frame 4 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-05.png" alt="Firmware update frame 5 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-06.png" alt="Firmware update frame 6 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-07.png" alt="Firmware update frame 7 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-08.png" alt="Firmware update frame 8 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-09.png" alt="Firmware update frame 9 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-10.png" alt="Firmware update frame 10 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-11.png" alt="Firmware update frame 11 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-12.png" alt="Firmware update frame 12 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-13.png" alt="Firmware update frame 13 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-14.png" alt="Firmware update frame 14 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-15.png" alt="Firmware update frame 15 of 16" loading="lazy" width="160" height="120">
+      <img src="img/update/frame-16.png" alt="Firmware update frame 16 of 16" loading="lazy" width="160" height="120">
+    </div>
+    <p class="stripcap">Frames 1-16 of the animation, sampled evenly across the 7.3 s scenario.</p>
+  </section>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screens rendered from RIC firmware 1.0.16. Amounts and names shown are sample values.</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to connect your first wallet | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+  .note a,.step p a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Wallets</span>
+  </header>
+
+  <h1>How to connect your first wallet</h1>
+  <p class="intro">openLN needs one wallet connection before it can take a payment, because that wallet is where your sats land. This page shows where the connection starts and explains the four kinds of connection, so you can pick the one that matches the wallet you already use. Each kind has a per-wallet guide with its own screenshots, linked below. The whole thing takes about two minutes.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>You have your wallet app at hand, or at least a decision on which of the four kinds you will use. You only need one to start.</li>
+      <li>Nothing is charged during setup and no funds move. You are pasting a value that lets openLN receive from the wallet you already control, so you stay in charge of your sats.</li>
+      <li>Never share the value you paste. NWC strings, Blink API keys and CLINK codes are secrets: they let openLN use your wallet. Do not paste them into a chat or a support message, and do not include them in a screenshot.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the Wallet card and press Connect</h3></div>
+    <p>Go to <b>Settings</b> and find the <b>Wallet</b> card, the one that starts with "How this account receives and sends sats". On a fresh account it shows a red dot next to the line "No wallet connected", with the hint "No wallet saved yet. Connect one to start receiving." Press the <b>Connect</b> button on the right. Once at least one wallet is saved, the same button reads <b>Add wallet</b> instead. The same dialog also opens from the <b>Connect wallet</b> button on the wallet home page, and from the point of sale banner when it says "Connect a wallet to start selling".</p>
+    <div class="shot"><img src="step-1.png" alt="Settings Wallet card reading No wallet connected with the Connect button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Pick a tab in the Connect wallet dialog</h3></div>
+    <p>The dialog offers four kinds of connections: NWC, Blink, Lightning Address and CLINK. Read the chips under each tab (they show whether that kind can receive, send, or both) and the short line that names the wallets it works with. Click the field and paste the value from your wallet app; if openLN recognizes what you pasted, a <code>nostr+walletconnect:</code> string, a Blink key, an address or a CLINK code, it selects the matching tab for you. Press <b>Connect</b> when you are ready. openLN checks the connection before anything is saved: a balance probe for NWC, the Blink API for a Blink key, a real 1 sat invoice probe for a Lightning Address, and a small invoice request for a CLINK code. If the check fails, nothing is saved and the reason appears under the form.</p>
+    <div class="shot"><img src="step-2.png" alt="Connect wallet dialog with all four tabs highlighted"></div>
+  </div>
+
+  <div class="note">
+    <b>The four kinds of connections</b>
+    <ul>
+      <li><b>NWC (Nostr Wallet Connect).</b> A full wallet: receive and send, plus balance reads and card funding. Works with any NIP-47 wallet. <a href="../nostr-wallet-connect/">Guide: connect a Nostr Wallet Connect wallet</a>.</li>
+      <li><b>Blink.</b> Your Blink account, connected with an API key from the Blink dashboard. Receive and send. <a href="../blink/">Guide: connect a Blink wallet</a>.</li>
+      <li><b>Lightning Address.</b> Receive-only. Works with any Lightning Address, such as a Blink or Wallet of Satoshi address. <a href="../wallet-of-satoshi/">Guide: connect a Wallet of Satoshi wallet</a>.</li>
+      <li><b>CLINK.</b> A code for Lightning.Pub and ShockWallet, pasted into the same dialog. <a href="../clink/">Guide: connect a CLINK wallet</a>.</li>
+    </ul>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Your first wallet becomes the default.</b> It is used for everything that does not pick its own wallet. Later connections are added beside it under <b>Saved wallets</b>, and nothing replaces the default on its own.</li>
+      <li><b>Nothing is saved on failure.</b> If the check does not pass, the wallet is not saved: an unrecognized value is refused, an unreadable wallet answers "nothing was changed", and a wallet you already connected answers "This wallet is already connected." Fix what the message points at and try again.</li>
+      <li><b>Your keys, your sats.</b> openLN never takes custody of your sats. You can rename a saved wallet, make it the default, or remove it later; see the <a href="../manage-wallets/">manage wallets guide</a>.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Blink, Wallet of Satoshi, Lightning.Pub, ShockWallet and the other services named are third-party services.</span>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to connect a Blink wallet | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+  a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Wallets</span>
+  </header>
+
+  <h1>How to connect a Blink wallet</h1>
+  <p class="intro">This guide connects a custodial Blink account to your openLN account with a Blink API key. Because Blink offers an API, this is a full wallet: once it is saved, openLN can receive into Blink, read the balance, and send from it when you ask, and the wallet can be picked for the RIC and Cards in their sections. The whole thing takes a couple of minutes, and nothing is charged during setup.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b> (any device, phone or computer).</li>
+      <li>You have a <b>Blink account</b>, and it is a custodial one (the kind that offers an API key). A non-custodial Blink account has no API key and connects with a Lightning Address instead; the <a href="../wallet-of-satoshi/">Wallet of Satoshi guide</a> covers that flow.</li>
+      <li>You can open <b>dashboard.blink.sv</b> in a browser and create an API key there.</li>
+      <li>Nothing is charged during setup and no funds move.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Open the connect dialog and choose the Blink tab</h3></div>
+    <p>Go to <b>Settings</b> and find the <b>Wallet</b> card, the one that starts with "How this account receives and sends sats". On the right of the wallet line you will see a button: it reads <b>Connect</b> when this is your first wallet, and <b>Add wallet</b> when you already have one saved. Press it and the <b>Connect wallet</b> dialog opens.</p>
+    <p>The dialog offers four kinds of connections: <b>NWC</b>, <b>Blink</b>, <b>Lightning Address</b> and <b>CLINK</b>. Press the <b>Blink</b> tab. The chips under the tabs show <b>Receive</b> and <b>Send</b> both lit, meaning this is a full wallet, and the dialog's own text summarizes it: "Full wallet for custodial Blink accounts. Receive, send, and card funding run through Blink."</p>
+    <p>Before you can fill the field you need a <b>Blink API key</b>. Sign in at <b>dashboard.blink.sv</b>, open the API keys area and press <b>Create API key</b>. When you create it, enable <b>Read and Write</b> scope on the key: Read is what lets openLN see the account and confirm the key works, and Write is what lets openLN send from the wallet when you ask it to. The dialog summarizes the same idea as "Read + Receive to accept payments, Write to send". Copy the key once it is shown; it starts with <code>blink_</code>.</p>
+    <p>One thing the dialog states plainly, and it is worth understanding before you connect: openLN never takes custody of your sats. A Blink account is <b>custodial</b>, which means Blink holds the funds for you. openLN only gets permission to ask Blink to act on your behalf; it never holds the money itself.</p>
+    <div class="shot"><img src="step-1.png" alt="Connect wallet dialog with the Blink tab highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Paste the key and press Connect</h3></div>
+    <p>Press the <b>Blink API key</b> field and paste the key you copied. The field is <b>masked</b>: it shows dots instead of the key as you type, which is normal for a secret and does not mean anything went wrong. For example, a key looks like <code>blink_bob_demo_api_key_0000</code>.</p>
+    <p>Double-check that you copied the whole key before continuing. openLN verifies it with Blink before saving anything: it reads the account and proves the key can be used, and a key that cannot be read is refused with the reason shown under the form. Nothing is saved when the check fails.</p>
+    <p>Press the big <b>Connect</b> button at the bottom of the dialog. openLN checks the key with Blink, saves the wallet, and closes the dialog with a "Wallet connected" message. Then look at the Wallet card in Settings: your Blink wallet now appears as <b>Blink API wallet</b> with <b>Receive</b> and <b>Send</b> chips and a balance line read from Blink. If this was your first wallet it is also the default; otherwise it is added beside your existing wallets and nothing replaces the default on its own.</p>
+    <div class="shot"><img src="step-2.png" alt="Blink API key field with a key typed in, highlighted"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Custodial means Blink holds the funds.</b> Your Blink balance is an account with Blink, not a wallet on your own device. openLN never takes custody of your sats; it asks Blink to receive and send, and Blink answers.</li>
+      <li><b>Non-custodial Blink accounts connect differently.</b> An account that has moved away from custody has no API key and the key lane will not work. Connect it with a Lightning Address instead; Blink addresses still work and can still confirm payments. The <a href="../wallet-of-satoshi/">Wallet of Satoshi guide</a> walks through the Lightning Address flow.</li>
+      <li><b>Sending needs the Write scope.</b> If a send is refused for permissions, the message points back at dashboard.blink.sv and the Write scope: add it to the key there and try again. If you only plan to receive, reconnects and receiving keep working without it.</li>
+      <li><b>A Blink-side refusal is not a permission problem.</b> Blink is winding down custodial accounts in some regions. If the app says the account can no longer receive and to migrate funds, that is Blink's own decision on the account, not a missing scope or an openLN fault.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the wallet</a>
+    <span style="margin-left:auto">Screenshots from the openLN app. Blink is a third-party service.</span>
+  </footer>
+</div>
+</body>
+</html>

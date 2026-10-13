@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>openLN guides | openLN</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:30px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 8px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 10px;max-width:72ch}
+  .draft{display:inline-block;border:1px solid var(--line);border-radius:20px;padding:2px 12px;font-size:12px;color:var(--dim);margin-bottom:34px}
+  h2{font-size:14px;letter-spacing:.5px;text-transform:uppercase;color:var(--teal);margin:34px 0 12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+  a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;text-decoration:none;color:var(--text);transition:.12s}
+  a.card:hover{border-color:var(--teal)}
+  a.card b{display:block;font-size:15px;margin-bottom:4px}
+  a.card span{color:var(--dim);font-size:13px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px}
+</style>
+  <link rel="icon" href="openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides</span>
+  </header>
+
+  <h1>openLN guides</h1>
+  <p class="intro">Step-by-step walkthroughs for every openLN function, with annotated screenshots and full instructions in text. Screenshots come from the real app on the demo account; example names are generic.</p>
+
+  <h2>Wallets</h2>
+  <div class="grid">
+    <a class="card" href="wallets/first-wallet/index.html"><b>Connect your first wallet</b><span>The four kinds of wallet connections and which guide to pick.</span></a>
+    <a class="card" href="wallets/wallet-of-satoshi/index.html"><b>Add a Wallet of Satoshi wallet</b><span>Connect a Lightning Address, receive-only.</span></a>
+    <a class="card" href="wallets/nostr-wallet-connect/index.html"><b>Connect a Nostr Wallet Connect wallet</b><span>Full wallet with receive and send, any NIP-47 wallet.</span></a>
+    <a class="card" href="wallets/blink/index.html"><b>Connect a Blink wallet</b><span>Blink account with an API key, receive and send.</span></a>
+    <a class="card" href="wallets/clink/index.html"><b>Connect CLINK codes</b><span>Noffer and ndebit codes for Lightning.Pub and ShockWallet.</span></a>
+    <a class="card" href="wallets/rizful/index.html"><b>Create a Rizful wallet in one click</b><span>A ready wallet without leaving openLN. Custodial, by Megalithic.</span></a>
+    <a class="card" href="wallets/rizful-relink/index.html"><b>Re-link a removed Rizful wallet</b><span>Bring the same wallet back with one button.</span></a>
+    <a class="card" href="wallets/manage-wallets/index.html"><b>Rename, set a default, remove</b><span>Manage the wallets saved to your account.</span></a>
+    <a class="card" href="wallets/receive-invoice/index.html"><b>Receive sats with an invoice</b><span>Create an invoice, show the QR, watch it settle.</span></a>
+  </div>
+
+  <h2>Point of sale</h2>
+  <div class="grid">
+    <a class="card" href="pos/take-a-sale/index.html"><b>Take a sale with the web POS</b><span>Items grid, cart, charge, QR, paid.</span></a>
+    <a class="card" href="pos/keypad-sale/index.html"><b>Charge a custom amount</b><span>The POS keypad for amounts with no item tile.</span></a>
+    <a class="card" href="pos/manage-items/index.html"><b>Add, edit, and remove POS items</b><span>Photo, name, price, description, saved to the pad.</span></a>
+    <a class="card" href="pos/counter-tablet/index.html"><b>Set up a counter tablet</b><span>Open POS at launch, per device. A dedicated register.</span></a>
+  </div>
+
+  <h2>RIC terminal</h2>
+  <div class="grid">
+    <a class="card" href="ric/getting-started/index.html"><b>Flash and link your RIC</b><span>Install firmware, pair over Bluetooth, connect WiFi.</span></a>
+    <a class="card" href="ric/screens-tour/index.html"><b>What the RIC shows you</b><span>Every device screen explained: amounts, WiFi, pairing, updates.</span></a>
+    <a class="card" href="ric/screens-gallery/index.html"><b>RIC screens, frame by frame</b><span>Every animated device screen, rendered from the firmware.</span></a>
+  </div>
+
+  <h2>Books</h2>
+  <div class="grid">
+    <a class="card" href="books/statements/index.html"><b>Review Books and export a statement</b><span>Periods, classes, sources, sales valued at settle time.</span></a>
+  </div>
+
+  <h2>Cards</h2>
+  <div class="grid">
+    <a class="card" href="cards/issue/index.html"><b>Issue a new Bolt card</b><span>Name, limits, payment PIN, tap note. Ready to write.</span></a>
+    <a class="card" href="cards/write/index.html"><b>Write a card (app or RIC)</b><span>The setup QR, the phone app, the RIC route, and the keys.</span></a>
+    <a class="card" href="cards/desktop-writer/index.html"><b>Write cards from a computer</b><span>The desktop Card Writer: reader, bridge, extension, Card info.</span></a>
+    <a class="card" href="cards/manage/index.html"><b>Manage a card: freeze, PIN, keys, wipe</b><span>Every control on the card detail page, one by one.</span></a>
+  </div>
+
+  <h2>Shop</h2>
+  <div class="grid">
+    <a class="card" href="shop/buy-cards/index.html"><b>Order cards from the shop</b><span>Blank cards, custom designs, RIC terminals. Paid in sats.</span></a>
+    <a class="card" href="shop/studio/index.html"><b>Design a card in the Studio</b><span>Templates, backgrounds, publish or send to production.</span></a>
+  </div>
+
+  <h2>Account</h2>
+  <div class="grid">
+    <a class="card" href="account/sign-in/index.html"><b>Sign in or create your account</b><span>Handles, passwords, and how the wallet stays separate.</span></a>
+  </div>
+
+  <h2>Partners</h2>
+  <div class="grid">
+    <a class="card" href="partners/access/index.html"><b>Become an openLN partner</b><span>Flash RICs, earn 0.3% of routed sales, payouts in sats.</span></a>
+  </div>
+
+  <h2>Settings</h2>
+  <div class="grid">
+    <a class="card" href="settings/rates/index.html"><b>Set your currency and RIC rates</b><span>Buy and sell rates, modifiers, the rate source.</span></a>
+    <a class="card" href="settings/send-pin/index.html"><b>Set or change your send PIN</b><span>The 6-digit PIN that gates sending sats.</span></a>
+    <a class="card" href="settings/password/index.html"><b>Change your account password</b><span>Current, new, saved. Wrong entry explained.</span></a>
+    <a class="card" href="settings/telegram/index.html"><b>Connect Telegram support</b><span>One-time code, @openLN_bot, a private support chat.</span></a>
+    <a class="card" href="settings/install-app/index.html"><b>Install openLN on your phone</b><span>Home-screen app on Android, iPhone, and desktop.</span></a>
+  </div>
+
+  <footer>openLN guides. <a href="https://openln.com/app">Open the app</a> · <a href="https://openln.com">openln.com</a></footer>
+</div>
+</body>
+</html>

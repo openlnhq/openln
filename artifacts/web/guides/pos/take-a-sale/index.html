@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to take a sale with the web POS | openLN guides</title>
+<style>
+  :root{--bg:#0d0b14;--card:#16131f;--line:#2a2436;--text:#eae7f2;--dim:#9a93ad;--teal:#35c3b5;--red:#ff2e2e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  header.top{display:flex;align-items:center;gap:10px;padding:8px 0 22px;border-bottom:1px solid var(--line);margin-bottom:34px}
+  .mark{width:30px;height:30px;border-radius:50%;display:block;flex:none}
+  .brand{font-size:17px;font-weight:640;letter-spacing:-.2px}
+  .brand em{font-style:normal;color:var(--teal)}
+  .kb{margin-left:auto;color:var(--dim);font-size:12.5px;letter-spacing:.4px;text-transform:uppercase}
+  h1{font-size:26px;letter-spacing:-.4px;margin:0 0 10px}
+  .intro{color:var(--dim);font-size:15px;margin:0 0 26px;max-width:72ch}
+  .bef{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:0 0 36px;font-size:14px}
+  .bef b{display:block;margin-bottom:8px;font-size:12.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--teal)}
+  .bef ul{margin:0;padding-left:18px}
+  .bef li{margin:6px 0;color:var(--dim)}
+  .bef li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  .step{margin:0 0 40px}
+  .step .head{display:flex;gap:12px;align-items:flex-start;margin-bottom:8px}
+  .num{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;font-weight:750;font-size:15px;display:flex;align-items:center;justify-content:center}
+  .step h3{font-size:16.5px;margin:3px 0 0;letter-spacing:-.2px}
+  .step p{margin:6px 0 10px 42px;color:var(--dim)}
+  .step p b{color:var(--text);font-weight:600}
+  .step p code{background:#211c2e;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12.5px;color:#d9d4e6}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-left:42px;background:var(--card)}
+  .shot img{display:block;width:100%;height:auto}
+  @media(max-width:640px){.step p,.shot{margin-left:0}}
+  .note{border-left:3px solid var(--teal);background:var(--card);border-radius:0 10px 10px 0;padding:14px 18px;margin:30px 0 0;font-size:14px}
+  .note b{display:block;margin-bottom:6px;font-size:13px;letter-spacing:.3px;text-transform:uppercase;color:var(--teal)}
+  .note ul{margin:8px 0 0;padding-left:18px}
+  .note li{margin:6px 0;color:var(--dim)}
+  .note li b{display:inline;text-transform:none;letter-spacing:0;color:var(--text);font-size:14px}
+  footer{margin-top:48px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px;display:flex;gap:14px;flex-wrap:wrap}
+  footer a{color:var(--teal);text-decoration:none}
+</style>
+  <link rel="icon" href="../../openln-logo.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <img class="mark" src="../../openln-logo.svg" alt="openLN logo">
+    <span class="brand">open<em>LN</em></span>
+    <span class="kb">Guides / Point of Sale</span>
+  </header>
+
+  <h1>How to take a sale with the web POS</h1>
+  <p class="intro">The web POS turns any browser into a Lightning register: no hardware, no pairing, just items and a QR code. This guide walks you through one full sale, from tapping an item to watching the payment land. Your sales are paid straight into the wallet you connect, and you will need one thing before you start: a wallet that can receive.</p>
+
+  <div class="bef">
+    <b>Before you start</b>
+    <ul>
+      <li>You are signed in to your <b>openLN account</b>.</li>
+      <li>A wallet that can receive is connected. If the POS shows <b>Connect a wallet to start selling</b>, press <b>Connect wallet</b> and link one first.</li>
+      <li>Open the POS by picking <b>POS</b> in the menu drawer, or by tapping the <b>POS</b> button on the Wallet screen.</li>
+      <li>Nothing is charged until the customer pays. You can close or cancel any sale with no charge.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">1</span><h3>Tap item tiles to build the sale</h3></div>
+    <p>The POS opens on the <b>Items</b> tab with your item grid. Each tile is one product with its name and price, for example <b>Cola, 25.00 USD</b>, with a short description under it. Tap a tile (marked in the screenshot) and the item lands in the sale below. Tap once per unit: two taps on Cola is two cans, and the tile shows a small yellow counter so you can see it took. Bigger item sets work the same way; the grid simply scrolls. If the item list itself needs a change, <b>Edit Items</b> in the top right opens the item editor.</p>
+    <div class="shot"><img src="step-1.png" alt="POS Items grid with the Cola item tile highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">2</span><h3>Check the cart, then press Charge</h3></div>
+    <p>Every tapped item appears as a line in the cart with a quantity stepper and a remove button. Use the <b>minus</b> and <b>plus</b> buttons to change the quantity, and the small <b>×</b> to take a line out. Under the lines, the cart shows the total in your currency and the same amount in sats, for example <b>25.00 USD</b> and <b>approx. 29,832 sats</b>, so you and the customer can both see it. If you want, type a <b>Note</b> (up to 120 characters), such as "Table 5", and it rides along with the sale onto the payment screen. When the total looks right, press the big yellow <b>Charge</b> button (marked in the screenshot). It names the exact amount, <b>Charge 25.00 USD, 29,832 sats</b>, at the rate shown just below the button. The button stays disabled until a wallet is connected and there is an amount to charge, so a sale cannot start by accident.</p>
+    <div class="shot"><img src="step-2.png" alt="Cart with quantity stepper, total in USD and sats, Note field, and the Charge button highlighted"></div>
+  </div>
+
+  <div class="step">
+    <div class="head"><span class="num">3</span><h3>Let the customer scan, and watch for the payment</h3></div>
+    <p>The screen switches to payment: the amount, the sats total and the routing fee, the note, and a large <b>QR code</b>. The QR is a standard Lightning invoice, so the customer scans it with <b>any Lightning wallet</b>, on their own phone; nothing needs installing. Under the QR the status line reads <b>Waiting for payment...</b> and beneath it a countdown such as <b>Expires in 14:52</b> shows how long the invoice stays open; it counts down from the invoice's real expiry, not a local guess. When the payment lands the screen flips: the status becomes <b>Payment received, finishing up</b> while it settles, then a green check and <b>Payment received</b>. The POS resets itself after 5 seconds, ready for the next sale. The sale appears in your wallet activity, and in <b>Books</b> it is tagged <b>Web POS</b>, so the day's takings are easy to find. If the customer cannot pay, press <b>Cancel sale</b>; if money is already moving, the sale finishes instead of cancelling.</p>
+    <div class="shot"><img src="step-3.png" alt="Payment screen with QR code, Waiting for payment status, expiry countdown, and Cancel sale highlighted"></div>
+  </div>
+
+  <div class="note">
+    <b>Good to know</b>
+    <ul>
+      <li><b>Any Lightning wallet works.</b> The QR is a standard invoice. The customer scans with whatever wallet they have and the sats arrive in the wallet you connected to the POS.</li>
+      <li><b>Cancelling charges nothing.</b> Closing the sale or pressing <b>Cancel sale</b> before payment creates no charge. Cancelled and expired sales simply show that nothing was charged.</li>
+      <li><b>The sats amount is exact.</b> The Charge button shows the exact amount in sats at the current rate, and the QR carries exactly that. The <b>Rate</b> line under the button shows the rate used.</li>
+      <li><b>No hardware needed.</b> The whole sale runs in the browser, on the phone or computer you already have in front of you.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>openLN guides</span>
+    <a href="https://openln.com">openln.com</a>
+    <a href="https://openln.com/app">Open the POS</a>
+    <span style="margin-left:auto">Screenshots from the openLN app.</span>
+  </footer>
+</div>
+</body>
+</html>

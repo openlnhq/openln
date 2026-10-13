@@ -2072,6 +2072,7 @@ function walletModal(){
    the current step; when done it lists the login (email + password) so the
    owner can take over at rizful.com whenever they want. */
 let rzfTimer=null;
+let rzfLastStatus=null;
 async function loadRizfulProvision(){
   const body=$('#rzfBody'); if(!body)return;
   let p=null;
@@ -2093,6 +2094,8 @@ function rzfWireTerms(){
 }
 function renderRizful(p){
   const body=$('#rzfBody'); if(!body)return;
+  const rzfPrev=rzfLastStatus;
+  rzfLastStatus=p?p.status:null;
   if(rzfTimer){clearTimeout(rzfTimer);rzfTimer=null}
   if(!p){
     body.innerHTML=`${rzfTermsRow()}
@@ -2151,6 +2154,14 @@ function renderRizful(p){
     if(g){rzfWireTerms();g.onclick=startRizfulProvision}
     const rb=$('#rzfRelink');
     if(rb)rb.onclick=async()=>{rb.disabled=true;rb.textContent='Re-linking…';try{await api('/api/wallet/rizful/relink',{method:'POST',body:'{}'});toast('Wallet re-linked');loadWalletConnections();loadRizfulProvision()}catch(e){toast(e.message||'Could not re-link');rb.disabled=false;rb.textContent='Re-link this wallet'}};
+  }
+  if(rzfPrev==='pending'||rzfPrev==='running'){
+    /* The run just finished while the user watched: refresh the whole settings
+       view so the new wallet shows up in Saved wallets (and the wallet box)
+       without a manual reload. Scroll position is preserved. */
+    toast('Rizful wallet connected');
+    const rzfY=window.scrollY;
+    render().then(()=>{try{window.scrollTo(0,rzfY)}catch(e){}});
   }
 }
 async function startRizfulProvision(){

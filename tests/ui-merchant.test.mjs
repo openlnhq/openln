@@ -119,6 +119,11 @@ test('wallet connections: several wallets on file, per-feature assignment, capab
   assert.ok(set.includes('setConnList')&&set.includes('loadWalletConnections'),'the Settings wallet card lists every saved wallet');
   assert.ok(set.includes('rzfCard')&&set.includes('loadRizfulProvision'),'Settings offers the Rizful one-click wallet');
   assert.ok(html.includes('startRizfulProvision')&&html.includes('/api/wallet/rizful/provision'),'the Rizful flow is wired end to end');
+  assert.ok(html.includes('rzfTerms')&&html.includes('https://rizful.com/terms'),'creating a Rizful wallet requires accepting the terms');
+  assert.ok(html.includes('acceptTerms:true'),'the start call records terms acceptance');
+  assert.ok(html.includes('rzf-fill')&&html.includes('rzfPct'),'the Rizful run shows an electric progress bar');
+  assert.ok(html.includes('data-rzfpw')&&html.includes('data-rzfsee'),'the Rizful password stays masked with a See toggle');
+  assert.ok(html.includes('rizful.com/create-account'),'a failed Rizful setup points the merchant at rizful.com');
   assert.ok(html.includes("loadConnectionsFor('ric',"),'the RIC section assigns its wallet');
   assert.ok(html.includes("loadConnectionsFor('cards',"),'the Cards section assigns its wallet');
   const modal=html.slice(html.indexOf('function walletModal('),html.indexOf('async function loadAuthedImage('));

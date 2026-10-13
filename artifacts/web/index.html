@@ -2077,41 +2077,65 @@ async function loadRizfulProvision(){
   try{const d=await api('/api/wallet/rizful/provision');p=d&&d.provision}catch(e){}
   renderRizful(p);
 }
+/* --- Rizful one-click helpers: the mask, the terms gate, and the electric
+   progress bar shown while a registration is in flight. --- */
+const RZF_MASK='************';
+function rzfPct(step){const m={'Starting':8,'Creating a temporary inbox':14,'Opening the Rizful signup':24,'Passing the bot check':38,'Creating your Rizful account':52,'Waiting for the verification email':66,'Verifying the email':78,'Fetching the one-time code':87,'Linking the wallet (NWC)':94,'Finishing up':98};return m[step]||10}
+function rzfTermsRow(){return `<label style="display:flex;gap:8px;align-items:flex-start;margin:0 0 10px;font-size:12.5px;line-height:1.5;cursor:pointer">
+  <input type="checkbox" id="rzfTerms" style="margin-top:3px;accent-color:var(--accent)">
+  <span>I accept Rizful's <a href="https://rizful.com/terms" target="_blank" rel="noopener" style="color:var(--teal)">terms</a>.</span></label>`}
+function rzfWireTerms(){
+  const go=$('#rzfGo'),t=$('#rzfTerms');
+  if(!go||!t)return;
+  const sync=()=>{go.disabled=!t.checked;go.style.opacity=t.checked?'':'0.55'};
+  sync(); t.onchange=sync;
+}
 function renderRizful(p){
   const body=$('#rzfBody'); if(!body)return;
   if(rzfTimer){clearTimeout(rzfTimer);rzfTimer=null}
   if(!p){
-    body.innerHTML=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <button class="btn teal sm" id="rzfGo">Create Rizful wallet</button>
+    body.innerHTML=`${rzfTermsRow()}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn teal sm" id="rzfGo" disabled>Create Rizful wallet</button>
       <span class="dim" style="font-size:12px">About a minute. Credentials shown here when done.</span>
     </div>`;
+    rzfWireTerms();
     $('#rzfGo').onclick=startRizfulProvision;
     return;
   }
   if(p.status==='pending'||p.status==='running'){
-    body.innerHTML=`<div class="dim" style="font-size:12.5px">${esc(p.step||'Working')}…</div>`;
+    const pct=rzfPct(p.step);
+    body.innerHTML=`<div class="rzf-elec">
+      <div class="rzf-bar"><div class="rzf-fill" style="width:${pct}%"></div></div>
+      <div class="rzf-steps"><span>${esc(p.step||'Working')}…</span><span>${pct}%</span></div>
+    </div>`;
     rzfTimer=setTimeout(loadRizfulProvision,2500);
     return;
   }
   if(p.status==='error'){
-    body.innerHTML=`<p style="color:var(--err);font-size:12.5px;margin:0 0 8px">${esc(p.error||'Setup failed')}</p>
-      <button class="btn teal sm" id="rzfGo">Try again</button>`;
+    body.innerHTML=`<p style="color:var(--err);font-size:12.5px;margin:0 0 6px">${esc(p.error||'Setup failed')}</p>
+      <p class="dim" style="font-size:11.5px;margin:0 0 10px;line-height:1.5">No problem: you can create a wallet yourself in about a minute at <a href="https://rizful.com/create-account" target="_blank" rel="noopener" style="color:var(--teal)">rizful.com</a> and connect it here.</p>
+      ${rzfTermsRow()}
+      <div><button class="btn teal sm" id="rzfGo" disabled>Try again</button></div>`;
+    rzfWireTerms();
     $('#rzfGo').onclick=startRizfulProvision;
     return;
   }
   body.innerHTML=`<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
     <div style="font-size:12.5px;font-weight:590">Your Rizful login</div>
     <div style="display:flex;gap:6px;align-items:center;margin:7px 0"><div class="mono" style="font-size:12px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(p.rizfulEmail||'')}</div><button class="btn ghost sm" data-rzfcopy="0">Copy</button></div>
-    <div style="display:flex;gap:6px;align-items:center;margin:7px 0"><div class="mono" style="font-size:12px;flex:1;overflow-wrap:anywhere;user-select:all">${esc(p.rizfulPassword||'')}</div><button class="btn ghost sm" data-rzfcopy="1">Copy</button></div>
+    <div style="display:flex;gap:6px;align-items:center;margin:7px 0"><div class="mono" data-rzfpw style="font-size:12px;flex:1;overflow-wrap:anywhere;user-select:all">${RZF_MASK}</div><button class="btn ghost sm" data-rzfsee>See</button><button class="btn ghost sm" data-rzfcopy="1">Copy</button></div>
     ${p.lightningAddress?`<div class="dim" style="font-size:11.5px;margin-top:4px">${esc(p.lightningAddress)}</div>`:''}
     <div class="dim" style="font-size:11.5px;margin-top:8px;line-height:1.5">Save these. Log in at <a href="https://rizful.com/login" target="_blank" rel="noopener">rizful.com</a> any time${p.connectionSaved?'; the wallet is already linked below':''}.</div>
   </div>`;
   const vals=[p.rizfulEmail||'',p.rizfulPassword||''];
   body.querySelectorAll('[data-rzfcopy]').forEach(b=>{b.onclick=()=>navigator.clipboard.writeText(vals[Number(b.dataset.rzfcopy)]).then(()=>toast('Copied'))});
+  const pwEl=body.querySelector('[data-rzfpw]'),seeB=body.querySelector('[data-rzfsee]');
+  if(pwEl&&seeB){let shown=false;seeB.onclick=()=>{shown=!shown;pwEl.textContent=shown?(p.rizfulPassword||''):RZF_MASK;seeB.textContent=shown?'Hide':'See'}}
 }
 async function startRizfulProvision(){
   try{
-    await api('/api/wallet/rizful/provision',{method:'POST',body:'{}'});
+    await api('/api/wallet/rizful/provision',{method:'POST',body:JSON.stringify({acceptTerms:true})});
     toast('Creating your Rizful wallet');
     renderRizful({status:'pending',step:'Queued'});
   }catch(e){toast(e.message||'Could not start the Rizful setup')}
@@ -3052,6 +3076,16 @@ async function vSettings(version=renderVersion){
         </div>
         <div id="setConnList"></div>
         <div id="rzfCard" style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px">
+          <style>
+          #rzfCard .rzf-bar{position:relative;height:12px;border-radius:999px;background:rgba(128,128,128,.16);border:1px solid var(--line);overflow:hidden}
+          #rzfCard .rzf-fill{position:absolute;top:0;left:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,var(--accent) 0%,#40f5d6 45%,var(--accent) 90%);background-size:220% 100%;animation:rzfFlow 1.5s linear infinite,rzfGlow 1.3s ease-in-out infinite alternate;transition:width .8s cubic-bezier(.22,.61,.36,1)}
+          #rzfCard .rzf-fill::after{content:"";position:absolute;top:-3px;bottom:-3px;right:-2px;width:16px;background:radial-gradient(circle,#fff 0%,rgba(255,255,255,0) 70%);opacity:.85}
+          #rzfCard .rzf-steps{display:flex;justify-content:space-between;gap:10px;margin-top:6px;font-size:11.5px;color:var(--text2)}
+          #rzfCard .rzf-steps span:last-child{font-variant-numeric:tabular-nums;color:var(--teal)}
+          @keyframes rzfFlow{0%{background-position:0% 50%}100%{background-position:220% 50%}}
+          @keyframes rzfGlow{from{box-shadow:0 0 6px var(--accent),0 0 14px rgba(64,245,214,.35)}to{box-shadow:0 0 12px var(--accent),0 0 30px rgba(64,245,214,.65)}}
+          @media (prefers-reduced-motion: reduce){#rzfCard .rzf-fill{animation:none}}
+          </style>
           <div style="font-size:12px;font-weight:590;color:var(--text2)">Rizful wallet (one click)</div>
           <div class="dim" style="font-size:11.5px;margin-top:4px;line-height:1.5">Creates a real Rizful account for you (custodial, by Megalithic), links it as a wallet connection, and shows you the login to keep. Free, no install, good for small balances.</div>
           <div id="rzfBody" style="margin-top:8px"></div>

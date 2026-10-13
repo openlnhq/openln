@@ -25,6 +25,9 @@ export const rizfulProvisionsTable = pgTable("rizful_provisions", {
   mailboxPasswordEncrypted: text("mailbox_password_encrypted"),
   mailboxTokenEncrypted: text("mailbox_token_encrypted"),
   connectionId: uuid("connection_id").references(() => accountConnectionsTable.id, { onDelete: "set null" }),
+  // Consent trail: when the owner accepted Rizful's terms for this run (the
+  // Settings card requires the tick before a run can start).
+  termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

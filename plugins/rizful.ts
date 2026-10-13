@@ -15,7 +15,7 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { and, desc, eq, gte, or } from "drizzle-orm";
-import { db, accountConnectionsTable, rizfulProvisionsTable } from "../core/db/index.js";
+import { db, accountConnectionsTable, accountsTable, entitiesTable, rizfulProvisionsTable } from "../core/db/index.js";
 import { encrypt, decrypt } from "../core/money/encrypt.js";
 import { runRizfulFlow } from "../core/money/rizfulProvision.js";
 import { uniqueConnectionLabel, deriveConnectionLabel } from "../core/money/connections.js";
@@ -23,6 +23,7 @@ import { assignDefaultIfUnset } from "../core/money/walletSource.js";
 import { resolveNwcUrl, getBalance } from "../core/money/nwc.js";
 
 const json = (r: ServerResponse, s: number, b: unknown) => { r.writeHead(s, { "content-type": "application/json" }); r.end(JSON.stringify(b)); return true; };
+async function body(req: IncomingMessage): Promise<Record<string, unknown>> { let raw = ""; for await (const c of req) raw += c; return raw ? JSON.parse(raw) : {}; }
 
 const STALE_MS = 15 * 60_000;
 const RETRY_COOLDOWN_MS = 10 * 60_000;
@@ -124,6 +125,40 @@ async function processProvision(id: string): Promise<void> {
       status: "error", error: message.slice(0, 500), updatedAt: new Date(),
     }).where(eq(rizfulProvisionsTable.id, id)).catch(() => {});
     console.error(`[rizful] provision ${id} failed:`, message);
+    void notifyRizfulFailure(row.accountId, id, message);
+  }
+}
+
+/**
+ * Tell the operator on Telegram when a run fails (env-gated; silent no-op
+ * without RIZFUL_ALERT_BOT_TOKEN + RIZFUL_ALERT_CHAT_ID). The merchant-facing
+ * fallback (retry button + a link to create a wallet manually at rizful.com)
+ * lives in the Settings card; this is the owner's early warning.
+ */
+async function notifyRizfulFailure(accountId: string, provisionId: string, message: string): Promise<void> {
+  const token = process.env.RIZFUL_ALERT_BOT_TOKEN;
+  const chat = process.env.RIZFUL_ALERT_CHAT_ID;
+  if (!token || !chat) return;
+  let handle = accountId.slice(0, 8);
+  try {
+    const [row] = await db.select({ handle: entitiesTable.handle })
+      .from(entitiesTable)
+      .innerJoin(accountsTable, eq(accountsTable.entityId, entitiesTable.id))
+      .where(eq(accountsTable.id, accountId));
+    if (row?.handle) handle = row.handle;
+  } catch { /* the handle is cosmetic; the run id still identifies the failure */ }
+  const label = process.env.RIZFUL_ALERT_LABEL ? ` ${process.env.RIZFUL_ALERT_LABEL}` : "";
+  const text = `openLN${label}: Rizful one-click setup FAILED for "${handle}" (run ${provisionId.slice(0, 8)}).\n${message.slice(0, 300)}\nThe merchant sees a retry button and a link to create a wallet manually at rizful.com.`;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }),
+      signal: AbortSignal.timeout(10000),
+    });
+    console.log(`[rizful] telegram alert ${res.ok ? "sent" : `failed (HTTP ${res.status})`}`);
+  } catch (err) {
+    console.error("[rizful] telegram alert failed:", err instanceof Error ? err.message : err);
   }
 }
 
@@ -145,6 +180,8 @@ export async function handleRizfulRoute(
   }
 
   if (req.method === "POST") {
+    const v: Record<string, unknown> = await body(req).catch(() => ({}));
+    if (v.acceptTerms !== true) { json(res, 400, { error: "Please accept Rizful's terms to continue." }); return true; }
     const [activeRow] = await db.select().from(rizfulProvisionsTable)
       .where(and(
         eq(rizfulProvisionsTable.accountId, account.id),
@@ -166,7 +203,7 @@ export async function handleRizfulRoute(
       return true;
     }
     const [created] = await db.insert(rizfulProvisionsTable).values({
-      accountId: account.id, status: "pending", step: "Queued",
+      accountId: account.id, status: "pending", step: "Queued", termsAcceptedAt: new Date(),
     }).returning();
     enqueue(created.id);
     console.log(`[rizful] provision ${created.id} queued for account ${account.id}`);

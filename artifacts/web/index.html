@@ -502,6 +502,24 @@ table.tb tr:last-child td{border-bottom:0}
 .admrow:hover{background:var(--surface)}
 .admrow .k{font-family:'JetBrains Mono',monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)}
 @media(max-width:820px){.admrow{grid-template-columns:1fr 1fr;grid-auto-rows:auto}}
+/* Grouped wrap rows: one line per sale with a step progress bar. */
+.admw{display:block;width:100%;text-align:left;padding:11px 12px;border-top:1px solid var(--line);cursor:pointer;transition:background .12s;background:none;color:inherit;font:inherit}
+.admw:first-of-type{border-top:0}
+.admw:hover{background:var(--surface)}
+.admwh{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.admwt{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.admwr{display:flex;align-items:center;gap:10px;flex:none}
+.admprog{display:flex;gap:4px;margin-top:9px}
+.admpg{flex:1;min-width:0}
+.admpg i{display:block;height:5px;border-radius:3px;background:var(--line);opacity:.55}
+.admpg i.d{background:var(--teal);opacity:.6}
+.admpg i.c{background:var(--gold);opacity:1}
+.admpg i.f{background:var(--err);opacity:1}
+.admpg span{display:block;font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:.09em;color:var(--text3);margin-top:3px}
+.admpg span.on{color:var(--text2)}
+.admwsub{display:flex;justify-content:space-between;gap:10px;margin-top:7px;flex-wrap:wrap}
+.admbars{display:flex;align-items:flex-end;gap:3px;height:24px;margin-top:7px}
+.admbars i{flex:1;background:var(--teal);opacity:.55;border-radius:2px 2px 0 0;min-height:2px}
 .admpill{display:inline-block;font-size:9.5px;font-weight:590;padding:2.5px 8px;border-radius:999px;letter-spacing:.02em;border:1px solid transparent}
 .admpill.slate{background:var(--surface3);color:var(--text2)}
 .admpill.blue{background:rgba(56,142,229,.14);color:#7db8f0;border-color:rgba(56,142,229,.3)}
@@ -3557,6 +3575,57 @@ function admTxPill(status){
   return `<span class="admpill ${color}">${esc(status)}</span>`;
 }
 function admShort(h,n){ n=n||10; if(!h)return '-'; return h.length>n+3?h.slice(0,n)+'…':h; }
+function admDur(ms){
+  if(ms==null||isNaN(ms))return '-';
+  if(ms<950)return Math.max(1,Math.round(ms))+'ms';
+  const s=ms/1000; if(s<10)return s.toFixed(1)+'s';
+  if(s<90)return Math.round(s)+'s';
+  const m=s/60; if(m<90)return (m<10?m.toFixed(1):String(Math.round(m)))+'m';
+  const h=m/60; return (h<10?h.toFixed(1):String(Math.round(h)))+'h';
+}
+const ADM_STEP_LABELS={created:'HOLD',accepted:'PAID',forwarding:'FWD',forwarded:'MRCH',settled:'SETL'};
+function admDelta(a,b){ const x=a?new Date(a).getTime():0, y=b?new Date(b).getTime():0; return x&&y?Math.max(0,x-y):null; }
+// Timing summary for a wrap: live age while the flow runs, last observed span
+// once it stops; color = health band (green under 30s, amber under 2m, red past).
+function admStepInfo(w){
+  const s=w.steps||{};
+  const created=s.created?new Date(s.created).getTime():0;
+  const last = (s.settled&&new Date(s.settled).getTime())||(s.forwarded&&new Date(s.forwarded).getTime())||(s.forwarding&&new Date(s.forwarding).getTime())||(s.accepted&&new Date(s.accepted).getTime())||0;
+  const open=!['settled','cancelled'].includes(w.wrapStatus||'');
+  const totalMs=created?(open?Math.max(0,Date.now()-created):(last?Math.max(0,last-created):null)):null;
+  let color='var(--text2)';
+  if(w.wrapStatus==='needs_reconciliation')color='var(--err)';
+  else if(totalMs!=null&&totalMs>=120000)color='var(--err)';
+  else if(totalMs!=null&&totalMs>=30000)color='var(--gold)';
+  const tip=[];
+  const tm=v=>new Date(v).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  if(s.created)tip.push('opened '+tm(s.created));
+  const pay=admDelta(s.accepted,s.created); if(pay!=null)tip.push('customer paid +'+admDur(pay));
+  const fwd=admDelta(s.forwarded,s.accepted); if(fwd!=null)tip.push('merchant paid +'+admDur(fwd));
+  const set=admDelta(s.settled,s.forwarded); if(set!=null)tip.push('settled +'+admDur(set));
+  if(open&&created)tip.push('open for '+admDur(Date.now()-created));
+  return {totalMs,color,tip:tip.join(' · ')};
+}
+function admProgressBar(w){
+  const cells=(w.pipeline||[]).map(s=>{
+    const cls=s.failed?'f':s.current?'c':s.done?'d':'';
+    const at=(w.steps||{})[s.key];
+    const tt=ADM_STEP_LABELS[s.key]||s.key;
+    const tip=at?`${tt} · ${new Date(at).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}`:tt;
+    return `<div class="admpg"><i class="${cls}" title="${esc(tip)}"></i><span class="${cls?'on':''}">${tt}</span></div>`;
+  }).join('');
+  return `<div class="admprog">${cells}</div>`;
+}
+function admStepsLine(st){
+  const tm=v=>new Date(v).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const parts=[];
+  if(st.created)parts.push(`opened ${tm(st.created)}`);
+  const pay=admDelta(st.accepted,st.created); if(pay!=null)parts.push(`+${admDur(pay)} customer paid`);
+  const fwd=admDelta(st.forwarded,st.accepted); if(fwd!=null)parts.push(`+${admDur(fwd)} merchant paid`);
+  const set=admDelta(st.settled,st.forwarded); if(set!=null)parts.push(`+${admDur(set)} settled`);
+  if(st.totalMs!=null)parts.push(`total ${admDur(st.totalMs)}`);
+  return `<div class="mono" style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.8">${parts.join(' <span class="dim">·</span> ')}</div>`;
+}
 async function anaOpen(kind){
   const targets={cockpit:'/traffic/',live:'/traffic/live/',insights:'/at/insights'};
   const manual={cockpit:'https://openln.com/traffic/',live:'https://openln.com/traffic/live/',insights:'https://openln.com/insights/'};
@@ -3613,6 +3682,8 @@ function admStartListPoll(){
 }
 async function admRenderList(silent){
   const body=$('#admBody'); if(!body) return;
+  // Live poll must never yank the DOM out from under a typing operator.
+  if(silent && document.activeElement && document.activeElement.id==='admSearch') return;
   try{
     const params=new URLSearchParams();
     if(ADM_Q) params.set('q',ADM_Q);
@@ -3656,33 +3727,60 @@ async function admRenderList(silent){
   }catch(e){ if(!silent) body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
 }
 function admTreasuryBlock(T){
+  const W=T.revenue.windows||{};
+  const win=k=>(W[k]||{wraps:0,feeSats:0,volumeSats:0});
+  const d1=win('d1'), d7=win('d7'), d30=win('d30');
+  const daily=T.revenue.daily||[];
+  const maxF=Math.max(1,...daily.map(d=>d.feeSats));
+  const bars=daily.map(d=>`<i style="height:${Math.max(2,Math.round(d.feeSats/maxF*20))}px" title="${esc(d.date)} · ${d.wraps} wraps · ${fmt(d.feeSats)} fee · ${fmt(d.volumeSats)} vol"></i>`).join('');
+  const avgMs=T.last24h.avgSettleMs;
   return `<div class="admgrid">
     <div class="admstat"><div class="lbl">Float balance</div><div class="val ${T.float.balanceSats==null?'r':(T.float.availableSats??0)<1000?'a':'g'}">${T.float.balanceSats==null?'ERR':fmt(T.float.balanceSats)}</div><div class="sub">${T.float.error?prose(T.float.error):`avail ${fmt(T.float.availableSats)} · obl ${fmt(T.float.obligationSats)}`}</div></div>
     <div class="admstat"><div class="lbl">Fee revenue</div><div class="val g">${fmt(T.revenue.feeRevenueSats)}</div><div class="sub">${T.revenue.settledWraps} wraps · ${T.revenue.effectiveFeeBps} bps eff</div></div>
     <div class="admstat"><div class="lbl">Wrapped volume</div><div class="val">${fmt(T.revenue.wrappedVolumeSats)}</div><div class="sub">merchant got ${fmt(T.revenue.merchantPaidSats)}</div></div>
     <div class="admstat"><div class="lbl">Open wraps</div><div class="val ${T.wraps.stuck>0?'r':T.float.openWraps>0?'a':''}">${T.float.openWraps}/${T.float.openCap}</div><div class="sub">${fmt(T.wraps.openVolumeSats)} sats locked</div></div>
     <div class="admstat"><div class="lbl">Needs recon</div><div class="val ${T.wraps.stuck>0?'r':''}">${T.wraps.stuck}</div><div class="sub">${T.wraps.cancelled} cancelled · ${fmt(T.revenue.cancelledVolumeSats)} sats</div></div>
-    <div class="admstat"><div class="lbl">24h</div><div class="val ${T.last24h.sendFails>0?'a':''}">${T.last24h.wrapsSettled} wraps</div><div class="sub">fee ${fmt(T.last24h.feeSats)} · send fail ${T.last24h.sendFails}</div></div>
+    <div class="admstat"><div class="lbl">24h</div><div class="val ${T.last24h.sendFails>0?'a':''}">${T.last24h.wrapsSettled} wraps</div><div class="sub">fee ${fmt(T.last24h.feeSats)}${avgMs!=null?` · avg ${admDur(avgMs)}`:''} · send fail ${T.last24h.sendFails}</div></div>
+  </div>
+  <div class="admgrid" style="margin-top:8px">
+    <div class="admstat"><div class="lbl">Earned · 24h</div><div class="val g">${fmt(d1.feeSats)}</div><div class="sub">${d1.wraps} wraps · ${fmt(d1.volumeSats)} vol</div></div>
+    <div class="admstat"><div class="lbl">Earned · 7 days</div><div class="val g">${fmt(d7.feeSats)}</div><div class="sub">${d7.wraps} wraps · ${fmt(d7.volumeSats)} vol</div></div>
+    <div class="admstat"><div class="lbl">Earned · 30 days</div><div class="val g">${fmt(d30.feeSats)}</div><div class="sub">${d30.wraps} wraps · ${fmt(d30.volumeSats)} vol</div></div>
+    <div class="admstat" style="grid-column:span 2;min-width:220px"><div class="lbl">Daily fee · 14 days</div><div class="admbars">${daily.some(d=>d.feeSats>0)?bars:'<span class="sub">no settled wraps yet</span>'}</div></div>
   </div>
   <p class="dim" style="font-size:11px;margin-top:8px;max-width:720px">${prose(T.mix.note)} Wrapped ${fmt(T.mix.wrappedInvoices)} · direct ${fmt(T.mix.directInvoices)}. Tx in ${fmt(T.transactions.volumeInSats)} · out ${fmt(T.transactions.volumeOutSats)} · fail ${T.transactions.failedOut}.</p>`;
 }
 function admRowsHtml(data){
-  const rows=[];
-  for(const w of (data.wraps||[])) rows.push({sort:w.createdAt,html:admWrapRow(w)});
-  for(const t of (data.transactions||[])) rows.push({sort:t.createdAt,html:admTxRow(t)});
-  rows.sort((a,b)=>b.sort.localeCompare(a.sort));
-  if(!rows.length) return `<div style="text-align:center;color:var(--text3);font-size:13px;padding:32px 0">No payments match.</div>`;
-  return rows.map(r=>r.html).join('');
+  const list=data.payments;
+  if(!list||!list.length) return `<div style="text-align:center;color:var(--text3);font-size:13px;padding:32px 0">No payments match.</div>`;
+  return list.map(p=>p.kind==='wrap'?admWrapRow(p):admTxRow(p.tx)).join('');
 }
-function admWrapRow(w){
+// One row per sale: the hold wrap, its step progress bar, its timing summary
+// and its own transaction legs (payer row + merchant receive row folded in).
+function admWrapRow(p){
+  const w=p.wrap||p;
+  const legs=p.legs||[];
   const meta=ADM_STATUS_META[w.wrapStatus||'created']||ADM_STATUS_META.created;
-  return `<button type="button" class="admrow" data-adm-id="${esc(w.id)}">
-    <div class="k" style="color:var(--teal)">Hold wrap</div>
-    <div>${admPill(w.wrapStatus,meta.label)}</div>
-    <div class="mono" style="font-size:10.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">L1 ${admShort(w.paymentHash,8)} · L2 ${admShort(w.merchantPaymentHash,8)}${w.memo?' · '+prose(w.memo):''}</div>
-    <div class="mono" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${w.handle?'@'+esc(w.handle):'-'}${w.businessName?` <span class="dim">· ${esc(w.businessName)}</span>`:''}</div>
-    <div style="text-align:right"><div style="font-weight:590">${fmt(w.amountSats)}</div>${(w.feeSats||0)>0?`<div class="mono" style="font-size:9.5px;color:var(--gold)">fee ${fmt(w.feeSats)}</div>`:''}</div>
-    <div class="mono dim" style="font-size:9.5px">${ago(w.createdAt)}</div>
+  const st=admStepInfo(w);
+  const legTxt=legs.slice(0,3).map(t=>`${t.direction==='out'?'payer':'merchant'} ${fmt(t.amountSats)} ${t.status==='completed'?'ok':esc(t.status)}`).join(' · ')+(legs.length>3?` +${legs.length-3}`:'');
+  return `<button type="button" class="admw" data-adm-id="${esc(w.id)}">
+    <div class="admwh">
+      <div class="admwt">
+        <b class="mono" style="font-size:14px">${fmt(w.amountSats)}</b> <span class="dim" style="font-size:10.5px">sats</span>
+        ${admPill(w.wrapStatus,meta.label)}
+        <span class="dim" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px">${w.handle?'@'+esc(w.handle):''}${w.memo?' · '+prose(w.memo):''}</span>
+      </div>
+      <div class="admwr">
+        ${(w.feeSats||0)>0?`<span class="mono" style="font-size:10.5px;color:var(--gold)">+${fmt(w.feeSats)} fee</span>`:''}
+        <span class="mono" style="font-size:10.5px;color:${st.color}" title="${esc(st.tip)}">${st.totalMs==null?'-':admDur(st.totalMs)}</span>
+        <span class="mono dim" style="font-size:9.5px">${ago(w.createdAt)}</span>
+      </div>
+    </div>
+    ${admProgressBar(w)}
+    <div class="admwsub">
+      <span class="mono dim" style="font-size:9.5px">L1 ${admShort(w.paymentHash,8)} · L2 ${admShort(w.merchantPaymentHash,8)}</span>
+      ${legTxt?`<span class="mono" style="font-size:9.5px;color:var(--text3)">${legTxt}</span>`:''}
+    </div>
   </button>`;
 }
 function admTxRow(t){
@@ -3728,6 +3826,7 @@ async function admRenderDetail(id,silent){
           <span class="admpill ${statusColor}" style="font-size:11px;padding:4px 10px">${esc(d.invoice?.wrapStatus||d.transaction?.status||'')}${statusLabel?' · '+esc(statusLabel):''}</span>
         </div>
         ${d.pipeline?admPipelineBlock(d):''}
+        ${d.steps?admStepsLine(d.steps):''}
         <div class="admkv">
           ${admKv('ID',d.invoice?.id||d.transaction?.id)}
           ${admKv('Payment hash',d.invoice?.paymentHash||d.transaction?.paymentHash)}
@@ -3748,6 +3847,7 @@ async function admRenderDetail(id,silent){
           ${d.actions?.canLookup?'<button class="btn ghost sm" data-adm-act="lookup">Live NWC lookup</button>':''}
           ${d.actions?.canRemediateTx?'<button class="btn ghost sm" data-adm-act="remediate">Remediate tx</button>':''}
           ${d.actions?.canRemediateTx?'<button class="btn ghost sm dangerText" data-adm-act="force-remediate">Force remediate</button>':''}
+          ${d.actions?.canCancelHold?'<button class="btn ghost sm dangerText" data-adm-act="cancel-hold">Close stuck checkout</button>':''}
         </div>
         <div class="copyrow">
           <input class="input" id="admNote" placeholder="Ops note…" value="${esc(noteVal)}">
@@ -3771,6 +3871,7 @@ async function admRenderDetail(id,silent){
         else if(act==='lookup') out=await api(`/api/admin/payments/${encodeURIComponent(id)}/lookup`,{method:'POST',body:JSON.stringify({})});
         else if(act==='remediate'){ if(!confirm('Mark completed only with proof?'))return; out=await api(`/api/admin/payments/${encodeURIComponent(id)}/remediate-tx`,{method:'POST',body:JSON.stringify({})}); }
         else if(act==='force-remediate'){ if(!confirm('FORCE without wallet proof?'))return; out=await api(`/api/admin/payments/${encodeURIComponent(id)}/remediate-tx`,{method:'POST',body:JSON.stringify({force:true})}); }
+        else if(act==='cancel-hold'){ if(!confirm('Close this checkout? The hold is cancelled only if the customer never paid. If the payment arrived, the wrap advances instead and no funds are lost.'))return; out=await api(`/api/admin/payments/${encodeURIComponent(id)}/cancel-hold`,{method:'POST',body:JSON.stringify({})}); }
         showMsg(JSON.stringify(out,null,2));
         await admRenderDetail(id);
       }catch(e){ showMsg(e.message); }

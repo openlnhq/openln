@@ -20,8 +20,8 @@ import {
   accountsTable,
   entitiesTable,
 } from "../db/index.js";
-import { and, or, eq, desc, sql, ilike, isNotNull, inArray } from "drizzle-orm";
-import { advanceWrap, type WrapRow } from "../money/holdWrap.js";
+import { and, or, eq, desc, asc, gte, sql, ilike, isNotNull, inArray } from "drizzle-orm";
+import { advanceWrap, cancelWrap, type WrapRow } from "../money/holdWrap.js";
 import {
   lookupInvoice,
   lookupOutgoingPayment,
@@ -69,6 +69,132 @@ const WRAP_STATUS_META: Record<
 };
 
 const PIPELINE_STEPS = ["created", "accepted", "forwarding", "forwarded", "settled"] as const;
+
+// Wrap step timing: each transition is recorded in payment_events by the wrap
+// engine (wrap.transition.<to>; wrap.settled at the end). Collect the earliest
+// occurrence per step and derive per-leg durations for the ops UI.
+const WRAP_STEP_EVENTS = [
+  "wrap.transition.accepted",
+  "wrap.transition.forwarding",
+  "wrap.transition.forwarded",
+  "wrap.settled",
+] as const;
+const STEP_EVENT_TO_KEY: Record<string, "accepted" | "forwarding" | "forwarded" | "settled"> = {
+  "wrap.transition.accepted": "accepted",
+  "wrap.transition.forwarding": "forwarding",
+  "wrap.transition.forwarded": "forwarded",
+  "wrap.settled": "settled",
+};
+
+type WrapStepTimes = Partial<Record<"accepted" | "forwarding" | "forwarded" | "settled", Date>>;
+
+export type WrapSteps = {
+  created: string | null;
+  accepted: string | null;
+  forwarding: string | null;
+  forwarded: string | null;
+  settled: string | null;
+  // Derived leg durations (ms). payMs: customer pay; forwardMs: platform pays
+  // merchant after acceptance; settleMs: hold settle after the forward;
+  // totalMs: created -> last observed step.
+  payMs: number | null;
+  forwardMs: number | null;
+  settleMs: number | null;
+  totalMs: number | null;
+};
+
+function stepsFromTimestamps(
+  inv: { createdAt: Date; paidAt: Date | null },
+  times: WrapStepTimes,
+): WrapSteps {
+  const settled = times.settled ?? inv.paidAt ?? null;
+  const ms = (a: Date | null, b: Date | null) => (a && b ? Math.max(0, a.getTime() - b.getTime()) : null);
+  const last = settled ?? times.forwarded ?? times.forwarding ?? times.accepted ?? null;
+  return {
+    created: inv.createdAt.toISOString(),
+    accepted: times.accepted?.toISOString() ?? null,
+    forwarding: times.forwarding?.toISOString() ?? null,
+    forwarded: times.forwarded?.toISOString() ?? null,
+    settled: settled?.toISOString() ?? null,
+    payMs: ms(times.accepted ?? null, inv.createdAt),
+    forwardMs: ms(times.forwarded ?? null, times.accepted ?? null),
+    settleMs: ms(settled, times.forwarded ?? null),
+    totalMs: ms(last, inv.createdAt),
+  };
+}
+
+// Fold the earliest event per step per wrap. Events are keyed sometimes by the
+// wrap row id, sometimes by the hold payment hash (see the wrap engine's
+// recordPaymentEvent calls), so match on both.
+function collectStepTimes(
+  rows: Array<{ paymentId: string; paymentHash: string | null; event: string; createdAt: Date }>,
+  wraps: Array<{ id: string; paymentHash: string }>,
+): Map<string, WrapStepTimes> {
+  const byId = new Map<string, WrapStepTimes>();
+  const byHash = new Map<string, WrapStepTimes>();
+  const idSet = new Set(wraps.map((w) => w.id));
+  const hashToId = new Map(wraps.map((w) => [w.paymentHash, w.id]));
+  for (const e of rows) {
+    const key = STEP_EVENT_TO_KEY[e.event];
+    if (!key) continue;
+    if (idSet.has(e.paymentId)) {
+      const cur = byId.get(e.paymentId) ?? {};
+      if (!cur[key]) cur[key] = e.createdAt;
+      byId.set(e.paymentId, cur);
+    }
+    const idForHash = e.paymentHash ? hashToId.get(e.paymentHash) : undefined;
+    if (idForHash) {
+      const cur = byHash.get(idForHash) ?? {};
+      if (!cur[key]) cur[key] = e.createdAt;
+      byHash.set(idForHash, cur);
+    }
+  }
+  const merged = new Map<string, WrapStepTimes>();
+  for (const w of wraps) {
+    const a = byId.get(w.id) ?? {};
+    const b = byHash.get(w.id) ?? {};
+    const out: WrapStepTimes = {};
+    for (const k of ["accepted", "forwarding", "forwarded", "settled"] as const) {
+      const av = a[k];
+      const bv = b[k];
+      out[k] = av && bv ? (av < bv ? av : bv) : av ?? bv ?? undefined;
+    }
+    merged.set(w.id, out);
+  }
+  return merged;
+}
+
+// Build the wrap-engine row shape from a pending_invoices record (shared by
+// the admin advance and cancel actions).
+function invToWrapRow(inv: typeof pendingInvoicesTable.$inferSelect): WrapRow {
+  return {
+    id: inv.id,
+    accountId: inv.accountId,
+    paymentHash: inv.paymentHash,
+    amountSats: inv.amountSats,
+    merchantBolt11: inv.merchantBolt11,
+    merchantPaymentHash: inv.merchantPaymentHash,
+    feeSats: inv.feeSats,
+    memo: inv.memo,
+    deviceMac: inv.deviceMac,
+    bolt11: inv.bolt11,
+    wrapStatus: inv.wrapStatus,
+    preimage: inv.preimage,
+    holdPreimage: inv.holdPreimage,
+    wrapUpdatedAt: inv.wrapUpdatedAt,
+    nwcUrlEncrypted: inv.nwcUrlEncrypted,
+    paidAt: inv.paidAt,
+    expiresAt: inv.expiresAt,
+    fiatCurrency: inv.fiatCurrency,
+    fiatAmount: inv.fiatAmount,
+    fiatBaseRate: inv.fiatBaseRate,
+    fiatEffectiveRate: inv.fiatEffectiveRate,
+    fiatModifier: inv.fiatModifier,
+    fiatRateSource: inv.fiatRateSource,
+    fiatRateDirection: inv.fiatRateDirection,
+    fiatRateAt: inv.fiatRateAt,
+  };
+}
 
 function buildSyntheticTimeline(inv: {
   id: string;
@@ -271,13 +397,63 @@ async function loadTreasury() {
 
   // Last 24h activity
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [last24] = await db
     .select({
       wrapsSettled: sql<number>`count(*) filter (where ${pendingInvoicesTable.wrapStatus} = 'settled' and ${pendingInvoicesTable.paidAt} >= ${dayAgo})::int`,
       feeSats: sql<number>`coalesce(sum(${pendingInvoicesTable.feeSats}) filter (where ${pendingInvoicesTable.wrapStatus} = 'settled' and ${pendingInvoicesTable.paidAt} >= ${dayAgo}), 0)::int`,
       volumeSats: sql<number>`coalesce(sum(${pendingInvoicesTable.amountSats}) filter (where ${pendingInvoicesTable.wrapStatus} = 'settled' and ${pendingInvoicesTable.paidAt} >= ${dayAgo}), 0)::int`,
+      avgSettleMs: sql<number | null>`(avg(extract(epoch from (${pendingInvoicesTable.paidAt} - ${pendingInvoicesTable.createdAt})) * 1000) filter (where ${pendingInvoicesTable.wrapStatus} = 'settled' and ${pendingInvoicesTable.paidAt} >= ${dayAgo}))::int`,
     })
     .from(pendingInvoicesTable);
+
+  // Earnings windows + a 14-day daily series (settled wraps only; gross fee).
+  const [winAgg] = await db
+    .select({
+      d1Wraps: sql<number>`count(*) filter (where ${pendingInvoicesTable.paidAt} >= ${dayAgo})::int`,
+      d1Fees: sql<number>`coalesce(sum(${pendingInvoicesTable.feeSats}) filter (where ${pendingInvoicesTable.paidAt} >= ${dayAgo}), 0)::int`,
+      d1Volume: sql<number>`coalesce(sum(${pendingInvoicesTable.amountSats}) filter (where ${pendingInvoicesTable.paidAt} >= ${dayAgo}), 0)::int`,
+      d7Wraps: sql<number>`count(*) filter (where ${pendingInvoicesTable.paidAt} >= ${weekAgo})::int`,
+      d7Fees: sql<number>`coalesce(sum(${pendingInvoicesTable.feeSats}) filter (where ${pendingInvoicesTable.paidAt} >= ${weekAgo}), 0)::int`,
+      d7Volume: sql<number>`coalesce(sum(${pendingInvoicesTable.amountSats}) filter (where ${pendingInvoicesTable.paidAt} >= ${weekAgo}), 0)::int`,
+      d30Wraps: sql<number>`count(*) filter (where ${pendingInvoicesTable.paidAt} >= ${monthAgo})::int`,
+      d30Fees: sql<number>`coalesce(sum(${pendingInvoicesTable.feeSats}) filter (where ${pendingInvoicesTable.paidAt} >= ${monthAgo}), 0)::int`,
+      d30Volume: sql<number>`coalesce(sum(${pendingInvoicesTable.amountSats}) filter (where ${pendingInvoicesTable.paidAt} >= ${monthAgo}), 0)::int`,
+      d30AvgSettleMs: sql<number | null>`(avg(extract(epoch from (${pendingInvoicesTable.paidAt} - ${pendingInvoicesTable.createdAt})) * 1000) filter (where ${pendingInvoicesTable.paidAt} >= ${monthAgo}))::int`,
+    })
+    .from(pendingInvoicesTable)
+    .where(eq(pendingInvoicesTable.wrapStatus, "settled"));
+
+  const dailyRows = await db
+    .select({
+      date: sql<string>`to_char(date_trunc('day', ${pendingInvoicesTable.paidAt}), 'YYYY-MM-DD')`,
+      wraps: sql<number>`count(*)::int`,
+      feeSats: sql<number>`coalesce(sum(${pendingInvoicesTable.feeSats}), 0)::int`,
+      volumeSats: sql<number>`coalesce(sum(${pendingInvoicesTable.amountSats}), 0)::int`,
+    })
+    .from(pendingInvoicesTable)
+    .where(
+      and(
+        eq(pendingInvoicesTable.wrapStatus, "settled"),
+        isNotNull(pendingInvoicesTable.paidAt),
+        gte(pendingInvoicesTable.paidAt, monthAgo),
+      ),
+    )
+    .groupBy(sql`date_trunc('day', ${pendingInvoicesTable.paidAt})`)
+    .orderBy(sql`date_trunc('day', ${pendingInvoicesTable.paidAt})`);
+  const dailyMap = new Map(dailyRows.map((r) => [r.date, r]));
+  const daily: Array<{ date: string; wraps: number; feeSats: number; volumeSats: number }> = [];
+  for (let i = 13; i >= 0; i--) {
+    const key = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const row = dailyMap.get(key);
+    daily.push({
+      date: key,
+      wraps: row?.wraps ?? 0,
+      feeSats: row?.feeSats ?? 0,
+      volumeSats: row?.volumeSats ?? 0,
+    });
+  }
 
   const [tx24] = await db
     .select({
@@ -309,6 +485,12 @@ async function loadTreasury() {
         (wrapAgg?.wrappedVolumeSats ?? 0) > 0
           ? Math.round(((wrapAgg?.feeRevenueSats ?? 0) / (wrapAgg?.wrappedVolumeSats ?? 1)) * 10000)
           : 0,
+      windows: {
+        d1: { wraps: winAgg?.d1Wraps ?? 0, feeSats: winAgg?.d1Fees ?? 0, volumeSats: winAgg?.d1Volume ?? 0 },
+        d7: { wraps: winAgg?.d7Wraps ?? 0, feeSats: winAgg?.d7Fees ?? 0, volumeSats: winAgg?.d7Volume ?? 0 },
+        d30: { wraps: winAgg?.d30Wraps ?? 0, feeSats: winAgg?.d30Fees ?? 0, volumeSats: winAgg?.d30Volume ?? 0 },
+      },
+      daily,
     },
     mix: {
       wrappedInvoices: wrapAgg?.wrappedTotal ?? 0,
@@ -331,6 +513,7 @@ async function loadTreasury() {
       wrapsSettled: last24?.wrapsSettled ?? 0,
       feeSats: last24?.feeSats ?? 0,
       wrapVolumeSats: last24?.volumeSats ?? 0,
+      avgSettleMs: last24?.avgSettleMs ?? null,
       sends: tx24?.sends ?? 0,
       sendFails: tx24?.sendFails ?? 0,
       sendVolumeSats: tx24?.sendVolume ?? 0,
@@ -522,38 +705,110 @@ export async function handleAdminPaymentsRoute(
         hashPairs.set(t.paymentHash, slot);
       }
 
+      // Wrap step timings from payment_events: earliest occurrence per step,
+      // matched on wrap id or hold payment hash (the engine records both shapes).
+      const wrapHashes = wraps.map((w) => w.paymentHash).filter((h): h is string => !!h);
+      const stepRows =
+        wraps.length === 0
+          ? []
+          : await db
+              .select({
+                paymentId: paymentEventsTable.paymentId,
+                paymentHash: paymentEventsTable.paymentHash,
+                event: paymentEventsTable.event,
+                createdAt: paymentEventsTable.createdAt,
+              })
+              .from(paymentEventsTable)
+              .where(
+                and(
+                  inArray(paymentEventsTable.event, [...WRAP_STEP_EVENTS]),
+                  or(
+                    inArray(paymentEventsTable.paymentId, wraps.map((w) => w.id)),
+                    wrapHashes.length ? inArray(paymentEventsTable.paymentHash, wrapHashes) : sql`false`,
+                  ),
+                ),
+              )
+              .orderBy(asc(paymentEventsTable.createdAt));
+      const stepTimes = collectStepTimes(
+        stepRows,
+        wraps.map((w) => ({ id: w.id, paymentHash: w.paymentHash })),
+      );
+
       const treasury = includeTreasury ? await loadTreasury() : null;
 
+      const wrapEntries = wraps.map((w) => {
+        const meta = WRAP_STATUS_META[w.wrapStatus ?? "created"] ?? WRAP_STATUS_META.created;
+        const step = meta.step;
+        const termFail = w.wrapStatus === "cancelled" || w.wrapStatus === "needs_reconciliation";
+        return {
+          ...w,
+          kind: "wrap" as const,
+          statusMeta: meta,
+          pipeline: PIPELINE_STEPS.map((s, i) => ({
+            key: s,
+            done: termFail ? false : step >= 0 && i <= step,
+            current: termFail ? false : PIPELINE_STEPS[step] === s,
+            failed: termFail && s === "created",
+          })),
+          firstMile: {
+            label: "Customer → Hold",
+            hash: w.paymentHash,
+            amountSats: w.amountSats,
+            done: ["accepted", "forwarding", "forwarded", "settled"].includes(w.wrapStatus ?? ""),
+          },
+          lastMile: {
+            label: "Float → Merchant",
+            hash: w.merchantPaymentHash,
+            amountSats: w.amountSats - (w.feeSats ?? 0),
+            feeSats: w.feeSats,
+            done: ["forwarded", "settled"].includes(w.wrapStatus ?? ""),
+          },
+          steps: stepsFromTimestamps(w, stepTimes.get(w.id) ?? {}),
+        };
+      });
+
+      // One entry per sale: each wrap carries its own transaction legs (the
+      // payer row and the merchant receive row share the hold payment hash).
+      // Transactions with no wrap on this page stay standalone rows.
+      const wrapIdByHash = new Map<string, string>();
+      for (const w of wraps) {
+        if (w.paymentHash) wrapIdByHash.set(w.paymentHash, w.id);
+        if (w.merchantPaymentHash) wrapIdByHash.set(w.merchantPaymentHash, w.id);
+      }
+      const legsByWrap = new Map<string, typeof txs>();
+      const standalone: typeof txs = [];
+      for (const t of txs) {
+        const wid = t.paymentHash ? wrapIdByHash.get(t.paymentHash) : undefined;
+        if (wid) {
+          const arr = legsByWrap.get(wid) ?? [];
+          arr.push(t);
+          legsByWrap.set(wid, arr);
+        } else {
+          standalone.push(t);
+        }
+      }
+      const payments = [
+        ...wrapEntries.map((w) => ({
+          id: w.id,
+          kind: "wrap" as const,
+          createdAt: (w.createdAt as Date).toISOString(),
+          wrap: w,
+          legs: (legsByWrap.get(w.id) ?? []).map((t) => ({
+            ...t,
+            pair: t.paymentHash ? hashPairs.get(t.paymentHash) ?? null : null,
+          })),
+        })),
+        ...standalone.map((t) => ({
+          id: t.id,
+          kind: "tx" as const,
+          createdAt: (t.createdAt as Date).toISOString(),
+          tx: { ...t, kind: "tx" as const, pair: t.paymentHash ? hashPairs.get(t.paymentHash) ?? null : null },
+        })),
+      ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
       return json(res, 200, {
-        wraps: wraps.map((w) => {
-          const meta = WRAP_STATUS_META[w.wrapStatus ?? "created"] ?? WRAP_STATUS_META.created;
-          const step = meta.step;
-          const termFail = w.wrapStatus === "cancelled" || w.wrapStatus === "needs_reconciliation";
-          return {
-            ...w,
-            kind: "wrap" as const,
-            statusMeta: meta,
-            pipeline: PIPELINE_STEPS.map((s, i) => ({
-              key: s,
-              done: termFail ? false : step >= 0 && i <= step,
-              current: termFail ? false : PIPELINE_STEPS[step] === s,
-              failed: termFail && s === "created",
-            })),
-            firstMile: {
-              label: "Customer → Hold",
-              hash: w.paymentHash,
-              amountSats: w.amountSats,
-              done: ["accepted", "forwarding", "forwarded", "settled"].includes(w.wrapStatus ?? ""),
-            },
-            lastMile: {
-              label: "Float → Merchant",
-              hash: w.merchantPaymentHash,
-              amountSats: w.amountSats - (w.feeSats ?? 0),
-              feeSats: w.feeSats,
-              done: ["forwarded", "settled"].includes(w.wrapStatus ?? ""),
-            },
-          };
-        }),
+        payments,
+        wraps: wrapEntries,
         transactions: txs.map((t) => ({
           ...t,
           kind: "tx" as const,
@@ -743,6 +998,16 @@ export async function handleAdminPaymentsRoute(
       const meta = inv?.wrapStatus ? WRAP_STATUS_META[inv.wrapStatus] ?? null : null;
       const step = meta?.step ?? -1;
 
+      // Step timings for the detail view: earliest event per transition.
+      const stepTimesDetail: WrapStepTimes = {};
+      for (const e of eventRows) {
+        const key = STEP_EVENT_TO_KEY[e.event];
+        if (!key) continue;
+        const cur = stepTimesDetail[key];
+        if (!cur || e.createdAt < cur) stepTimesDetail[key] = e.createdAt;
+      }
+      const steps = inv ? stepsFromTimestamps(inv, stepTimesDetail) : null;
+
       return json(res, 200, {
         invoice: stripSecrets(inv as unknown as Record<string, unknown>),
         transaction: tx ? { ...tx, bolt11: tx.bolt11 ? `${tx.bolt11.slice(0, 24)}…` : null } : null,
@@ -750,6 +1015,7 @@ export async function handleAdminPaymentsRoute(
         businessName,
         counterparts,
         statusMeta: meta,
+        steps,
         pipeline: inv?.wrapStatus
           ? PIPELINE_STEPS.map((s, i) => ({
               key: s,
@@ -784,10 +1050,10 @@ export async function handleAdminPaymentsRoute(
           canAdvance: !!(inv?.wrapStatus && !["settled", "cancelled"].includes(inv.wrapStatus)),
           canLookup: !!(inv || tx),
           canRemediateTx: !!(tx && tx.direction === "out" && tx.status !== "completed"),
-          canCancelHold: !!(
-            inv?.wrapStatus &&
-            ["created", "accepted", "needs_reconciliation", "forwarding"].includes(inv.wrapStatus)
-          ),
+          // A "created" wrap holds nothing - closing it is a clean no-money
+          // action (cancelWrap re-checks the wallet first). Past that point the
+          // engine owns the refund path, so the admin lever is advance/lookup.
+          canCancelHold: inv?.wrapStatus === "created",
         },
       });
     } catch (err) {
@@ -805,33 +1071,7 @@ export async function handleAdminPaymentsRoute(
       if (!inv.wrapStatus) return json(res, 400, { error: "Not a wrapped invoice" });
 
       const before = inv.wrapStatus;
-      const row: WrapRow = {
-        id: inv.id,
-        accountId: inv.accountId,
-        paymentHash: inv.paymentHash,
-        amountSats: inv.amountSats,
-        merchantBolt11: inv.merchantBolt11,
-        merchantPaymentHash: inv.merchantPaymentHash,
-        feeSats: inv.feeSats,
-        memo: inv.memo,
-        deviceMac: inv.deviceMac,
-        bolt11: inv.bolt11,
-        wrapStatus: inv.wrapStatus,
-        preimage: inv.preimage,
-        holdPreimage: inv.holdPreimage,
-        wrapUpdatedAt: inv.wrapUpdatedAt,
-        nwcUrlEncrypted: inv.nwcUrlEncrypted,
-        paidAt: inv.paidAt,
-        expiresAt: inv.expiresAt,
-        fiatCurrency: inv.fiatCurrency,
-        fiatAmount: inv.fiatAmount,
-        fiatBaseRate: inv.fiatBaseRate,
-        fiatEffectiveRate: inv.fiatEffectiveRate,
-        fiatModifier: inv.fiatModifier,
-        fiatRateSource: inv.fiatRateSource,
-        fiatRateDirection: inv.fiatRateDirection,
-        fiatRateAt: inv.fiatRateAt,
-      };
+      const row: WrapRow = invToWrapRow(inv);
 
       const after = await advanceWrap(row);
 
@@ -853,6 +1093,96 @@ export async function handleAdminPaymentsRoute(
       return json(res, 200, { ok: true, before, after });
     } catch (err) {
       return json(res, 500, { error: err instanceof Error ? err.message : "Advance failed" });
+    }
+  }
+
+  // ── POST /api/admin/payments/:id/cancel-hold ────────────────────────────
+  // Close a stuck "created" checkout: only safe while the customer's payment
+  // has never been accepted. cancelWrap re-checks the wallet first and will
+  // advance instead if the money DID arrive - funds are never put at risk.
+  const cancelHoldMatch = u.pathname.match(/^\/api\/admin\/payments\/([^/]+)\/cancel-hold$/);
+  if (req.method === "POST" && cancelHoldMatch) {
+    try {
+      const id = decodeURIComponent(cancelHoldMatch[1]);
+      const [inv] = await db
+        .select()
+        .from(pendingInvoicesTable)
+        .where(or(eq(pendingInvoicesTable.id, id), eq(pendingInvoicesTable.paymentHash, id)))
+        .limit(1);
+      if (!inv) return json(res, 404, { error: "Invoice not found" });
+      if (!inv.wrapStatus) return json(res, 400, { error: "Not a wrapped invoice" });
+      if (inv.wrapStatus !== "created") {
+        return json(res, 409, {
+          ok: false,
+          status: inv.wrapStatus,
+          error: "The hold is past 'created' - it can only be advanced or settled, not cancelled",
+        });
+      }
+
+      const before = inv.wrapStatus;
+      const after = await cancelWrap(invToWrapRow(inv), "admin closed the checkout");
+      if (after !== "cancelled") {
+        await recordPaymentEventSync({
+          paymentId: inv.id,
+          accountId: inv.accountId,
+          kind: "admin",
+          event: "admin.cancel_hold",
+          status: "ambiguous",
+          mile: "first_mile",
+          message: `Admin cancel refused - the wallet shows activity or the wrap moved on (now ${after})`,
+          paymentHash: inv.paymentHash,
+          merchantPaymentHash: inv.merchantPaymentHash,
+          amountSats: inv.amountSats,
+          feeSats: inv.feeSats,
+          detail: { before, after, cancelled: false },
+        });
+        return json(res, 200, {
+          ok: false,
+          before,
+          after,
+          note: "Nothing was cancelled - the wallet shows activity or the wrap moved on.",
+        });
+      }
+
+      // Clear the payer's in-flight guard: a pending out-row for this hold can
+      // never settle now. Same finalize the card-tap reconciler uses.
+      const pending = await db
+        .select({ id: transactionsTable.id })
+        .from(transactionsTable)
+        .where(
+          and(
+            eq(transactionsTable.paymentHash, inv.paymentHash),
+            eq(transactionsTable.direction, "out"),
+            eq(transactionsTable.status, "pending"),
+          ),
+        );
+      for (const t of pending) {
+        await finalizePendingSend(t.id, {
+          status: "failed",
+          reason: "Checkout closed by admin; the hold was cancelled and no payment arrived",
+        }).catch(() => {});
+      }
+
+      await recordPaymentEventSync({
+        paymentId: inv.id,
+        accountId: inv.accountId,
+        kind: "admin",
+        event: "admin.cancel_hold",
+        status: "success",
+        mile: "first_mile",
+        message: `Admin closed the checkout (hold cancelled, no funds moved)${
+          pending.length ? `; ${pending.length} pending payer row(s) failed` : ""
+        }`,
+        paymentHash: inv.paymentHash,
+        merchantPaymentHash: inv.merchantPaymentHash,
+        amountSats: inv.amountSats,
+        feeSats: inv.feeSats,
+        detail: { before, after, closedPayerRows: pending.length },
+      });
+
+      return json(res, 200, { ok: true, before, after, closedPayerRows: pending.length });
+    } catch (err) {
+      return json(res, 500, { error: err instanceof Error ? err.message : "Cancel failed" });
     }
   }
 

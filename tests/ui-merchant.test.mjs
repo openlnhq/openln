@@ -143,6 +143,19 @@ test('treasury offers the analytics consoles with signed-in entry',()=>{
   assert.ok(src.includes("fetch('/at/mint'"),'the buttons mint a signed-in session first');
   assert.ok(src.includes("https://openln.com/traffic/")&&src.includes("https://openln.com/insights/"),'manual fallback keeps working on dev and other hosts');
 });
+test('treasury groups each sale into one row with a progress bar, timings and earnings',()=>{
+  const src=html.slice(html.indexOf('/* ---- ADMIN PAYMENTS'),html.indexOf('async function vAdminDetail('));
+  assert.ok(src.includes('data.payments'),'the list renders the grouped payments array');
+  assert.ok(src.includes("p.kind==='wrap'?admWrapRow(p):admTxRow(p.tx)"),'wrap entries render as one row with their legs folded in');
+  assert.ok(src.includes('admProgressBar')&&src.includes('ADM_STEP_LABELS'),'each sale gets a step progress bar');
+  assert.ok(src.includes('admStepInfo')&&src.includes('admDur')&&src.includes('admStepsLine'),'step timings and durations are derived');
+  assert.ok(src.includes('Earned · 24h')&&src.includes('Earned · 7 days')&&src.includes('Earned · 30 days'),'earnings windows render');
+  assert.ok(src.includes('admbars'),'the 14-day daily fee series renders');
+  assert.ok(src.includes("document.activeElement.id==='admSearch'"),'the live poll does not steal typing in the search box');
+  const detail=html.slice(html.indexOf('async function vAdminDetail('),html.indexOf('/* ---- ADMIN USERBASE'));
+  assert.ok(detail.includes('cancel-hold')&&detail.includes('Close stuck checkout'),'a created wrap can be closed from the detail');
+  assert.ok(detail.includes('admStepsLine(d.steps)'),'the detail prints the step timing line');
+});
 test('rate rows step in percent with inline live rates and a RIC explainer',()=>{
   const source=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));
   assert.ok(source.includes('buyRateMinus')&&source.includes('buyRatePlus')&&source.includes('sellRateMinus')&&source.includes('sellRatePlus'),'each rate row gets - and + steppers');

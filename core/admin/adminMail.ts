@@ -457,6 +457,10 @@ export async function handleAdminMailRoute(
           folders.find((f) => /trash/i.test(f.name));
         const lock = await c.getMailboxLock(path);
         try {
+          // Verify the uid exists first: MOVE/DELETE of a missing uid is an
+          // IMAP no-op that still answers OK, which would read as success.
+          const exists = await c.fetchOne(uid, { uid: true }, { uid: true });
+          if (!exists) return { moved: "missing", folder: path };
           if (trash && trash.path.toLowerCase() !== path.toLowerCase()) {
             await c.messageMove(uid, trash.path, { uid: true });
             return { moved: "trash", folder: path };
@@ -467,6 +471,7 @@ export async function handleAdminMailRoute(
           lock.release();
         }
       });
+      if (out.moved === "missing") return json(res, 404, { error: "Message not found" });
       return json(res, 200, { ok: true, ...out });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";

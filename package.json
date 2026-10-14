@@ -13,6 +13,7 @@
     "e2e:wallet-ready": "node scripts/e2e-wallet-readiness.mjs"
   },
   "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
     "@types/mailparser": "^3.9.0",
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^8.0.2",
@@ -29,6 +30,7 @@
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.44.0",
     "drizzle-zod": "^0.8.3",
+    "html-to-text": "^10.0.1",
     "imapflow": "^2.4.0",
     "mailparser": "^3.9.38",
     "node-cron": "^4.2.1",

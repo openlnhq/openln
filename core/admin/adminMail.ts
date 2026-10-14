@@ -17,7 +17,8 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ImapFlow, type ListResponse, type MessageAddressObject } from "imapflow";
-import { simpleParser } from "mailparser";
+import { simpleParser, type ParsedMail } from "mailparser";
+import { htmlToText } from "html-to-text";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { isAdmin, type AdminSessionAccount } from "./adminAuth.js";
@@ -183,6 +184,36 @@ function addrText(list: Addr[]): string {
     .map((a) => (a.name && a.address ? `${a.name} <${a.address}>` : a.address || a.name || ""))
     .filter(Boolean)
     .join(", ");
+}
+
+// ---------------------------------------------------------------------------
+// Body text
+// ---------------------------------------------------------------------------
+// Newsletters commonly carry an empty text/plain part (or none at all) with
+// the content only in HTML; mailparser's own fallback does not fire for those
+// shapes, so convert the HTML explicitly when the text part is blank.
+function mailBodyText(parsed: ParsedMail | null): string {
+  if (!parsed) return "(This message has no readable text content.)";
+  const rawText = parsed.text || "";
+  if (rawText.trim()) return rawText;
+  if (parsed.html) {
+    const clean = htmlToText(parsed.html, {
+      wordwrap: false,
+      selectors: [
+        { selector: "a", options: { ignoreHref: true } },
+        { selector: "img", format: "skip" },
+      ],
+    }).trim();
+    if (clean) return clean;
+    // Image-only marketing mail: the skip pass leaves nothing, so keep the
+    // raw conversion (image srcs as bracket tokens) rather than lose it.
+    const withTokens = htmlToText(parsed.html, {
+      wordwrap: false,
+      selectors: [{ selector: "a", options: { ignoreHref: true } }],
+    }).trim();
+    if (withTokens) return withTokens;
+  }
+  return "(This message has no readable text content.)";
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +384,7 @@ export async function handleAdminMailRoute(
             from,
             to,
             date,
-            text: parsed && parsed.text ? parsed.text : "(This message has no readable text content.)",
+            text: mailBodyText(parsed),
             attachments: parsed
               ? (parsed.attachments || []).slice(0, 10).map((a) => ({
                   filename: a.filename || "attachment",

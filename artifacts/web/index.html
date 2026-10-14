@@ -512,7 +512,7 @@ table.tb tr:last-child td{border-bottom:0}
 .admprog{display:flex;gap:4px;margin-top:9px}
 .admpg{flex:1;min-width:0}
 .admpg i{display:block;height:5px;border-radius:3px;background:var(--line);opacity:.55}
-.admpg i.d{background:var(--teal);opacity:.6}
+.admpg i.d{background:var(--teal);opacity:.8}
 .admpg i.c{background:var(--gold);opacity:1}
 .admpg i.f{background:var(--err);opacity:1}
 .admpg span{display:block;font-family:'JetBrains Mono',monospace;font-size:7.5px;letter-spacing:.09em;color:var(--text3);margin-top:3px}
@@ -3743,12 +3743,12 @@ function admTreasuryBlock(T){
     <div class="admstat"><div class="lbl">Wrapped volume</div><div class="val">${fmt(T.revenue.wrappedVolumeSats)}</div><div class="sub">merchant got ${fmt(T.revenue.merchantPaidSats)}</div></div>
     <div class="admstat"><div class="lbl">Open wraps</div><div class="val ${T.wraps.stuck>0?'r':T.float.openWraps>0?'a':''}">${T.float.openWraps}/${T.float.openCap}</div><div class="sub">${fmt(T.wraps.openVolumeSats)} sats locked</div></div>
     <div class="admstat"><div class="lbl">Needs recon</div><div class="val ${T.wraps.stuck>0?'r':''}">${T.wraps.stuck}</div><div class="sub">${T.wraps.cancelled} cancelled · ${fmt(T.revenue.cancelledVolumeSats)} sats</div></div>
-    <div class="admstat"><div class="lbl">24h</div><div class="val ${T.last24h.sendFails>0?'a':''}">${T.last24h.wrapsSettled} wraps</div><div class="sub">fee ${fmt(T.last24h.feeSats)}${avgMs!=null?` · avg ${admDur(avgMs)}`:''} · send fail ${T.last24h.sendFails}</div></div>
+    <div class="admstat"><div class="lbl">24h</div><div class="val ${T.last24h.sendFails>0?'a':''}">${T.last24h.wrapsSettled} wrap${T.last24h.wrapsSettled===1?'':'s'}</div><div class="sub">fee ${fmt(T.last24h.feeSats)}${avgMs!=null?` · avg ${admDur(avgMs)}`:''} · send fail ${T.last24h.sendFails}</div></div>
   </div>
   <div class="admgrid" style="margin-top:8px">
-    <div class="admstat"><div class="lbl">Earned · 24h</div><div class="val g">${fmt(d1.feeSats)}</div><div class="sub">${d1.wraps} wraps · ${fmt(d1.volumeSats)} vol</div></div>
-    <div class="admstat"><div class="lbl">Earned · 7 days</div><div class="val g">${fmt(d7.feeSats)}</div><div class="sub">${d7.wraps} wraps · ${fmt(d7.volumeSats)} vol</div></div>
-    <div class="admstat"><div class="lbl">Earned · 30 days</div><div class="val g">${fmt(d30.feeSats)}</div><div class="sub">${d30.wraps} wraps · ${fmt(d30.volumeSats)} vol</div></div>
+    <div class="admstat"><div class="lbl">Earned · 24h</div><div class="val g">${fmt(d1.feeSats)}</div><div class="sub">${d1.wraps} wrap${d1.wraps===1?'':'s'} · ${fmt(d1.volumeSats)} vol</div></div>
+    <div class="admstat"><div class="lbl">Earned · 7 days</div><div class="val g">${fmt(d7.feeSats)}</div><div class="sub">${d7.wraps} wrap${d7.wraps===1?'':'s'} · ${fmt(d7.volumeSats)} vol</div></div>
+    <div class="admstat"><div class="lbl">Earned · 30 days</div><div class="val g">${fmt(d30.feeSats)}</div><div class="sub">${d30.wraps} wrap${d30.wraps===1?'':'s'} · ${fmt(d30.volumeSats)} vol</div></div>
     <div class="admstat" style="grid-column:span 2;min-width:220px"><div class="lbl">Daily fee · 14 days</div><div class="admbars">${daily.some(d=>d.feeSats>0)?bars:'<span class="sub">no settled wraps yet</span>'}</div></div>
   </div>
   <p class="dim" style="font-size:11px;margin-top:8px;max-width:720px">${prose(T.mix.note)} Wrapped ${fmt(T.mix.wrappedInvoices)} · direct ${fmt(T.mix.directInvoices)}. Tx in ${fmt(T.transactions.volumeInSats)} · out ${fmt(T.transactions.volumeOutSats)} · fail ${T.transactions.failedOut}.</p>`;

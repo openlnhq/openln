@@ -747,7 +747,7 @@ export async function handleAdminPaymentsRoute(
           pipeline: PIPELINE_STEPS.map((s, i) => ({
             key: s,
             done: termFail ? false : step >= 0 && i <= step,
-            current: termFail ? false : PIPELINE_STEPS[step] === s,
+            current: termFail ? false : step >= 0 && step < 4 && PIPELINE_STEPS[step] === s,
             failed: termFail && s === "created",
           })),
           firstMile: {
@@ -1021,7 +1021,7 @@ export async function handleAdminPaymentsRoute(
               key: s,
               label: WRAP_STATUS_META[s].label,
               done: step >= 0 && i <= step,
-              current: step >= 0 && PIPELINE_STEPS[step] === s,
+              current: step >= 0 && step < 4 && PIPELINE_STEPS[step] === s,
               failed: step < 0,
             }))
           : null,

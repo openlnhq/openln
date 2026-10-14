@@ -206,6 +206,19 @@ test('treasury gains a Userbase console with health, balances and support views'
   assert.ok(html.includes("ADM_PAGE==='userbase'"),'page state routes between payments and userbase');
   assert.ok(html.includes('reportActivity(); startActivitySync();'),'boot reports presence for the admin console');
 });
+test('treasury gains a Mail console wired to the admin mail API',()=>{
+  const sec=html.slice(html.indexOf('/* ---- ADMIN MAIL'),html.indexOf('/* ---- INSTALL (PWA)'));
+  assert.ok(html.includes('id="admMailBtn"'),'the treasury header offers the Mail button');
+  assert.ok(html.includes("ADM_PAGE==='mail'"),'page state routes to the mail view');
+  assert.ok(sec.includes('api(`/api/admin/mail?'),'the list reads the admin mail API');
+  assert.ok(sec.includes('/api/admin/mail/message?'),'opening a message reads the detail endpoint');
+  assert.ok(sec.includes("'/api/admin/mail/send'"),'compose posts through the send endpoint');
+  assert.ok(sec.includes("'/api/admin/mail/delete'"),'delete posts through the delete endpoint');
+  assert.ok(sec.includes('admMailBadge'),'the unread count badges the Mail button');
+  assert.ok(sec.includes('admMailCompose'),'the compose modal exists');
+  assert.ok(sec.includes('admMailFolderChips')&&sec.includes('/api/admin/mail/folders'),'folder chips come from the folders endpoint');
+  assert.ok(sec.includes('esc(d.text'),'message bodies render through esc');
+});
 test('settings offer app install, and the app registers the service worker',()=>{
   const source=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));
   assert.ok(source.includes('setInstallRow'),'settings carry the install row');

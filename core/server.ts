@@ -35,6 +35,7 @@ import { handleShopRoute } from "../plugins/shop.js";
 import { handlePartnerRoute } from "../plugins/partner.js";
 import { handleAdminPaymentsRoute } from "./admin/adminPayments.js";
 import { handleAdminUserbaseRoute } from "./admin/adminUserbase.js";
+import { handleAdminMailRoute } from "./admin/adminMail.js";
 import { touchAccountActivity, recordActivityTimezone } from "./activity.js";
 import { DOMAIN } from "./domain.js";
 
@@ -326,6 +327,11 @@ const server = createServer(async (req, res) => {
     if (u.pathname.startsWith("/api/admin/userbase")) {
       const account = await sessionAccount();
       if (await handleAdminUserbaseRoute(req, res, u, account)) return;
+    }
+    // Admin mail console (the platform mailbox: list/read/send/delete).
+    if (u.pathname.startsWith("/api/admin/mail")) {
+      const account = await sessionAccount();
+      if (await handleAdminMailRoute(req, res, u, account)) return;
     }
     // ---- Presence telemetry (admin Userbase): app boot posts the browser
     // timezone; the server stamps IP + user agent. Throttled, best-effort. ----

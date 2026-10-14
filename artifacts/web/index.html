@@ -540,6 +540,17 @@ table.tb tr:last-child td{border-bottom:0}
 .admtl-body{min-width:0;flex:1}
 .admtl-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3)}
 .admtl-msg{font-size:12.5px;color:var(--text);margin-top:2px}
+/* treasury mail: one row per message; unread gets a gold dot and heavier text */
+.admmrow{display:grid;grid-template-columns:14px 190px 1fr 130px;gap:10px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);cursor:pointer;text-align:left;width:100%;background:none;color:inherit;font:inherit;transition:background .12s}
+.admmrow:first-of-type{border-top:0}
+.admmrow:hover{background:var(--surface)}
+.admmrow .dot{width:7px;height:7px;border-radius:50%;background:transparent}
+.admmrow.unread .dot{background:var(--gold)}
+.admmrow.unread .mf,.admmrow.unread .ms{color:var(--text);font-weight:590}
+.admmrow .mf{font-size:12.5px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admmrow .ms{font-size:12.5px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.admmrow .md{font-size:10px;color:var(--text3);text-align:right;white-space:nowrap}
+@media(max-width:820px){.admmrow{display:flex;flex-wrap:wrap;align-items:center;gap:3px 8px}.admmrow .ms{flex-basis:100%;order:9;font-size:11.5px;color:var(--text3)}.admmrow .md{margin-left:auto}}
 .admtl-err{font-size:10.5px;color:var(--err);font-family:'JetBrains Mono',monospace;margin-top:2px}
 .admactions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .admlegs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -3561,7 +3572,7 @@ let ADM_ACT_FOR=null; // which payment the message belongs to
 let ADM_Q='', ADM_KIND='all', ADM_STATUS='all';
 let ADM_POLL_TIMER=null, ADM_LIVE=true;
 let ADM_PAGE='payments', ADM_UB_ID=null, ADM_UB_Q='', ADM_UB_ROWS=[], ADM_UB_BAL={}, ADM_UB_CBAL={}, ADM_UB_TIMER=null;
-function admStopPoll(){ if(ADM_POLL_TIMER){clearInterval(ADM_POLL_TIMER);ADM_POLL_TIMER=null} if(ADM_UB_TIMER){clearInterval(ADM_UB_TIMER);ADM_UB_TIMER=null} }
+function admStopPoll(){ if(ADM_POLL_TIMER){clearInterval(ADM_POLL_TIMER);ADM_POLL_TIMER=null} if(ADM_UB_TIMER){clearInterval(ADM_UB_TIMER);ADM_UB_TIMER=null} admMailStop(); }
 const ADM_STATUS_META={
   created:{label:'Hold open',color:'slate'}, accepted:{label:'Customer paid',color:'blue'},
   forwarding:{label:'Paying merchant',color:'amber'}, forwarded:{label:'Merchant paid',color:'violet'},
@@ -3645,6 +3656,7 @@ async function vAdminPayments(){
     if(ADM_UB_ID) return vAdminUserDetail(ADM_UB_ID);
     return vAdminUserbase();
   }
+  if(ADM_PAGE==='mail'){ admStopPoll(); return vAdminMail(); }
   if(ADM_ID) return vAdminDetail(ADM_ID);
   return vAdminList();
 }
@@ -3657,6 +3669,7 @@ async function vAdminList(){
       <p class="muted" style="margin:8px 0 0;max-width:640px">Hold-wrap pipeline, float balance, and payment/transaction ledger. Admin-only.</p></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn ghost sm" id="admUserbase" style="white-space:nowrap">Userbase</button>
+        <button class="btn ghost sm" id="admMailBtn" style="white-space:nowrap">Mail<span id="admMailBadge" style="display:none;margin-left:7px;background:var(--gold-dim);color:var(--gold);border:1px solid rgba(245,197,24,.3);border-radius:999px;padding:1px 7px;font-size:10px;font-weight:590">0</span></button>
         <button class="btn ghost sm" id="admLiveToggle" style="white-space:nowrap"><span class="pulse ${ADM_LIVE?'':'ok'}" style="margin-right:6px"></span>${ADM_LIVE?'Live':'Paused'}</button>
       </div>
     </div>
@@ -3675,6 +3688,8 @@ async function vAdminList(){
   </div>`;
   $('#admLiveToggle').onclick=()=>{ADM_LIVE=!ADM_LIVE;if(ADM_LIVE)admStartListPoll();else admStopPoll();vAdminList()};
   $('#admUserbase').onclick=()=>{ADM_PAGE='userbase';ADM_UB_ID=null;vAdminPayments()};
+  $('#admMailBtn').onclick=()=>{ADM_PAGE='mail';admMailReset();vAdminPayments()};
+  admMailBadge();
   $('#admAnalytics').querySelectorAll('[data-ana]').forEach(b=>b.onclick=()=>anaOpen(b.dataset.ana));
   await admRenderList();
   if(ADM_LIVE)admStartListPoll();
@@ -4268,6 +4283,170 @@ async function admRenderUbDetail(id){
       balBtn.disabled=false; balBtn.textContent='Check balances';
     };
   }catch(e){ body.innerHTML=`<div class="card"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`; }
+}
+/* ---- ADMIN MAIL (treasury inbox) ---- */
+// The platform mailbox as a treasury page: folder chips, message list, reader
+// with reply and delete, and a compose modal. Everything goes through
+// /api/admin/mail*; the server owns the IMAP/SMTP connection and the admin
+// gate. Text bodies render as pre-wrapped plain text (no HTML execution).
+let ADM_MAIL={folder:'INBOX',folders:null,list:null,total:0,unread:0,sel:null,msg:null,timer:null};
+function admMailReset(){ADM_MAIL.sel=null;ADM_MAIL.msg=null;}
+function admMailStop(){if(ADM_MAIL.timer){clearInterval(ADM_MAIL.timer);ADM_MAIL.timer=null;}}
+async function admMailBadge(){
+  try{
+    const d=await api('/api/admin/mail?limit=1');
+    const b=$('#admMailBadge'); if(!b)return;
+    if(d.unread>0){b.textContent=d.unread>99?'99+':String(d.unread);b.style.display='inline-block'}
+    else b.style.display='none';
+  }catch(e){ /* the badge is cosmetic; the mail page itself shows real errors */ }
+}
+function admMailFolderChips(){
+  const box=$('#admMailFolders'); if(!box)return;
+  const folders=(ADM_MAIL.folders&&ADM_MAIL.folders.length?ADM_MAIL.folders:[{path:'INBOX',name:'Inbox'}]).slice(0,6);
+  box.innerHTML=folders.map(f=>`<button class="btn ${f.path===ADM_MAIL.folder?'teal':'ghost'} sm" data-mf="${esc(f.path)}">${esc(f.name||f.path)}</button>`).join('');
+  box.querySelectorAll('[data-mf]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.mf===ADM_MAIL.folder)return;
+    ADM_MAIL.folder=b.dataset.mf; admMailReset(); admRenderMailList();
+  });
+}
+async function vAdminMail(){
+  admStopPoll();
+  $('#view').innerHTML=`<div style="margin-top:30px" id="admRoot">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <div><div class="overline">Treasury</div>
+      <h1 class="page">Mail</h1>
+      <p class="muted" style="margin:8px 0 0;max-width:680px">The platform inbox. Read, reply, send, and clear out. Admin-only.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn ghost sm" id="admMailBack">‹ Payments</button>
+        <button class="btn teal sm" id="admMailCompose">Compose</button>
+        <button class="btn ghost sm" id="admMailRefresh">Refresh</button>
+      </div>
+    </div>
+    <div class="admfilters" id="admMailFolders"></div>
+    <div id="admMailBody"><div style="padding:40px 0;text-align:center"><span class="spin"></span></div></div>
+  </div>`;
+  $('#admMailBack').onclick=()=>{ADM_PAGE='payments';ADM_ID=null;vAdminPayments()};
+  $('#admMailCompose').onclick=()=>admMailCompose();
+  $('#admMailRefresh').onclick=()=>{admMailReset();admRenderMailList()};
+  if(!ADM_MAIL.folders){ try{ const d=await api('/api/admin/mail/folders'); ADM_MAIL.folders=d.folders||[]; }catch(e){ ADM_MAIL.folders=[]; } }
+  admMailFolderChips();
+  await admRenderMailList();
+  admMailStop();
+  ADM_MAIL.timer=setInterval(()=>{ if(VIEW==='adminpayments'&&ADM_PAGE==='mail'&&!ADM_MAIL.sel&&!$('.modal')) admRenderMailList(true) },60000);
+}
+async function admRenderMailList(silent){
+  const body=$('#admMailBody'); if(!body) return;
+  if(!silent) body.innerHTML=`<div style="padding:40px 0;text-align:center"><span class="spin"></span></div>`;
+  try{
+    const params=new URLSearchParams(); params.set('folder',ADM_MAIL.folder); params.set('limit','30');
+    const d=await api(`/api/admin/mail?${params}`);
+    ADM_MAIL.list=d.messages||[]; ADM_MAIL.total=d.total||0; ADM_MAIL.unread=Math.max(0,d.unread||0);
+    body.innerHTML=admMailListHtml();
+    body.querySelectorAll('[data-muid]').forEach(b=>b.onclick=()=>admMailOpen(Number(b.dataset.muid)));
+  }catch(e){
+    ADM_MAIL.list=null;
+    if(!silent) body.innerHTML=`<div class="card" style="margin-top:10px"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`;
+  }
+}
+function admMailListHtml(){
+  const msgs=ADM_MAIL.list||[];
+  if(!msgs.length) return `<div class="card" style="margin-top:10px;text-align:center;color:var(--text3);font-size:13px;padding:32px 0">Nothing in this folder.</div>`;
+  const rows=msgs.map(m=>{
+    const f=(m.from&&m.from[0])?m.from[0]:null;
+    const from=f?(f.name||f.address||'(unknown sender)'):'(unknown sender)';
+    const dt=m.date?new Date(m.date):null;
+    const when=dt?`${dt.toLocaleDateString([], {month:'short',day:'numeric'})} ${dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',hour12:false})}`:'-';
+    return `<button type="button" class="admmrow${m.seen?'':' unread'}" data-muid="${m.uid}">
+      <span class="dot"></span>
+      <span class="mf">${esc(from)}</span>
+      <span class="ms">${esc(m.subject||'(no subject)')}</span>
+      <span class="md mono">${esc(when)}</span>
+    </button>`;
+  }).join('');
+  return `<div class="card" style="margin-top:10px;padding:0;overflow:hidden">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line)">
+      <span class="mono" style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text3)">${esc(ADM_MAIL.folder)} · ${ADM_MAIL.total} message${ADM_MAIL.total===1?'':'s'}</span>
+      ${ADM_MAIL.unread>0?`<span class="admpill amber">${ADM_MAIL.unread} unread</span>`:''}
+    </div>
+    ${rows}
+  </div>`;
+}
+async function admMailOpen(uid){
+  const body=$('#admMailBody'); if(!body) return;
+  ADM_MAIL.sel=uid;
+  body.innerHTML=`<div style="padding:40px 0;text-align:center"><span class="spin"></span></div>`;
+  try{
+    const params=new URLSearchParams(); params.set('uid',String(uid)); params.set('folder',ADM_MAIL.folder);
+    const d=await api(`/api/admin/mail/message?${params}`);
+    ADM_MAIL.msg=d;
+    const f=(d.from&&d.from[0])?d.from[0]:null;
+    const from=f?(f.name?`${f.name} <${f.address||''}>`:(f.address||'-')):'-';
+    const to=(d.to||[]).map(a=>a.address||a.name||'').filter(Boolean).join(', ');
+    const att=(d.attachments||[]);
+    const dt=d.date?new Date(d.date):null;
+    body.innerHTML=`<div class="card" style="margin-top:10px" id="admMailCard">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="backlink" id="admMailListBack">‹ Back to list</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn ghost sm" id="admMailReply">Reply</button>
+          <button class="btn danger sm" id="admMailDel">Delete</button>
+        </div>
+      </div>
+      <h2 style="font-size:17px;font-weight:590;margin:12px 0 6px;letter-spacing:-.3px;word-break:break-word">${esc(d.subject||'(no subject)')}</h2>
+      <div class="mono" style="font-size:11px;color:var(--text3);line-height:1.7;word-break:break-word">
+        <div>from ${esc(from)}</div>
+        <div>to ${esc(to||'-')}</div>
+        <div>${dt?esc(dt.toLocaleString()):''}${d.folder?' · '+esc(d.folder):''}</div>
+        ${att.length?`<div>${att.length} attachment${att.length===1?'':'s'}: ${esc(att.map(a=>a.filename).join(', '))}</div>`:''}
+      </div>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);font-size:13.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word">${esc(d.text||'(no text content)')}</div>
+    </div>`;
+    $('#admMailListBack').onclick=()=>{admMailReset();admRenderMailList()};
+    $('#admMailReply').onclick=()=>admMailCompose({to:(d.from&&d.from[0]&&d.from[0].address)||'',subject:/^re:/i.test(d.subject||'')?(d.subject||''):('Re: '+(d.subject||''))});
+    $('#admMailDel').onclick=()=>admMailDelete(uid);
+  }catch(e){
+    ADM_MAIL.sel=null;
+    body.innerHTML=`<div class="card" style="margin-top:10px"><p style="color:var(--err);font-size:13px">${prose(e.message)}</p></div>`;
+  }
+}
+async function admMailDelete(uid){
+  const ok=await dlgConfirm({title:'Delete this message?',body:'It moves to Trash, or is removed for good when it is already in Trash.',confirmText:'Delete',cancelText:'Keep',danger:true});
+  if(!ok) return;
+  try{
+    await api('/api/admin/mail/delete',{method:'POST',body:JSON.stringify({uid,folder:ADM_MAIL.folder})});
+    toast('Message deleted');
+    admMailReset(); await admRenderMailList();
+  }catch(e){ toast(e.message) }
+}
+function admMailCompose(prefill){
+  prefill=prefill||{};
+  const m=modal(`<div class="modalhead"><h2>Compose</h2><button class="xbtn" aria-label="Close">✕</button></div>
+    <form id="admMailForm" style="display:flex;flex-direction:column;gap:10px;min-width:min(560px,84vw)">
+      <label class="field"><span>To</span><input class="input mono" id="admMailTo" type="text" inputmode="email" autocomplete="off" placeholder="name@example.com" maxlength="320" value="${esc(prefill.to||'')}"></label>
+      <label class="field"><span>Subject</span><input class="input" id="admMailSubject" type="text" maxlength="200" value="${esc(prefill.subject||'')}"></label>
+      <label class="field"><span>Message</span><textarea class="input" id="admMailText" rows="9" style="min-height:150px;font-family:inherit;line-height:1.6;resize:vertical" placeholder="Write your message"></textarea></label>
+      <div class="hint" id="admMailErr" style="color:var(--err);min-height:14px"></div>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="btn ghost" id="admMailCancel" style="flex:1;justify-content:center">Cancel</button>
+        <button type="submit" class="btn teal" id="admMailSend" style="flex:1;justify-content:center">Send</button>
+      </div>
+    </form>`);
+  m.querySelector('#admMailCancel').onclick=()=>m.remove();
+  m.querySelector('#admMailForm').onsubmit=async e=>{
+    e.preventDefault();
+    const btn=m.querySelector('#admMailSend'), err=m.querySelector('#admMailErr');
+    const to=m.querySelector('#admMailTo').value.trim();
+    const subject=m.querySelector('#admMailSubject').value.trim();
+    const text=m.querySelector('#admMailText').value;
+    if(!to){err.textContent='Add a recipient';return}
+    if(!text.trim()){err.textContent='Write a message first';return}
+    btn.disabled=true; btn.textContent='Sending...'; err.textContent='';
+    try{
+      await api('/api/admin/mail/send',{method:'POST',body:JSON.stringify({to,subject,text})});
+      toast('Message sent'); m.remove();
+      if(ADM_PAGE==='mail'){ admMailReset(); admRenderMailList(); }
+    }catch(ex){ err.textContent=displayText(ex.message); btn.disabled=false; btn.textContent='Send'; }
+  };
 }
 /* ---- INSTALL (PWA) ---- */
 // Installability is manifest-driven (display: standalone in

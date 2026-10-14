@@ -155,6 +155,7 @@ test('treasury groups each sale into one row with a progress bar, timings and ea
   const detail=html.slice(html.indexOf('async function vAdminDetail('),html.indexOf('/* ---- ADMIN USERBASE'));
   assert.ok(detail.includes('cancel-hold')&&detail.includes('Close stuck checkout'),'a created wrap can be closed from the detail');
   assert.ok(detail.includes('admStepsLine(d.steps)'),'the detail prints the step timing line');
+  assert.ok(detail.includes('ADM_ACT_MSG'),'action results survive the detail re-render');
 });
 test('rate rows step in percent with inline live rates and a RIC explainer',()=>{
   const source=html.slice(html.indexOf('async function vSettings('),html.indexOf('/* ---- PARTNER ---- */'));

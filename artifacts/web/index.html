@@ -3556,6 +3556,8 @@ async function renderPartner(d,pid){
 }
 /* ---- ADMIN PAYMENTS (treasury ops console) ---- */
 let ADM_ID=null; // selected payment id, null = list view
+let ADM_ACT_MSG=''; // last action result, kept across the detail re-render
+let ADM_ACT_FOR=null; // which payment the message belongs to
 let ADM_Q='', ADM_KIND='all', ADM_STATUS='all';
 let ADM_POLL_TIMER=null, ADM_LIVE=true;
 let ADM_PAGE='payments', ADM_UB_ID=null, ADM_UB_Q='', ADM_UB_ROWS=[], ADM_UB_BAL={}, ADM_UB_CBAL={}, ADM_UB_TIMER=null;
@@ -3647,6 +3649,7 @@ async function vAdminPayments(){
   return vAdminList();
 }
 async function vAdminList(){
+  ADM_ACT_MSG='';ADM_ACT_FOR=null;
   $('#view').innerHTML=`<div style="margin-top:30px" id="admRoot">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
       <div><div class="overline">Treasury</div>
@@ -3809,6 +3812,7 @@ function admStartDetailPoll(id){
 }
 async function admRenderDetail(id,silent){
   const body=$('#admDetailBody'); if(!body) return;
+  if(ADM_ACT_FOR!==id) ADM_ACT_MSG=''; // message belongs to one payment only
   const noteVal=silent?($('#admNote')?.value??''):'';
   try{
     const d=await api(`/api/admin/payments/${encodeURIComponent(id)}`);
@@ -3862,7 +3866,10 @@ async function admRenderDetail(id,silent){
       </div>`;
     body.querySelectorAll('[data-adm-id]').forEach(b=>b.onclick=()=>{ADM_ID=b.dataset.admId;admRenderDetail(ADM_ID)});
     const msgBox=$('#admActionMsg');
-    const showMsg=(txt)=>{msgBox.style.display='block';msgBox.textContent=displayText(txt)};
+    // Action results must survive the post-action re-render (and the 2s poll),
+    // otherwise the operator never sees what came back.
+    if(ADM_ACT_MSG && msgBox){ msgBox.style.display='block'; msgBox.textContent=ADM_ACT_MSG; }
+    const showMsg=(txt)=>{ADM_ACT_MSG=displayText(txt);ADM_ACT_FOR=id;msgBox.style.display='block';msgBox.textContent=ADM_ACT_MSG};
     body.querySelectorAll('[data-adm-act]').forEach(b=>b.onclick=async()=>{
       const act=b.dataset.admAct;
       try{
